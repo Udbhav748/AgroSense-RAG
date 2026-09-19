@@ -27,7 +27,7 @@ import hashlib
 import logging
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from app.core.config import settings
@@ -507,6 +507,23 @@ def _build_diagnosis_query(
     return f"{base}. {user_query}" if user_query else base
 
 
+def _build_diagnosis_info(prediction: VisionPrediction) -> DiagnosisInfo:
+    """Build the DiagnosisInfo response field from a vision prediction.
+    Extracted from handle_diagnose/stream_diagnose, which each constructed
+    this identically 3 times (cache-hit stamping, a research-agent direct
+    hit, and the final response) — one implementation now, not six."""
+    return DiagnosisInfo(
+        raw_class=prediction.raw_class,
+        crop=prediction.crop,
+        disease=prediction.disease,
+        confidence=prediction.confidence,
+        low_confidence=prediction.low_confidence,
+        heatmap_base64=prediction.heatmap_base64,
+        infected_area_percentage=prediction.infected_area_percentage,
+        lesion_count=prediction.lesion_count,
+    )
+
+
 def _format_weather_instruction(weather_risk: WeatherRiskResponse) -> str:
     """Format structured microclimate intelligence into an agronomy prompt directive."""
     loc = (
@@ -533,6 +550,21 @@ class PlanDecision:
     document_id: str | None = None
     crop: str | None = None
     collection: str | None = None
+
+
+@dataclass
+class RetrievalAugmentation:
+    """Return type of ChatService._augment_weak_retrieval — see its
+    docstring. At most one of vision_qa/local_research/research_agent
+    produces a direct final_answer; a plain web_search fallback only ever
+    populates web_results/web_search_attempted."""
+
+    final_answer: str | None = None
+    final_chunks: list[RetrievedChunk] | None = None
+    tool_used: str | None = None  # "vision_qa" | "local_research" | "research_agent" | None
+    extra_steps: int = 0
+    web_results: list[WebSearchResult] = field(default_factory=list)
+    web_search_attempted: bool = False
 
 
 class ChatService:
@@ -967,6 +999,75 @@ class ChatService:
         for: the handoff plus one per sub-step the agent actually took."""
         return 1 + len(findings.steps)
 
+    def _augment_weak_retrieval(
+        self,
+        query: str,
+        retrieval_query: str,
+        chunks: list[RetrievedChunk],
+        grade: str,
+        plan_action: str,
+        tenant_id: int | None,
+        confirm_web_search: bool,
+    ) -> RetrievalAugmentation:
+        """Escalate a weak/insufficient retrieval grade through, in
+        precedence order: vision-grounded QA -> local document research
+        agent -> research agent (web) -> plain web search fallback.
+
+        Extracted verbatim from handle_query's inline block (each check's
+        settings flag, ordering, and early-return condition is unchanged)
+        so BOTH handle_query and the graph's context_augmentation_node call
+        this one implementation — no duplicated escalation logic between
+        the two execution paths, per the "avoid duplicated logic between
+        streaming and non-streaming" design constraint.
+
+        A direct hit (vision QA / local research / research agent) sets
+        `final_answer` (and, for local research, `final_chunks`) — callers
+        should treat that as an immediate response, skipping generation
+        entirely, exactly as handle_query's early `return self._respond(...)`
+        did before this extraction. No hit at all still returns
+        `web_results`/`web_search_attempted` for the generation step that
+        follows.
+        """
+        result = RetrievalAugmentation()
+
+        if settings.vision_qa_enabled and grade != "good":
+            vision_answer = try_vision_qa(query, chunks, self._llm_client)
+            if vision_answer:
+                result.final_answer = vision_answer
+                result.tool_used = "vision_qa"
+                result.extra_steps = 1
+                return result
+
+        if settings.local_research_agent_enabled and grade != "good":
+            local_findings = self._local_research_agent.run(retrieval_query, tenant_id=tenant_id)
+            if local_findings.answer:
+                result.final_answer = local_findings.answer
+                result.final_chunks = local_findings.chunks
+                result.tool_used = "local_research"
+                result.extra_steps = 1
+                return result
+
+        research_attempted = False
+        if grade != "good" or plan_action == "research":
+            if settings.research_agent_enabled and settings.web_search_enabled:
+                research_attempted = True
+                findings = self._research_handoff(
+                    query,
+                    confirm_web_search,
+                    reason="planned" if plan_action == "research" else "weak_grade",
+                )
+                if findings.answer:
+                    result.final_answer = findings.answer
+                    result.tool_used = "research_agent"
+                    result.extra_steps = self._research_steps(findings)
+                    result.web_results = findings.results
+                    return result
+            if settings.web_search_enabled and not research_attempted:
+                result.web_results = self._search_web(query, confirm_web_search=confirm_web_search)
+                result.web_search_attempted = True
+
+        return result
+
     def _generate(
         self,
         query: str,
@@ -1220,6 +1321,38 @@ class ChatService:
             return all(result.get(str(n), True) for n, _ in cited_pairs)
         except Exception:
             return True
+
+    def _maybe_ask_clarifying_question(self, query: str, answer: str, grade: str) -> tuple[str, bool]:
+        """Agent 1.4 — Ask-instead-of-guess: when retrieval graded
+        "insufficient" and the corrective loop still couldn't produce a
+        grounded answer (sitting on the literal fallback line), ask one
+        short clarifying question instead of shipping the canned "couldn't
+        find that" reply, when Settings.clarifying_question_enabled.
+        Returns (answer, is_clarifying_question) — degrades to
+        (answer, False) unchanged on any failure or when the conditions
+        don't apply, exactly matching handle_query's original inline
+        behavior (this is a straight extraction, not new logic).
+        """
+        if not (
+            settings.clarifying_question_enabled
+            and grade == "insufficient"
+            and answer.strip() == FALLBACK_REPLY
+        ):
+            return answer, False
+        try:
+            clarifying_prompt = (
+                f"The user asked: {query}\n\n"
+                "No relevant information was found in their documents, and "
+                "the question may be ambiguous or missing detail. Suggest "
+                "ONE short clarifying question to ask them. Return ONLY the "
+                "question, nothing else."
+            )
+            clarification = self._llm_client.generate(clarifying_prompt).strip()
+            if clarification:
+                return clarification, True
+        except Exception:
+            pass  # falls through, answer stays FALLBACK_REPLY exactly as today
+        return answer, False
 
     def _suggest_follow_ups(self, query: str, answer: str) -> list[str]:
         """Suggest up to 3 short follow-up questions. Degrades to an
@@ -1586,240 +1719,53 @@ class ChatService:
                 session_id=session_id,
             )
 
-        recent_history = history[-_MAX_HISTORY_TURNS:] if history else None
-
-        try:
-            if plan.action == "summarize":
-                steps_taken += 1  # fetch document chunks
+        if plan.action == "summarize":
+            steps_taken += 1  # fetch document chunks
+            try:
                 summary, chunks = summarize_document(
                     plan.document_id, self._vector_store, self._llm_client, tenant_id=tenant_id
                 )
-                steps_taken += 1  # generation
-                return self._respond(
-                    answer=summary,
-                    retrieved_chunks=chunks,
-                    query=query,
-                    query_type="summarize",
-                    tool_used="summarization",
-                    steps_taken=steps_taken,
-                    start=start,
-                    session_id=session_id,
-                )
-
-            # plan.action in ("retrieve", "research") — the corrective RAG
-            # loop. Check cache first (only cache final responses after
-            # corrective loop, and only for plain retrieve — a research
-            # answer depends on live web state, so it's never cached).
-            plan_crop = getattr(plan, "crop", None)
-            plan_disease = getattr(plan, "disease", None)
-            cached = None
-            if not history and not recent_history:
-                cached = self._get_cached_response(
-                    query=query,
-                    crop=plan_crop,
-                    disease=plan_disease,
-                    tenant_id=tenant_id,
-                    document_ids=document_ids,
-                )
-            if cached is not None:
-                logger.info(
-                    "cache_hit",
-                    extra={
-                        "extra_fields": {
-                            "query": query,
-                            "crop": plan_crop,
-                            "disease": plan_disease,
-                            "session_id": session_id or "none",
-                            "cached": True,
-                        }
-                    },
-                )
-                cached_dict = cached.model_dump()
-                cached_dict["session_id"] = session_id or cached_dict.get("session_id", "")
-                if "metadata" not in cached_dict or not isinstance(cached_dict["metadata"], dict):
-                    cached_dict["metadata"] = {}
-                cached_dict["metadata"]["cached"] = True
-                return ChatResponse.model_validate(cached_dict)
-
-            steps_taken += 1  # retrieval
-            # A follow-up question retrieves blind to conversation context
-            # unless it's first rewritten into a standalone question (see
-            # Settings.query_contextualization_enabled) — the raw follow-up
-            # text alone ("what about the other one?") is a poor query.
-            # Only the value passed into retrieve() changes; every other use
-            # of `query` (generation, citations, caching, logging) stays the
-            # original user text.
-            retrieval_query = query
-            if settings.query_contextualization_enabled and recent_history:
-                retrieval_query = self._contextualize_query(query, recent_history)
-            retrieve_kwargs: dict[str, Any] = {
-                "top_k": top_k,
-                "min_score": min_score,
-                "tenant_id": tenant_id,
-                "image_vector_store": self._image_vector_store,
-            }
-            if document_ids is not None:
-                retrieve_kwargs["document_ids"] = document_ids
-            elif plan.collection:
-                retrieve_kwargs["collection"] = plan.collection
-            if plan.crop is not None or plan.collection is not None:
-                retrieve_kwargs["rerank"] = True
-            chunks = retrieve(retrieval_query, self._vector_store, **retrieve_kwargs)
-
-            steps_taken += 1  # grading
-            grade = self._grade_retrieval(retrieval_query, chunks)
-
-            # Vision-grounded QA (Phase 3 of multi-modal RAG): when
-            # retrieval came back weak/insufficient, the low-text pages of
-            # the most relevant document may contain the answer as an image
-            # even though their text layer (and thus retrieval) is thin —
-            # send those page rasters straight to a vision-capable LLM. Off
-            # by default (a paid vision call per attempt); degrades to None
-            # and falls through to the web-search path below when the
-            # document has no page rasters or the provider can't see images.
-            if settings.vision_qa_enabled and grade != "good":
-                vision_answer = try_vision_qa(query, chunks, self._llm_client)
-                if vision_answer:
-                    steps_taken += 1  # vision QA
-                    return self._respond(
-                        answer=vision_answer,
-                        retrieved_chunks=chunks,
-                        query=query,
-                        query_type="document_query",
-                        tool_used="vision_qa",
-                        steps_taken=steps_taken,
-                        start=start,
-                        session_id=session_id,
-                    )
-
-            # A weak/insufficient grade pulls in web context *before* the
-            # first generation attempt, so the model has it alongside
-            # whatever chunks did come back (the "corrective" part of
-            # corrective RAG). With the research agent enabled, that web
-            # pass is a full plan→search→read→synthesize agent handoff
-            # instead of a single search_web() call; if the research agent
-            # comes back empty (or is disabled), fall back to the plain
-            # web-search fallback as before.
-            #
-            # plan.action == "research" forces this block even when the
-            # grade came back "good": the router only assigns "research"
-            # when it judged the query outside the corpus entirely, and
-            # gating that purely on the retrieval-score heuristic would let
-            # a coincidentally-high-scoring but wrong chunk silently
-            # override the router's explicit decision.
-            web_results: list[WebSearchResult] = []
-            web_search_attempted = False
-            research_attempted = False
-            # Local Document Research Agent (Agent 2.3): when retrieval came
-            # back weak/insufficient, hand the query to a plan-decompose-
-            # search-synthesize loop pointed at this app's OWN document
-            # retrieval instead of the web — useful for questions that need
-            # combining content from different parts of a document. Checked
-            # before the web research handoff: local documents are the
-            # primary source of truth. Off by default.
-            if settings.local_research_agent_enabled and grade != "good":
-                local_findings = self._local_research_agent.run(
-                    retrieval_query, tenant_id=tenant_id
-                )
-                if local_findings.answer:
-                    steps_taken += 1  # local research pass
-                    return self._respond(
-                        answer=local_findings.answer,
-                        retrieved_chunks=local_findings.chunks,
-                        query=query,
-                        query_type="document_query",
-                        tool_used="local_research",
-                        steps_taken=steps_taken,
-                        start=start,
-                        session_id=session_id,
-                        retrieval_confidence=grade,
-                    )
-            if grade != "good" or plan.action == "research":
-                if settings.research_agent_enabled and settings.web_search_enabled:
-                    research_attempted = True
-                    findings = self._research_handoff(
-                        query,
-                        confirm_web_search,
-                        reason="planned" if plan.action == "research" else "weak_grade",
-                    )
-                    if findings.answer:
-                        steps_taken += self._research_steps(findings)
-                        return self._respond(
-                            answer=findings.answer,
-                            retrieved_chunks=chunks,
-                            query=query,
-                            query_type="document_query",
-                            tool_used="research_agent",
-                            steps_taken=steps_taken,
-                            start=start,
-                            web_results=findings.results,
-                            session_id=session_id,
-                        )
-                if settings.web_search_enabled and not research_attempted:
-                    web_results = self._search_web(query, confirm_web_search=confirm_web_search)
-                    web_search_attempted = True
-                    steps_taken += 1  # web search
-
-            if settings.structured_output_enabled and structured_response:
-                answer = self._generate_structured(
-                    query, chunks, recent_history, web_results=web_results, persona=persona, language=language
-                )
-            else:
-                answer = self._generate(
-                    query, chunks, recent_history, web_results=web_results, persona=persona, language=language
-                )
-            llm_calls = 1
+            except AppError:
+                raise
+            except Exception as exc:
+                raise ChatServiceError(f"Unexpected error while handling chat query: {exc}") from exc
             steps_taken += 1  # generation
-
-            answer, llm_calls, steps_taken, web_results, web_search_attempted = self._correct(
-                query,
-                chunks,
-                answer,
-                recent_history,
-                web_results,
-                web_search_attempted,
-                llm_calls,
-                steps_taken,
-                confirm_web_search=confirm_web_search,
-                persona=persona,
-                language=language,
+            return self._respond(
+                answer=summary,
+                retrieved_chunks=chunks,
+                query=query,
+                query_type="summarize",
+                tool_used="summarization",
+                steps_taken=steps_taken,
+                start=start,
+                session_id=session_id,
             )
 
-            # Agent 1.4 — Ask-instead-of-guess: retrieval graded
-            # "insufficient", the corrective loop still couldn't produce a
-            # grounded answer (we're sitting on the literal fallback line),
-            # and the flag is on — so ask one short clarifying question
-            # instead of shipping the canned "couldn't find that" reply. A
-            # better outcome when the real problem is an ambiguous question,
-            # not missing content. Degrades to today's exact fallback on any
-            # LLM failure (except clause leaves answer untouched).
-            is_clarifying_question = False
-            if (
-                settings.clarifying_question_enabled
-                and grade == "insufficient"
-                and answer.strip() == FALLBACK_REPLY
-            ):
-                try:
-                    clarifying_prompt = (
-                        f"The user asked: {query}\n\n"
-                        "No relevant information was found in their documents, and "
-                        "the question may be ambiguous or missing detail. Suggest "
-                        "ONE short clarifying question to ask them. Return ONLY the "
-                        "question, nothing else."
-                    )
-                    clarification = self._llm_client.generate(clarifying_prompt).strip()
-                    if clarification:
-                        answer = clarification
-                        is_clarifying_question = True
-                except Exception:
-                    pass  # falls through, answer stays FALLBACK_REPLY exactly as today
-
-            # Agent 2.2 — After the main answer, suggest up to 3 natural
-            # follow-up questions (the "related questions" pattern). Parsed
-            # defensively; any failure degrades to an empty list.
-            follow_up_questions = []
-            if settings.follow_up_questions_enabled:
-                follow_up_questions = self._suggest_follow_ups(query, answer)
+        # plan.action in ("retrieve", "research") — run the explicit chat
+        # workflow graph (backend/app/services/agent_graph/graph.py):
+        # cache -> retrieval -> grading -> weak-retrieval augmentation
+        # (vision QA / local research / research agent / web search) ->
+        # generation -> corrective reflection -> validation -> finalize.
+        # The graph's nodes delegate to this same ChatService's methods
+        # (_get_cached_response, _grade_retrieval, _generate, _correct,
+        # _respond, _cache_response, ...) — nothing below is reimplemented,
+        # only re-sequenced through explicit, traced nodes.
+        try:
+            return self._run_chat_graph(
+                query=query,
+                plan=plan,
+                history=history,
+                session_id=session_id,
+                confirm_web_search=confirm_web_search,
+                structured_response=structured_response,
+                tenant_id=tenant_id,
+                persona=persona,
+                document_ids=document_ids,
+                language=language,
+                top_k=top_k,
+                min_score=min_score,
+                perf_start=start,
+            )
         except AppError:
             # Already a well-formed domain exception from retrieval, prompt
             # building, summarization, or the LLM client — propagate it
@@ -1828,36 +1774,77 @@ class ChatService:
         except Exception as exc:
             raise ChatServiceError(f"Unexpected error while handling chat query: {exc}") from exc
 
-        # web_results is only non-empty once it's actually been folded into
-        # a generation call (see _correct) — a search that was attempted
-        # but came back empty leaves this "retrieval", not "web_search".
-        tool_used = "web_search" if web_results else "retrieval"
-        response = self._respond(
-            answer=answer,
-            retrieved_chunks=chunks,
+    def _run_chat_graph(
+        self,
+        *,
+        query: str,
+        plan: PlanDecision,
+        history: list[dict[str, str]] | None,
+        session_id: str | None,
+        confirm_web_search: bool,
+        structured_response: bool,
+        tenant_id: int | None,
+        persona: str | None,
+        document_ids: list[str] | None,
+        language: str,
+        top_k: int | None,
+        min_score: float | None,
+        perf_start: float,
+    ) -> ChatResponse:
+        """Builds the initial AgentState from an already-decided plan (this
+        method never re-plans — `plan` is handle_query's own `_route()`
+        result, including any RouterAgent upgrade) and runs it through
+        `build_chat_graph()`. Deferred imports: `agent_graph` imports this
+        module at top level (its nodes delegate back into ChatService), so
+        importing it back here at module level would be circular — the
+        same pattern `_agent_executor_instance` already uses for
+        AgentExecutor/PlanningAgent.
+        """
+        import asyncio
+
+        from app.services.agent_graph.graph import build_chat_graph
+        from app.services.agent_graph.nodes import GraphContext
+        from app.services.agent_graph.state import AgentState
+
+        initial_state = AgentState(
             query=query,
-            query_type="document_query",
-            tool_used=tool_used,
-            steps_taken=steps_taken,
-            start=start,
-            web_results=web_results,
+            history=history,
             session_id=session_id,
-            retrieval_confidence=grade,
-            is_clarifying_question=is_clarifying_question,
-            follow_up_questions=follow_up_questions,
+            tenant_id=tenant_id,
+            confirm_web_search=confirm_web_search,
+            persona=persona,
+            document_ids=document_ids,
+            document_id=plan.document_id,
+            retrieval_top_k=top_k,
+            retrieval_min_score=min_score,
+            plan={
+                "action": plan.action,
+                "document_id": plan.document_id,
+                "crop": plan.crop,
+                "collection": plan.collection,
+            },
+            planned_action=plan.action,
+            intent=plan.action,
+            metadata={"structured_response": structured_response, "language": language},
+            perf_start=perf_start,
         )
-        # Cache the final response (retrieve action only — a "research"
-        # answer returns early, before this point, since live web state
-        if plan.action == "retrieve":
-            self._cache_response(
-                query=query,
-                response=response,
-                crop=getattr(plan, "crop", None),
-                disease=getattr(plan, "disease", None),
-                tenant_id=tenant_id,
-                document_ids=document_ids,
-            )
-        return response
+        context = GraphContext(
+            chat_service=self,
+            vector_store=self._vector_store,
+            image_vector_store=self._image_vector_store,
+        )
+        graph = build_chat_graph()
+        result_state = asyncio.run(graph.run(initial_state, context))
+        if result_state.final_response is not None:
+            return result_state.final_response
+        # Defensive fallback — every real path through the graph sets
+        # final_response (cache hit, conversational, summarize, or
+        # finalizer_node); this only triggers if a node failed before
+        # reaching any of them (e.g. no chat_service, which can't happen
+        # here since `self` is always provided).
+        raise ChatServiceError(
+            result_state.error_message or "Chat workflow graph did not produce a response."
+        )
 
     def stream_query(
         self,
@@ -1960,19 +1947,54 @@ class ChatService:
                 return
 
             # plan.action == "retrieve" — the corrective RAG loop, streamed.
-            # Check cache first (only cache final responses after corrective loop)
+            # Cache check, retrieval, and grading below delegate to the
+            # same node functions handle_query's graph uses (cache_lookup_
+            # node / retrieval_node / retrieval_grader_node) — called
+            # directly here rather than through the async graph engine,
+            # since streaming needs to interleave SSE yields between them
+            # and (for generation/reflection, below) needs token-level
+            # granularity the engine's per-node streaming can't provide.
+            # This still eliminates what would otherwise be duplicated
+            # retrieve_kwargs-building/cache-shaping logic between the two
+            # execution paths — only the escalation cascade right below
+            # stays as its own inline implementation, to preserve its
+            # existing fine-grained per-strategy SSE progress events
+            # (local_research / research_handoff / research_<stage> /
+            # web_search), which a single context_augmentation_node call
+            # would otherwise collapse into one opaque completion event.
+            from app.services.agent_graph.cache_node import cache_lookup_node
+            from app.services.agent_graph.nodes import (
+                GraphContext,
+                retrieval_grader_node,
+                retrieval_node,
+            )
+            from app.services.agent_graph.state import AgentState
+
             plan_crop = getattr(plan, "crop", None)
             plan_disease = getattr(plan, "disease", None)
-            cached = None
-            if not history and not recent_history:
-                cached = self._get_cached_response(
-                    query=query,
-                    crop=plan_crop,
-                    disease=plan_disease,
-                    tenant_id=tenant_id,
-                    document_ids=document_ids,
-                )
-            if cached is not None:
+            graph_context = GraphContext(
+                chat_service=self, vector_store=self._vector_store, image_vector_store=self._image_vector_store
+            )
+            node_state = AgentState(
+                query=query,
+                history=history,
+                session_id=session_id,
+                tenant_id=tenant_id,
+                document_ids=document_ids,
+                document_id=plan.document_id,
+                retrieval_top_k=top_k,
+                retrieval_min_score=min_score,
+                plan={
+                    "action": plan.action,
+                    "document_id": plan.document_id,
+                    "crop": plan.crop,
+                    "collection": plan.collection,
+                },
+                planned_action=plan.action,
+            )
+
+            node_state = cache_lookup_node(node_state, graph_context)
+            if node_state.metadata.get("cache_hit"):
                 logger.info(
                     "cache_hit",
                     extra={
@@ -1985,12 +2007,6 @@ class ChatService:
                         }
                     },
                 )
-                cached_dict = cached.model_dump()
-                cached_dict["session_id"] = session_id or cached_dict.get("session_id", "")
-                if "metadata" not in cached_dict or not isinstance(cached_dict["metadata"], dict):
-                    cached_dict["metadata"] = {}
-                cached_dict["metadata"]["cached"] = True
-                cached_resp = ChatResponse.model_validate(cached_dict)
                 yield {
                     "type": "trace",
                     "event": "cache_hit",
@@ -1998,30 +2014,18 @@ class ChatService:
                     "payload": {"cached": True},
                     "detail": {"cached": True},
                 }
-                yield {"type": "done", "payload": cached_resp}
+                yield {"type": "done", "payload": node_state.final_response}
                 return
 
             steps_taken += 1  # retrieval
-            retrieval_query = query
-            if settings.query_contextualization_enabled and recent_history:
-                retrieval_query = self._contextualize_query(query, recent_history)
-            retrieve_kwargs: dict[str, Any] = {
-                "top_k": top_k,
-                "min_score": min_score,
-                "tenant_id": tenant_id,
-                "image_vector_store": self._image_vector_store,
-            }
-            if document_ids is not None:
-                retrieve_kwargs["document_ids"] = document_ids
-            elif plan.collection:
-                retrieve_kwargs["collection"] = plan.collection
-            if plan.crop is not None or plan.collection is not None:
-                retrieve_kwargs["rerank"] = True
-            chunks = retrieve(retrieval_query, self._vector_store, **retrieve_kwargs)
+            node_state = retrieval_node(node_state, graph_context)
+            chunks = node_state.retrieved_chunks
+            retrieval_query = node_state.retrieval_query or query
             yield _trace_event("retrieval", {"chunk_count": len(chunks)})
 
             steps_taken += 1  # grading
-            grade = self._grade_retrieval(retrieval_query, chunks)
+            node_state = retrieval_grader_node(node_state, graph_context)
+            grade = node_state.retrieval_grade
             yield _trace_event("grading", {"grade": grade})
 
             # See handle_query for why plan.action == "research" forces
@@ -2123,29 +2127,12 @@ class ChatService:
             )
 
             # Same Agent 1.4 ask-instead-of-guess + Agent 2.2 follow-up
-            # logic as handle_query. The chunks streamed above are
-            # provisional — the done payload's answer is authoritative and
-            # the UI renders it.
-            is_clarifying_question = False
-            if (
-                settings.clarifying_question_enabled
-                and grade == "insufficient"
-                and answer.strip() == FALLBACK_REPLY
-            ):
-                try:
-                    clarifying_prompt = (
-                        f"The user asked: {query}\n\n"
-                        "No relevant information was found in their documents, and "
-                        "the question may be ambiguous or missing detail. Suggest "
-                        "ONE short clarifying question to ask them. Return ONLY the "
-                        "question, nothing else."
-                    )
-                    clarification = self._llm_client.generate(clarifying_prompt).strip()
-                    if clarification:
-                        answer = clarification
-                        is_clarifying_question = True
-                except Exception:
-                    pass  # falls through, answer stays FALLBACK_REPLY exactly as today
+            # logic as handle_query — both now call the same extracted
+            # ChatService methods, so there's exactly one implementation of
+            # each, not two. The chunks streamed above are provisional —
+            # the done payload's answer is authoritative and the UI
+            # renders it.
+            answer, is_clarifying_question = self._maybe_ask_clarifying_question(query, answer, grade)
 
             follow_up_questions = []
             if settings.follow_up_questions_enabled:
@@ -2252,15 +2239,31 @@ class ChatService:
 
         try:
             steps_taken += 1  # vision inference
-            prediction = diagnose_image(image_bytes, filename, content_type, engine=engine)
+            # Delegates to the explicit vision_node (agent_graph/nodes.py),
+            # which wraps diagnose_image + _build_diagnosis_query/_build_
+            # diagnosis_info — the same functions this method used to call
+            # inline. Image bytes travel via GraphContext.metadata, not
+            # AgentState, so they're never deep-copied into the graph
+            # engine's per-step snapshot history (see vision_node's
+            # docstring).
+            from app.services.agent_graph.nodes import GraphContext, vision_node
+            from app.services.agent_graph.state import AgentState
 
-            crop_context = (
-                prediction.crop if prediction.crop and prediction.crop != "unknown" else None
+            vision_state = vision_node(
+                AgentState(query=query or "", history=history),
+                GraphContext(
+                    metadata={
+                        "image_bytes": image_bytes,
+                        "filename": filename,
+                        "content_type": content_type,
+                        "engine": engine,
+                    }
+                ),
             )
-            disease_context = (
-                prediction.disease if prediction.disease and prediction.disease != "unknown" else None
-            )
-            diagnosis_query = _build_diagnosis_query(prediction, query, collection=crop_context)
+            diagnosis_info = vision_state.diagnosis
+            diagnosis_query = vision_state.retrieval_query
+            crop_context = vision_state.metadata.get("crop_context")
+            disease_context = vision_state.metadata.get("disease_context")
 
             # Check semantic cache for instant sub-50ms diagnosis response
             cached = self._get_cached_response(
@@ -2284,16 +2287,7 @@ class ChatService:
                 )
                 cached_dict = cached.model_dump()
                 cached_dict["session_id"] = session_id or cached_dict.get("session_id", "")
-                cached_dict["diagnosis"] = DiagnosisInfo(
-                    raw_class=prediction.raw_class,
-                    crop=prediction.crop,
-                    disease=prediction.disease,
-                    confidence=prediction.confidence,
-                    low_confidence=prediction.low_confidence,
-                    heatmap_base64=prediction.heatmap_base64,
-                    infected_area_percentage=prediction.infected_area_percentage,
-                    lesion_count=prediction.lesion_count,
-                ).model_dump()
+                cached_dict["diagnosis"] = diagnosis_info.model_dump()
                 if weather_risk is not None:
                     cached_dict["weather_risk"] = weather_risk.model_dump()
                 if "metadata" not in cached_dict or not isinstance(cached_dict["metadata"], dict):
@@ -2334,16 +2328,7 @@ class ChatService:
                             steps_taken=steps_taken,
                             start=start,
                             web_results=findings.results,
-                            diagnosis=DiagnosisInfo(
-                                raw_class=prediction.raw_class,
-                                crop=prediction.crop,
-                                disease=prediction.disease,
-                                confidence=prediction.confidence,
-                                low_confidence=prediction.low_confidence,
-                                heatmap_base64=prediction.heatmap_base64,
-                                infected_area_percentage=prediction.infected_area_percentage,
-                                lesion_count=prediction.lesion_count,
-                            ),
+                            diagnosis=diagnosis_info,
                             session_id=session_id,
                             weather_risk=weather_risk,
                         )
@@ -2399,16 +2384,7 @@ class ChatService:
             steps_taken=steps_taken,
             start=start,
             web_results=web_results,
-            diagnosis=DiagnosisInfo(
-                raw_class=prediction.raw_class,
-                crop=prediction.crop,
-                disease=prediction.disease,
-                confidence=prediction.confidence,
-                low_confidence=prediction.low_confidence,
-                heatmap_base64=prediction.heatmap_base64,
-                infected_area_percentage=prediction.infected_area_percentage,
-                lesion_count=prediction.lesion_count,
-            ),
+            diagnosis=diagnosis_info,
             session_id=session_id,
             weather_risk=weather_risk,
         )
@@ -2516,16 +2492,7 @@ class ChatService:
                 )
                 cached_dict = cached.model_dump()
                 cached_dict["session_id"] = session_id or cached_dict.get("session_id", "")
-                cached_dict["diagnosis"] = DiagnosisInfo(
-                    raw_class=prediction.raw_class,
-                    crop=prediction.crop,
-                    disease=prediction.disease,
-                    confidence=prediction.confidence,
-                    low_confidence=prediction.low_confidence,
-                    heatmap_base64=prediction.heatmap_base64,
-                    infected_area_percentage=prediction.infected_area_percentage,
-                    lesion_count=prediction.lesion_count,
-                ).model_dump()
+                cached_dict["diagnosis"] = _build_diagnosis_info(prediction).model_dump()
                 if weather_risk is not None:
                     cached_dict["weather_risk"] = weather_risk.model_dump()
                 if "metadata" not in cached_dict or not isinstance(cached_dict["metadata"], dict):
@@ -2592,16 +2559,7 @@ class ChatService:
                             steps_taken=steps_taken,
                             start=start,
                             web_results=findings.results,
-                            diagnosis=DiagnosisInfo(
-                                raw_class=prediction.raw_class,
-                                crop=prediction.crop,
-                                disease=prediction.disease,
-                                confidence=prediction.confidence,
-                                low_confidence=prediction.low_confidence,
-                                heatmap_base64=prediction.heatmap_base64,
-                                infected_area_percentage=prediction.infected_area_percentage,
-                                lesion_count=prediction.lesion_count,
-                            ),
+                            diagnosis=_build_diagnosis_info(prediction),
                             session_id=session_id,
                             weather_risk=weather_risk,
                         )
@@ -2722,16 +2680,7 @@ class ChatService:
             steps_taken=steps_taken,
             start=start,
             web_results=web_results,
-            diagnosis=DiagnosisInfo(
-                raw_class=prediction.raw_class,
-                crop=prediction.crop,
-                disease=prediction.disease,
-                confidence=prediction.confidence,
-                low_confidence=prediction.low_confidence,
-                heatmap_base64=prediction.heatmap_base64,
-                infected_area_percentage=prediction.infected_area_percentage,
-                lesion_count=prediction.lesion_count,
-            ),
+            diagnosis=_build_diagnosis_info(prediction),
             session_id=session_id,
             retrieval_confidence=grade,
             follow_up_questions=follow_up_questions,
