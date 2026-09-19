@@ -421,3 +421,93 @@ race is closed, but sharding isn't). Those are exactly the gaps this
 document and
 [`docs/NOT_APPLICABLE.md`](NOT_APPLICABLE.md) already name — the honest
 answer is "trust it for exactly the scope it's built for, not further."
+
+---
+
+## Appendix: Explicit Agent Workflow (Phase 1) design rationale
+
+Added when the chat pipeline was made an explicit node/edge graph (see
+`docs/ARCHITECTURE.md`'s "Explicit Agent Workflow" section for the actual
+topology). This appendix answers the same kind of question Q1-10 above
+ask, specifically about that change.
+
+**Why explicit state exists.** Before this phase, the pipeline's "state"
+was implicit — local variables threaded through `handle_query`'s ~150
+lines (`chunks`, `grade`, `web_results`, `web_search_attempted`,
+`llm_calls`, `steps_taken`, ...). That's fine for one function read
+top-to-bottom, but it means nothing about *why* a particular answer came
+out the way it did is inspectable after the fact without re-reading the
+code path for that exact branch. `AgentState` makes every one of those
+values a named, typed field that survives to the final response
+(`node_timings`, `retrieval_grade`, `termination_reason`, `tool_calls`) —
+the same request is now debuggable from its own recorded state, not just
+from re-deriving it by reading source.
+
+**Which decisions remain deterministic.** Everything that was
+deterministic before still is — this phase didn't move any decision onto
+an LLM. The planner (`_plan`/`_route`'s keyword/regex classification,
+optionally upgraded by a *separate*, already-existing, already-gated
+`RouterAgent` LLM call — not a new one), retrieval grading
+(`_grade_retrieval`, a pure function of chunk count/score), the loop caps
+(`_MAX_LLM_CALLS=3`, `max_steps=16`), and approval enforcement (below)
+are all plain Python control flow. `planner_node_v2`'s docstring is
+explicit about this: it delegates to `_route`, never replaces the
+deterministic planner with an LLM call.
+
+**Where LLM reasoning occurs.** Exactly where it already did: generating
+the answer (`_generate`/`_generate_structured`), the corrective
+regeneration (`_correct`), and the optional enhancements that were
+already gated behind settings flags (query contextualization, the
+research agent, vision QA, clarifying-question suggestion, follow-up
+suggestion). None of these gained a new LLM call as part of this phase —
+`context_augmentation_node`/`reflection_node` delegate to the exact same
+methods `handle_query` called inline before.
+
+**How failures are detected.** Every node's outcome is traced
+(`emit_node_trace`: `node`, `status`, `latency_ms`, `error_type`) and fed
+into `agent_node_executions_total`/`agent_node_failures_total`. A node
+maps its exception onto the existing `core/exceptions.py` taxonomy
+(`_node_error`) rather than inventing a new error vocabulary — `root_cause`
+is `"unknown"` when the system genuinely can't determine one, never
+guessed.
+
+**How the workflow recovers.** Two distinct patterns, both used
+deliberately (see `ARCHITECTURE.md`'s "Error propagation"):
+recovered-not-fatal failures (e.g. a `_route` exception) fall back to a
+safe deterministic default and continue, without leaving a stale
+`error_type` on state to be misread by a later node as an overall
+failure; genuine failures (a real `retrieve()`/`diagnose_image()`
+exception) propagate exactly as they did before this phase — a
+500/`ChatServiceError` for `/chat`, an SSE `error` event for
+`/chat/stream` — rather than silently degrading a request that has no
+real fallback path.
+
+**How loops are bounded.** Two independent ceilings, unchanged by this
+phase: `_MAX_LLM_CALLS=3` inside `_correct` (checked before each
+additional `generate()` call), and `build_chat_graph(max_steps=16)` at
+the graph-execution level (a defensive backstop, not something normal
+traffic is expected to hit — the longest real path is 10 nodes). Hitting
+either is logged and counted (`loop_capped` / `agent_loop_limit_hits_total`
+respectively), never silently absorbed.
+
+**How approval prevents protected actions.** `human_approval_node` never
+auto-approves — `route_after_approval` only returns `"resume"` when
+`approval_status == "approved"`, a plain equality check in code, not
+something an LLM is asked to decide or that a prompt instruction could
+override. The underlying gate (`ApprovalStore`, one-shot resolve,
+`pending → approved | rejected`, unresolved-and-expired handled as a
+distinct `expired` state) already existed for web search/document
+deletion before this phase; this phase adds one reusable node over it,
+extensible to future protected actions without new routing logic per
+action.
+
+**How the system remains understandable and debuggable.** Every node is
+a thin, single-purpose function delegating to one existing `ChatService`/
+service method — the graph adds sequencing and tracing, not new business
+logic (`reflection_node`'s docstring explicitly reasons about *why* it
+delegates a whole method call rather than trying to express `_correct`'s
+internal escalation as a generic loop edge, rather than silently
+reimplementing a simplified, subtly-wrong version of it). Combined with
+`AgentState`'s named fields and `node_timings`, a single failed or
+surprising request is diagnosable from its own recorded trace without
+needing to reproduce it.

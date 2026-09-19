@@ -337,60 +337,289 @@ engine wasn't built. Schema is created automatically on startup
 
 ## Framework choice
 
-The chat orchestration in `rag_service.py` is deliberately plain Python —
-a `_plan` dispatcher, three action branches, and (for `retrieve`) a small
-bounded corrective loop — not LangGraph, CrewAI, or any agent framework.
-Adding the corrective RAG loop (retrieval grading, a web search fallback,
-capped regeneration) is exactly the kind of change that might seem to
-tip the scale toward "now you need a graph runtime." It doesn't, and it's
-worth re-justifying why now that there are three tools and an actual
-loop, not two tools and a straight line:
+The chat orchestration is plain Python, not LangGraph/CrewAI/any agent
+framework — but as of Phase 1 (below), it *is* expressed as an explicit
+node/edge graph, using a small dependency-free graph runtime this repo
+owns (`backend/app/services/agent_graph/engine.py`), not a hand-picked
+framework. The reasoning that used to live in this section — "three
+tools, still not a team," bounded not dynamic, one request/one log
+stream, directly unit-testable — is still exactly why no *third-party*
+framework was introduced: none of that changed. What changed is that the
+sequence itself (planner → retrieval → grading → generation → correction
+→ validation → finalization) is now named, typed, and traced node by
+node instead of living as inline control flow inside `handle_query`. See
+"Explicit Agent Workflow (Phase 1)" below for the actual node/edge
+topology, the state object, and why this is still bounded (max 16 graph
+steps, `_MAX_LLM_CALLS=3` unchanged inside the `reflection` node) rather
+than open-ended re-planning.
 
-- **Three tools, still not a team.** Retrieval, summarization, and web
-  search are the entire tool surface. Web search does reach outside the
-  document corpus — but *which* tool runs is still a hand-coded decision
-  (a score threshold in `_grade_retrieval`), not something an LLM
-  reasons about and chooses between, and a web result becomes nothing
-  more than another block of context in the same prompt to the same
-  model — there's no independent reasoning loop on the far side of that
-  "hand-off" for a second agent to own. Multi-agent frameworks earn their
-  complexity when responsibilities are actually separable *and* need to
-  hand off partial work between independent reasoning processes; a
-  deterministic if-this-score-then-fetch-that isn't that.
-- **A bounded loop, not a graph.** The `retrieve` branch is no longer a
-  straight line — `_correct` can regenerate, then escalate to web search,
-  then regenerate once more. But it's a small, fixed-depth loop with a
-  hard, checked ceiling (`_MAX_LLM_CALLS = 3`), not dynamic re-planning:
-  there are at most three possible generation counts (1, 2, or 3) and a
-  handful of enumerable paths through them, all of which
-  `backend/tests/test_rag_service.py`'s `TestCorrectiveLoop` tests
-  directly, by name, one per path. A graph-orchestration runtime is built
-  to manage *unbounded* cycles, conditional multi-hop routing, and shared
-  mutable state across many nodes — this loop has none of that: it's one
-  Python function with two `if`-guarded early returns, not a state
-  machine that needs a scheduler. Expressing it as a LangGraph graph
-  would trade a function you can read top-to-bottom for a node/edge
-  definition plus a state schema, to compute the exact same bounded
-  sequence.
-- **Traceability stays simple.** One `ChatService`, one request_id, one
-  log stream per request (see Observability above) — grading
-  (`retrieval_graded`), web search (`web_search_completed`/
-  `web_search_failed`), and each regeneration
-  (`reflection_triggered`/`web_fallback_triggered`/`loop_capped`) are just
-  more named events in that same stream, not messages crossing an
-  inter-agent protocol that would need its own correlation story.
-- **Testability.** `_plan`, `_grade_retrieval`, and `_correct` are all
-  unit-tested directly (`backend/tests/test_rag_service.py`) as plain
-  methods on a plain object, with fake `VectorStore`/`LLMClient` and a
-  monkeypatched `search_web` — no framework-specific test harness or
-  mocked agent runtime required. The loop's cap is tested by monkeypatching
-  `_MAX_LLM_CALLS` down and asserting the blocked call never fires
-  (`TestCorrectiveLoop.test_loop_cap_blocks_*`), which is only this
-  simple because the cap is an explicit, readable guard in plain code.
+## Explicit Agent Workflow (Phase 1)
 
-If a genuinely distinct responsibility shows up later — for example, a
-document-ingestion agent with its own tools and failure modes, separate
-from the question-answering agent, or a web research capability that
-needs its *own* multi-step reasoning rather than a single fetch-and-append
-— that would be the point to reconsider. Three tools and one small capped
-loop, all sharing one model and one request, isn't it.
+`backend/app/services/agent_graph/` is the explicit orchestration layer
+backing `POST /chat`, `POST /chat/stream`, and (partially — vision only)
+`POST /chat/diagnose`. It does not replace `ChatService`'s methods
+(`_plan`, `_grade_retrieval`, `_generate`, `_correct`, `_respond`, ...) —
+every node is a thin, traced wrapper that calls one of them. Read
+`rag_service.py` first for what each step actually does; read this
+section for how the steps are named, sequenced, and made explicit.
+
+### AgentState
+
+`agent_graph/state.py::AgentState` is a single Pydantic model threaded
+through every node (`copy_with(...)` returns an updated copy — nodes never
+mutate in place). Grouped by purpose:
+
+- **Identity/correlation**: `request_id`, `trace_id`, `session_id`,
+  `tenant_id`.
+- **Planning**: `plan` (the raw `PlanDecision` fields), `planned_action`,
+  `intent`, `planned_steps`, `current_node`, `workflow_status`.
+- **Retrieval**: `retrieved_chunks`, `reranked_chunks` (same list — see
+  "Reranking" below), `retrieval_query` (query actually sent to
+  `retrieve()`, after optional contextualization), `retrieval_grade`
+  (+`_reason`), `document_ids`/`retrieval_top_k`/`retrieval_min_score`
+  (request-scoped retrieval parameters).
+- **Tools/augmentation**: `web_results`, `tool_calls` (bounded summaries —
+  `tool_name`/`success`/`latency_ms`/`timestamp`, never raw sensitive
+  input/output), `diagnosis` (vision prediction, image bytes never stored
+  here — see "Vision" below).
+- **Memory**: `history`/`conversation_history`, `memory_context`.
+- **Generation/validation**: `draft_answer`, `final_answer`,
+  `structured_output`, `validation_errors`.
+- **Approval**: `approval_required`, `approval_type`, `approval_reason`,
+  `approval_payload_reference` (an `Approval.approval_id`, never the raw
+  payload), `approval_status`.
+- **Bounded-loop counters**: `retry_count`, `reflection_count_v2`,
+  `loop_count`.
+- **Telemetry**: `node_timings`, `workflow_start_time`/`perf_start`
+  (wall-clock vs. `time.perf_counter()` — kept separate because
+  `ChatService._respond` computes `processing_time` from a perf_counter
+  delta), `token_usage`, `estimated_cost_usd`.
+- **Error/termination**: `error_type` (an existing `core/exceptions.py`
+  taxonomy category), `error_message`, `root_cause` (`"unknown"` when
+  genuinely undeterminable — never invented), `termination_reason`.
+- **Sources**: `source_type`, `final_sources`.
+
+No secrets, API keys, or raw authorization headers are ever state fields
+(`tests/test_agent_graph_state.py::test_state_does_not_define_secret_fields`
+asserts this by scanning field names). Large payloads (a diagnosis
+image) are deliberately kept *out* of state and passed via
+`GraphContext.metadata` instead — the engine deep-copies a state snapshot
+on every node transition for its step-history, so repeating a multi-MB
+copy at every step would be wasteful (see `vision_node`'s docstring).
+
+### Nodes and topology
+
+`agent_graph/graph.py::build_chat_graph()` wires:
+
+```mermaid
+flowchart TD
+    START --> validate_request --> planner
+    planner -- conversational --> conv[conversational] --> finalizer
+    planner -- summarize --> summarize --> finalizer
+    planner -- retrieve/diagnose --> cache_lookup
+    cache_lookup -- hit --> END
+    cache_lookup -- miss --> retrieval --> retrieval_grader
+    retrieval_grader -- good --> generator
+    retrieval_grader -- weak/insufficient --> context_augmentation
+    context_augmentation -- direct answer --> finalizer
+    context_augmentation -- no direct answer --> generator
+    generator --> reflection --> output_validation --> finalizer
+    finalizer --> END
+    human_approval -. approved .-> generator
+    human_approval -. rejected/pending .-> finalizer
+```
+
+Node responsibilities (all in `agent_graph/nodes.py` unless noted):
+
+- **`validate_request_node`** — assigns `request_id`/`trace_id`, rejects
+  an empty query, records `workflow_start_time`/`perf_start`.
+- **`planner_node_v2`** — delegates to `ChatService._route` (the
+  deterministic `_plan`, optionally upgraded by the LLM `RouterAgent`
+  when `Settings.agent_routing_enabled` — an existing, already-gated
+  behavior, not a new LLM call). If the caller already decided a plan
+  (`handle_query` does, since it needs the decision to choose between
+  this graph and the `AgentExecutor` branch before either runs), this is
+  a no-op pass-through, not a second `_route` call.
+- **`cache_lookup_node`** (`agent_graph/cache_node.py`) — delegates to
+  `ChatService._get_cached_response`. A hit ends the workflow at `END`
+  directly with the cached `ChatResponse`, matching `handle_query`'s own
+  early return on a cache hit.
+- **`retrieval_node`** — delegates to `retrieve()` (via the `rag_service`
+  module attribute, so it observes the same `monkeypatch.setattr(
+  rag_service_module, "retrieve", ...)` surface existing tests already
+  use), which already performs hybrid BM25+FAISS retrieval *and*
+  cross-encoder reranking internally when enabled. This node records the
+  combined outcome (`result_count`, `reranked: bool`) as **one** traced
+  step — it does not run a second, independent reranking pass, and
+  `reranked_chunks` is the same list as `retrieved_chunks` for that
+  reason. Real `retrieve()` failures propagate (not swallowed) — only the
+  "no vector store configured" precondition degrades safely.
+- **`retrieval_grader_node`** — delegates to `ChatService._grade_retrieval`
+  (heuristic good/weak/insufficient, no LLM call).
+- **`context_augmentation_node`** (`agent_graph/augmentation_node.py`) —
+  delegates to `ChatService._augment_weak_retrieval`, which escalates a
+  weak/insufficient grade through vision QA → local research agent →
+  research agent → plain web search, in that precedence order (extracted
+  from `handle_query`'s own inline block so both the graph and any future
+  caller share one implementation). A direct hit (vision/local-
+  research/research-agent produced a complete answer) routes straight to
+  `finalizer`, mirroring `handle_query`'s early return; otherwise it
+  folds in `web_results` and continues to `generator`.
+- **`generator_node`** — delegates to `ChatService._generate`/
+  `_generate_structured` for the *initial* answer only.
+- **`reflection_node`** — delegates **wholesale** to `ChatService._correct`
+  (not a generic "invalid → loop back" edge — see its docstring: `_correct`'s
+  own internal escalation, regenerate once, then regenerate again with a
+  web-search fallback if still ungrounded, doesn't decompose into a
+  generic instruction-repeat loop without either reimplementing that
+  escalation or losing it). Always runs once after `generator`, exactly
+  like `handle_query`'s unconditional `self._correct(...)` call. Still
+  bounded — by `_correct`'s own `_MAX_LLM_CALLS=3` — just as one node
+  call rather than a StateGraph loop edge.
+- **`output_validation_node`** — post-hoc bookkeeping after `reflection`:
+  records whether the already-corrected answer is still ungrounded, for
+  tracing/`termination_reason` purposes. Never loops back.
+- **`vision_node`** — delegates to `diagnose_image` + `_build_diagnosis_query`
+  + `_build_diagnosis_info`. Used by `handle_diagnose`; not yet wired into
+  `build_chat_graph()`'s own topology (see Remaining gaps).
+- **`human_approval_node`** (`agent_graph/human_approval.py`) — see
+  "Human approval" below.
+- **`finalizer_node`** — delegates to `ChatService._respond` (usage/cost
+  rollup, hallucination detection, agent-memory recording, structured
+  `chat_query_handled` logging all happen there, reused not
+  reimplemented), then `_maybe_ask_clarifying_question`/
+  `_suggest_follow_ups`/`_cache_response` (retrieve-only, matching
+  `handle_query`).
+
+Routing functions live in `agent_graph/routing.py`
+(`route_after_planner`, `route_after_grader`, `route_after_validation`,
+`route_after_approval`) plus two topology-local ones in `cache_node.py`/
+`augmentation_node.py`. `route_after_validation`'s reflection-loop branch
+(bounded by `MAX_REFLECTIONS=2`) is defined and unit-tested but not wired
+into `build_chat_graph()`'s edges, since `reflection_node` already
+subsumes that loop internally (see above) — kept for a future caller that
+wants the generic loop shape instead.
+
+### Memory lifetime
+
+Four distinct lifetimes, kept explicit rather than collapsed into one
+"memory" concept:
+
+| Lifetime | Where | Notes |
+|---|---|---|
+| Request state | `AgentState`, one instance per graph run | Discarded after the response is built; never persisted. |
+| Conversation memory | `AgentMemory` (`agent_memory.py`), bounded per-session | Injected into `history` before the graph runs (`ChatService._inject_memory`); the graph only ever sees the rendered result, never the store itself. |
+| Retrieved context | `retrieved_chunks`/`web_results` in `AgentState` | Evidence for *this* request only — not written back into `AgentMemory`. |
+| Persistent data | Documents, sessions, tenant/usage records (Postgres, when `DATABASE_URL` is set) | Outside the graph entirely; the graph reads/writes through `VectorStore`/`SessionStore` interfaces, never touches Postgres directly. |
+
+### Retry, reflection, and termination
+
+- **Retry**: unchanged tenacity retries on LLM/embedding/web-search calls
+  (see Observability/§1 of `CHECKLIST.md`) — the graph doesn't add a
+  second retry layer on top; `agent_retries_total` (see Metrics) counts
+  the existing corrective escalation to a web-fallback regenerate as one
+  kind of retry, recorded where it actually happens (`reflection_node`).
+- **Reflection**: `reflection_node`'s single call into `_correct`,
+  bounded by `_MAX_LLM_CALLS=3` (unchanged constant).
+- **Bounded execution**: `build_chat_graph(max_steps=16)` — comfortably
+  covers the longest real path (10 nodes) with headroom, while still
+  capping runaway execution; hitting the cap is logged
+  (`graph_cycle_capped_max_steps`) and counted
+  (`agent_loop_limit_hits_total`).
+- **`termination_reason`** (set by `finalizer_node`): `success` |
+  `validation_failure` | `approval_rejected` | `loop_limit_reached` |
+  `model_failure` | `tool_failure`. Never invented — derived from
+  `error_type`/`validation_errors`/`approval_status` actually present on
+  the final state.
+
+### Human approval
+
+`agent_graph/human_approval.py::human_approval_node` standardizes the two
+existing approval gates (web search, document deletion) behind one
+reusable abstraction over the existing `approval_service.ApprovalStore` —
+not a second approval system. It **never auto-approves**: approval is
+enforced in code (`route_after_approval` only returns `"resume"` when
+`approval_status == "approved"`), not by asking an LLM to decide. States:
+`not_required | pending | approved | rejected | expired` (the last two —
+document-store-observed lazy expiry via an optional `ttl_seconds` on
+`register()` — are additive; every existing call site that never passed
+one keeps behaving exactly as before). The node is registered in
+`build_chat_graph()` but has no inbound edge from the entry point in this
+phase — the existing `confirm_web_search=true`/`approved=true`
+request-flag fast path remains how approval is actually granted today
+(unchanged); `human_approval_node` is the reusable, traced, standardized
+form for a future caller to route through explicitly, per PDF §21's
+"create the abstraction now, keep the surface small."
+
+### Streaming interaction
+
+`stream_query` shares `cache_lookup_node`/`retrieval_node`/
+`retrieval_grader_node` (called directly, not through the async engine —
+streaming needs to interleave SSE yields between them, which the
+engine's per-node-only streaming granularity can't provide) and the
+extracted `_maybe_ask_clarifying_question`. Its weak-retrieval escalation
+cascade deliberately does **not** go through `context_augmentation_node`:
+that node's single opaque call to `_augment_weak_retrieval` would collapse
+today's fine-grained per-strategy SSE progress events
+(`local_research`/`research_handoff`/`research_<stage>`/`web_search`)
+into one completion event — a real UX regression for a feature that
+exists specifically to show incremental progress during a potentially
+slow escalation. Generation/reflection streaming
+(`_generate_streamed`/`_correct_streamed`) is unchanged. The SSE event
+vocabulary (`trace`/`answer_chunk`/`error`/`done`) is unchanged.
+
+### Error propagation
+
+Node failures map onto the existing `core/exceptions.py` taxonomy via
+`_node_error(exc)` (`AppError` subclasses carry their own
+`taxonomy_category`; anything else maps to `"reasoning"`/`"unknown"`).
+Two categories of failure, both deliberate:
+
+- **Recovered, not fatal** — e.g. `planner_node_v2` falling back to the
+  deterministic `"retrieve"` default on an unexpected `_route` exception.
+  These are traced (`emit_node_trace(status="failure")`) but do **not**
+  set `state.error_type`, since the workflow continues successfully — a
+  later node overwriting a stale `error_type` was an actual bug caught
+  during Commit 3 (see git history), fixed by not setting it at all on a
+  genuinely-recovered path.
+- **Real failures propagate** — `retrieval_node` and `vision_node`
+  deliberately re-raise on a genuine `retrieve()`/`diagnose_image()`
+  exception rather than degrading to an empty result, matching
+  `handle_query`/`handle_diagnose`'s pre-existing "no fallback for this"
+  contract (a 500/`ChatServiceError`, or an SSE `error` event for
+  streaming) — an earlier version of `retrieval_node` swallowed these
+  into a silent empty-context degrade, caught by
+  `test_agent1_2_features.py::test_handle_query_threads_grade_into_response`
+  failing during Commit 4 and fixed the same way.
+
+### Metrics
+
+`core/metrics.py` — instrumented from `emit_node_trace` (per-node) and
+`CompiledGraph.run()`/`stream()` (per-workflow-run), so both this graph
+and the older `create_rag_agent_graph` get it for free:
+`agent_workflow_started_total`/`_completed_total`/`_failed_total`/
+`_duration_seconds`, `agent_node_executions_total`/`_failures_total`/
+`_latency_seconds`, `agent_steps_total`, `agent_reflections_total`,
+`agent_retries_total`, `agent_loop_limit_hits_total`,
+`agent_approval_required_total`/`_approved_total`/`_rejected_total`.
+`Metrics.agent_workflow_summary()` aggregates these into Workflow
+Completion Rate / Node Success Rate / Average Node Latency / Loop Rate /
+Average Steps — read live via `GET /metrics`, or by
+`backend/eval/run_eval.py` (which resets the registry before a run and
+reports the aggregate) and `backend/eval/metrics_report.py` (an
+independent, offline cross-check parsed from the same structured log
+lines).
+
+### Remaining gaps
+
+- `vision_node` exists and is used by `handle_diagnose`, but is not wired
+  into `build_chat_graph()`'s own topology — `planner`'s `"diagnose"`
+  branch currently falls through to `cache_lookup`/`retrieval` like
+  `"retrieve"` does, preserving pre-Phase-1 behavior rather than
+  half-wiring a new path. `stream_diagnose` is entirely untouched.
+- The generic reflection-loop edges (`route_after_validation`'s
+  `"reflection"` branch, `MAX_REFLECTIONS` in `routing.py`) are built and
+  unit-tested but not part of the live topology (see "Retry, reflection,
+  and termination" above).
+- `human_approval_node` has no inbound edge from the entry point yet —
+  see "Human approval" above.

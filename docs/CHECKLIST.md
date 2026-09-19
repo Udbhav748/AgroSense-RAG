@@ -23,7 +23,7 @@ Status legend:
 | Memory | ✅ | Session store, in-memory + optional Postgres, `backend/app/services/session_store.py:158-183`, `postgres_session_store.py`; last-6-turns into prompt, `rag_service.py:145`; frontend `session_id` in `localStorage`, `frontend/src/hooks/useChat.js:33-40`. |
 | Retry | ✅ | tenacity on LLM + embedding, `gemini_client.py:60-66`, `groq_client.py:60-66`, `embedding_service.py:91-97`. Streaming generation is deliberately not retried (`gemini_client.py:118-126`). Web search now retries transient failures too (`web_search_service.py:44-53`). |
 | Reflection | ✅ | Corrective loop `_correct`, `rag_service.py:447-523`; `REFLECTION_INSTRUCTION`, `prompt_builder.py:55-59`; capped at `_MAX_LLM_CALLS=3` (`rag_service.py:58`). |
-| Human approval | ⚠️ | Two independent gates, same shape, both off by default: web search (`Settings.web_search_requires_approval` + `confirm_web_search=true`, `rag_service.py:_search_web`, `schemas.py:ChatRequest`) and document deletion (`Settings.document_delete_requires_approval` + `approved=true`, `app/api/v1/routes/documents.py:delete_document`). Both are deployment policies, not assumed behavior; still no general per-action approval queue. |
+| Human approval | ✅ | The two existing gates (web search, document deletion) are now standardized behind one reusable, traced node — `agent_graph/human_approval.py::human_approval_node`, backed by `approval_service.ApprovalStore` (states: `not_required\|pending\|approved\|rejected\|expired`; never auto-approves — `route_after_approval` only resumes on `"approved"`). Registered in `build_chat_graph()`; no inbound edge from the entry point yet (the existing `confirm_web_search=true`/`approved=true` request-flag fast path remains how approval is actually granted). Tests: `tests/test_human_approval_node.py` (6), `tests/test_agent_graph_metrics.py::test_approval_metrics_recorded_for_required_approved_rejected`. |
 | Structured output | ⚠️ | Pydantic request/response schemas (`schemas.py`) + **JSON-mode LLM output**: `generate_structured()` via `response_mime_type`/`response_format` (gemini/groq clients), `build_structured_prompt`, validated against `StructuredAnswer` by `structured_output.py`, with free-text fallback. Gated on `Settings.structured_output_enabled` + `ChatRequest.structured_response` — off by default. |
 | Error handling | ✅ | `AppError` taxonomy + one global handler, `app/core/exceptions.py`, `error_handlers.py:26-61`. |
 | Logging | ✅ | Structured JSON + `request_id` on every line, `app/core/logging.py:17-40`, `main.py:51-68`. |
@@ -36,14 +36,17 @@ Status legend:
 | Task Success Rate | ✅ | Keyword-based, `run_eval.py:448-449,559-561`. |
 | Step Efficiency | ✅ | `avg_step_efficiency` = min(expected/actual steps) + avg steps, `run_eval.py` (`EXPECTED_MIN_STEPS`). |
 | Tool Success Rate | ✅ | Per-tool successes/attempts, `run_eval.py` `tool_success_rate` (offline) + runtime `tool_invocation` events (`tool_registry.py` `@track_tool`) aggregated by `monitoring/log_aggregate.py`; `--min-tool-success-rate` alert threshold. |
-| Loop Rate | ⚠️ | `loop_capped` counted in `metrics_report.py:116-157`; no per-request loop-count metric. |
+| Loop Rate | ✅ | `agent_loop_limit_hits_total` / total workflows, `core/metrics.py::Metrics.agent_workflow_summary()` — recorded whenever a graph run hits `build_chat_graph(max_steps=16)`'s cap without reaching END (`engine.py`). Also cross-checked offline from `graph_cycle_capped_max_steps` log lines, `metrics_report.py::report_agent_workflow_metrics`. `loop_capped` (the pre-existing, narrower "correction loop hit `_MAX_LLM_CALLS`" signal) still exists separately. |
 
 ---
 
 ## 2. LangChain, LangGraph & CrewAI
 
-Approach: **map existing hand-rolled code to the framework concepts** — no
-framework rewrite (justified in `docs/ARCHITECTURE.md` "Framework choice").
+Approach: **a dependency-free graph runtime this repo owns**
+(`agent_graph/engine.py`), not a third-party framework — justified in
+`docs/ARCHITECTURE.md` "Framework choice". As of Phase 1, the chat
+workflow is genuinely expressed as explicit nodes/edges/state (below),
+not just conceptually mapped.
 
 | Concept | Status | Mapping |
 |---|---|---|
@@ -51,10 +54,10 @@ framework rewrite (justified in `docs/ARCHITECTURE.md` "Framework choice").
 | LangChain chains | ✅ | Pipeline = deterministic chain (validate→extract→chunk→embed→index; plan→retrieve→grade→generate→correct). |
 | LangChain agents / tools | ✅ | Tool callables + formal Pydantic tool I/O schemas + `@track_tool` invocation tracking, `app/services/tool_registry.py`. |
 | LangChain memory | ✅ | Session store maps to LangChain `ConversationBufferWindowMemory` (bounded last-6-turns). |
-| LangGraph nodes | ⚠️ | Pipeline stages are plain functions; a graph node map is documented in `ARCHITECTURE.md` diagram, not code. |
-| LangGraph edges / state | ⚠️ | Implicit — `PlanDecision` dataclass (`rag_service.py:266-269`) + request-scoped state; no explicit graph state object. |
-| LangGraph workflow | ⚠️ | `handle_query`/`stream_query` mirror the workflow; not expressed as a graph runtime. |
-| LangGraph conditional routing | ⚠️ | `_grade_retrieval` branches (`rag_service.py:396-422`) = the `good/weak/insufficient` conditional edge. |
+| LangGraph nodes | ✅ | 12 named node functions (`agent_graph/nodes.py` + `cache_node.py`/`augmentation_node.py`/`human_approval.py`), each a thin wrapper delegating to an existing `ChatService`/service method — see `docs/ARCHITECTURE.md`'s "Explicit Agent Workflow" section. Tests: `tests/test_agent_graph_production.py`, `tests/test_vision_node.py`, `tests/test_cache_lookup_node.py`, `tests/test_augmentation_node.py`. |
+| LangGraph edges / state | ✅ | `agent_graph/state.py::AgentState` — one explicit, typed Pydantic state object (~50 fields) threaded through every node via `copy_with(...)`; no secrets, no raw large payloads (`tests/test_agent_graph_state.py`). Edges wired in `agent_graph/graph.py::build_chat_graph()`. |
+| LangGraph workflow | ✅ | `build_chat_graph()` backs `POST /chat` (`ChatService._run_chat_graph`) and shares its cache/retrieval/grading nodes with `POST /chat/stream`. Bounded (`max_steps=16`), traced, explicit start (`validate_request`) and end (`finalizer`/cache-hit `END`). |
+| LangGraph conditional routing | ✅ | `agent_graph/routing.py` (`route_after_planner`, `route_after_grader`, `route_after_validation`, `route_after_approval`) plus `route_after_cache_lookup`/`route_after_augmentation` — pure `(AgentState) -> str` functions, reviewable independent of node side effects. |
 | CrewAI role | ✅ | `AGENT_ROLE` constant, `prompt_builder.py` (CrewAI-style role/goal/backstory spec) |
 | CrewAI goal | ✅ | `AGENT_GOAL` constant, `prompt_builder.py` |
 | CrewAI backstory | ✅ | `AGENT_BACKSTORY` constant, `prompt_builder.py` |
@@ -67,10 +70,10 @@ framework rewrite (justified in `docs/ARCHITECTURE.md` "Framework choice").
 |---|---|
 | Tool abstraction | ⚠️ — tools are plain functions behind `VectorStore`/`LLMClient` interfaces; no shared tool envelope |
 | Prompt templates | ✅ — `prompt_builder.py` |
-| State management | ⚠️ — request-scoped, no explicit state object |
+| State management | ✅ — `AgentState` (`agent_graph/state.py`), immutable-update via `copy_with`, request/conversation/retrieved-context/persistent-data lifetimes kept explicit (see `ARCHITECTURE.md`) |
 | Retry | ✅ — LLM/embedding only (§1) |
-| Conditional routing | ✅ — planner + retrieval grading |
-| Human node | ⚠️ — `confirm_web_search` (web search) and `approved` (document deletion) approval gates, both off by default; no full per-action approval queue |
+| Conditional routing | ✅ — planner + retrieval grading, now explicit `routing.py` functions (see §2 table above) |
+| Human node | ✅ — `human_approval_node`, standardizing the same two gates behind `approval_service.ApprovalStore`; see §1's Human approval row |
 | Parallel execution | ⚠️ — none in chat path; ingestion embeds in batch (`embedding_service.py:126`) |
 | Multi-agent design | ❌ — single agent, N/A |
 
@@ -78,10 +81,10 @@ framework rewrite (justified in `docs/ARCHITECTURE.md` "Framework choice").
 
 | Metric | Status |
 |---|---|
-| Workflow Completion Rate | ⚠️ — derivable from `chat_query_handled` vs `request_failed`, not reported as such |
+| Workflow Completion Rate | ✅ — `agent_workflow_completed_total` / (`_completed_total` + `_failed_total`), `Metrics.agent_workflow_summary()`; surfaced in `run_eval.py`'s report and `GET /metrics`. Test: `tests/test_agent_graph_metrics.py::test_workflow_completion_metrics_recorded`. |
 | Agent Handoff Accuracy | N/A — single agent (`NOT_APPLICABLE.md`) |
-| Node Success Rate | ⚠️ — per-stage error taxonomy exists, no per-stage success aggregation |
-| Average Node Latency | ⚠️ — per-event latency in `metrics_report.py:67-94` |
+| Node Success Rate | ✅ — `agent_node_executions_total{status="success"}` / total, same summary method — one counter per node execution, emitted by every node via `emit_node_trace`. Test: `tests/test_agent_graph_metrics.py::test_node_execution_metrics_recorded_per_run`. |
+| Average Node Latency | ✅ — `agent_node_latency_seconds` histogram (per node + aggregate), same summary method; offline cross-check in `metrics_report.py::report_agent_workflow_metrics`. |
 | Agent Idle Time | N/A — single request-scoped agent |
 
 ---
