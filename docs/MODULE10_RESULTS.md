@@ -364,18 +364,28 @@ which is itself now a disclosed, unresolved finding.
 **Human evaluation expansion to 24 cases is now complete** (see the
 Human Evaluation section above) — no longer an open gap.
 
+**PHASE 3 UPDATE (2026-09-19): the Mean Faithfulness regression is now
+root-caused and fixed** — see `docs/PHASE3_PRODUCTION_HARDENING_REPORT.md`.
+It was not a model-quality or corrective-loop problem: `generator_node`'s
+exception handler caught *any* LLM provider failure (timeout, rate limit,
+API error surviving all 3 retries) and silently substituted the exact
+same `FALLBACK_REPLY` text used for a genuine "not in the documents"
+answer — making a provider failure indistinguishable, to both users and
+the Faithfulness metric, from a confident grounded non-answer. Fixed by
+introducing a distinct `GENERATION_ERROR_REPLY` sentinel
+(`prompt_builder.py`) and updating `ChatService._is_ungrounded` so the
+existing corrective retry still applies to it. 2 new regression tests
+added; full suite now 809 passed, 1 skipped. **Not yet re-measured**: a
+fresh, uncontaminated RAG-benchmark/human-eval re-run to quantify the
+new Faithfulness number was blocked by the Groq daily token quota being
+exhausted mid-investigation — see the Phase 3 report's Remaining
+Limitations and Recommendation sections.
+
 **Still open:**
 
-1. **A new RAG generation-quality regression, discovered during the
-   `run_rag_eval.py` refresh**: Mean Faithfulness dropped to 0.0000
-   (from a historical, unverified 0.9420) because several cases where
-   retrieval correctly found the answer (context recall/precision both
-   1.0) still produced the pipeline's safe-refusal fallback instead of
-   an answer — consistent with the corrective/reflection loop
-   (`ChatService._correct`) exhausting its retry budget and falling back
-   to refusal on cases that should have succeeded. Root-causing/fixing
-   this is a production-logic change, out of scope for this
-   evaluation-only pass; it is disclosed here as a new finding for the
-   next phase, not fixed or hidden.
-3. **`docs/CHECKLIST.md`/`docs/DESIGN_REVIEW.md` updates**: see those
-   files directly for what was and wasn't updated in this pass.
+1. Re-measure Mean Faithfulness under the Phase 3 fix once the Groq
+   token quota allows a clean run (see `docs/PHASE3_PRODUCTION_HARDENING_REPORT.md`
+   Section T).
+2. `docs/CHECKLIST.md`/`docs/DESIGN_REVIEW.md` updates for the Phase 3
+   fix specifically: see those files directly for what was and wasn't
+   updated.

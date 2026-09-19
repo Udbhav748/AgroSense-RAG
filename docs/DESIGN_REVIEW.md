@@ -569,11 +569,18 @@ with what was actually measured, not just argued:
   Jailbreak Success Rate both 0.0 across a dedicated adversarial suite
   (role override, system-prompt extraction, instruction-hierarchy attack,
   malicious retrieved content, data exfiltration, tool misuse), and the
-  RBAC investigation above resolved rather than left open. One new,
-  disclosed caveat from the same gap-closure pass: a live re-run of
-  `backend/scripts/run_rag_eval.py` surfaced Mean Faithfulness dropping
-  to 0.0000 (from a historical, unverified 0.9420) — several cases with
-  perfect retrieval still returned the safe-refusal fallback instead of
-  an answer, consistent with the corrective/reflection loop exhausting
-  its retry budget. Not fixed in this evaluation-only pass; see
-  `docs/RAG_BENCHMARK_REPORT.md`'s REFRESH section.
+  RBAC investigation above resolved rather than left open. One caveat
+  from the gap-closure pass: a live re-run of `backend/scripts/run_rag_eval.py`
+  surfaced Mean Faithfulness dropping to 0.0000 (from a historical,
+  unverified 0.9420) — several cases with perfect retrieval still
+  returned the safe-refusal fallback instead of an answer. **PHASE 3
+  UPDATE**: root-caused and fixed — `generator_node` was catching any LLM
+  provider failure (timeout/rate-limit/API error surviving retries) and
+  substituting the exact same fallback text used for a genuine
+  "not in the documents" answer, making the two indistinguishable to
+  both users and the Faithfulness metric. Fixed with a distinct
+  `GENERATION_ERROR_REPLY` sentinel; see
+  `docs/PHASE3_PRODUCTION_HARDENING_REPORT.md` for the full root-cause
+  trace, fix, and regression tests. A fresh Faithfulness measurement
+  under the fix is still pending (blocked by Groq daily quota exhaustion
+  during the investigation).
