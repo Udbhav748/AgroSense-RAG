@@ -41,6 +41,7 @@ class FakeChatService:
         self.cache_write_calls: list[dict] = []
         self.cache_lookup_calls = 0
         self.correct_calls = 0
+        self.augment_calls: list[bool | None] = []
 
     def _plan(self, query, history=None):
         return PlanDecision(action=self._plan_action)
@@ -82,6 +83,10 @@ class FakeChatService:
         return final_answer, llm_calls + 1, steps_taken + 1, web_results, web_search_attempted
 
     def _augment_weak_retrieval(self, *args, **kwargs):
+        # args[-1] is confirm_web_search per ChatService's real positional
+        # signature -- recorded so Phase 5's approval-wiring tests can
+        # assert whether the guarded web-search escalation actually ran.
+        self.augment_calls.append(args[-1] if args else None)
         return self._augmentation
 
     def _get_cached_response(self, query, crop=None, disease=None, tenant_id=None, document_ids=None):
@@ -331,3 +336,101 @@ def test_generation_error_reply_triggers_reflection_retry():
     # produced here (there's nothing to call the LLM with), but confirm the
     # "no context -> not ungrounded" short-circuit still holds regardless.
     assert service._is_ungrounded(GENERATION_ERROR_REPLY, [], []) is False
+
+
+# ---------------------------------------------------------------------------
+# PHASE 5: human_approval_node wired into the live production graph for the
+# web-search escalation. Before this, human_approval_node was registered in
+# build_chat_graph() but had no inbound edge -- dead code (see
+# docs/MODULE10_FINAL_AUDIT.md Section 8, Finding 1). These tests exercise
+# the graph's real routing, not human_approval_node in isolation (already
+# covered by test_human_approval_node.py).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_weak_retrieval_approval_required_blocks_web_search_but_still_generates(monkeypatch):
+    """No confirm_web_search, no approval reference, gate on: the request
+    must be routed through human_approval_node (registering a pending
+    Approval), never reach context_augmentation (so no web search happens),
+    but still reach generator with the chunks retrieval already found --
+    web search specifically is guarded, not generation from existing
+    context."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "web_search_requires_approval", True)
+    graph = build_chat_graph()
+    fake = FakeChatService(plan_action="retrieve", grade="weak")
+    ctx = GraphContext(chat_service=fake, vector_store=FakeVectorStore([make_chunk()]))
+    state = AgentState(query="q", confirm_web_search=False)
+
+    result = await graph.run(state, ctx)
+
+    assert fake.augment_calls == []  # context_augmentation never ran -- web search never happened
+    assert len(fake.generate_calls) == 1  # generation from existing chunks still happened
+    assert result.approval_status == "pending"
+    assert result.final_response.metadata.get("approval_status") == "pending"
+    assert result.final_response.metadata.get("approval_id") is not None
+
+
+@pytest.mark.asyncio
+async def test_weak_retrieval_genuine_approval_allows_web_search(monkeypatch):
+    """A request carrying a reference to a genuinely APPROVED approval must
+    reach context_augmentation (the real guarded action) via human_approval_node's
+    'resume' route, with the effective confirm flag set."""
+    from app.core.config import settings
+    from app.services.approval_service import get_approval_store
+
+    monkeypatch.setattr(settings, "web_search_requires_approval", True)
+    approval = get_approval_store().register(action="web_search", payload={"query": "q"})
+    get_approval_store().resolve(approval.approval_id, approved=True, resolved_by="operator")
+
+    graph = build_chat_graph()
+    fake = FakeChatService(plan_action="retrieve", grade="weak")
+    ctx = GraphContext(chat_service=fake, vector_store=FakeVectorStore([make_chunk()]))
+    state = AgentState(query="q", confirm_web_search=False, approval_payload_reference=approval.approval_id)
+
+    result = await graph.run(state, ctx)
+
+    assert fake.augment_calls == [True]  # context_augmentation ran with the approval honored
+    assert result.approval_status == "approved"
+
+
+@pytest.mark.asyncio
+async def test_weak_retrieval_rejected_approval_blocks_web_search(monkeypatch):
+    from app.core.config import settings
+    from app.services.approval_service import get_approval_store
+
+    monkeypatch.setattr(settings, "web_search_requires_approval", True)
+    approval = get_approval_store().register(action="web_search", payload={"query": "q"})
+    get_approval_store().resolve(approval.approval_id, approved=False, resolved_by="operator")
+
+    graph = build_chat_graph()
+    fake = FakeChatService(plan_action="retrieve", grade="weak")
+    ctx = GraphContext(chat_service=fake, vector_store=FakeVectorStore([make_chunk()]))
+    state = AgentState(query="q", confirm_web_search=False, approval_payload_reference=approval.approval_id)
+
+    result = await graph.run(state, ctx)
+
+    assert fake.augment_calls == []  # rejected -- web search must not run
+    assert result.approval_status == "rejected"
+    assert result.final_response.metadata.get("approval_status") == "rejected"
+
+
+@pytest.mark.asyncio
+async def test_confirm_web_search_fast_path_still_bypasses_approval_queue(monkeypatch):
+    """Backward compatibility: a caller that already sets confirm_web_search=true
+    directly (the pre-existing self-service fast path) must skip
+    human_approval_node entirely, exactly as before this phase's wiring."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "web_search_requires_approval", True)
+    graph = build_chat_graph()
+    fake = FakeChatService(plan_action="retrieve", grade="weak")
+    ctx = GraphContext(chat_service=fake, vector_store=FakeVectorStore([make_chunk()]))
+    state = AgentState(query="q", confirm_web_search=True)
+
+    result = await graph.run(state, ctx)
+
+    assert fake.augment_calls == [True]
+    assert result.approval_status == "not_required"  # human_approval_node never ran

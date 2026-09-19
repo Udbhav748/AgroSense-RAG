@@ -42,6 +42,15 @@ def context_augmentation_node(state: AgentState, context: GraphContext | None = 
         new_state.node_timings["context_augmentation"] = 0.0
         return new_state
 
+    # PHASE 5 FIX: a request that just resumed from human_approval_node
+    # with a genuinely resolved approval_status=="approved" must be
+    # treated as confirmed for this call, even though the caller's own
+    # confirm_web_search flag is still false -- that flag is the
+    # separate, pre-existing self-service fast path, not the only way to
+    # satisfy the gate now that the graph-level approval queue is wired
+    # in. Never the reverse: a non-approved status never sets this true.
+    effective_confirm_web_search = state.confirm_web_search or state.approval_status == "approved"
+
     try:
         with timer:
             augmentation = chat_service._augment_weak_retrieval(  # noqa: SLF001
@@ -51,7 +60,7 @@ def context_augmentation_node(state: AgentState, context: GraphContext | None = 
                 state.retrieval_grade,
                 state.planned_action or "retrieve",
                 state.tenant_id,
-                state.confirm_web_search,
+                effective_confirm_web_search,
             )
     except Exception as exc:
         error_type, root_cause = _node_error(exc)

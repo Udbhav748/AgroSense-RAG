@@ -32,15 +32,21 @@ def route_after_planner(state: AgentState) -> str:
 
 
 def route_after_grader(state: AgentState) -> str:
-    """good -> generator ; weak/insufficient -> web_research.
+    """good -> generator ; weak/insufficient -> web_research, unless
+    retrieval_grader_node flagged approval_required=True (Phase 5), in
+    which case the request goes through human_approval_node first so the
+    web-search approval gate is actually enforced against a resolved
+    Approval record, not just a client-supplied boolean.
 
-    A caller with web search disabled/unavailable routes to web_research
-    anyway — that node itself degrades to an empty result (see
-    ChatService._search_web), so the state machine's shape doesn't change
-    based on config, only the outcome does.
+    A caller with web search disabled/unavailable (and no approval gate
+    active) routes to web_research anyway — that node itself degrades to
+    an empty result (see ChatService._search_web), so the state machine's
+    shape doesn't change based on config, only the outcome does.
     """
     if state.retrieval_grade == "good":
         return "generator"
+    if state.approval_required and state.approval_type == "web_search":
+        return "approval_required"
     return "web_research"
 
 

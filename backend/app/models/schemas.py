@@ -48,6 +48,14 @@ class ChatRequest(BaseModel):
         "is enabled, web search is skipped unless this is true — an explicit human-in-the-loop "
         "gate on the agent's only outbound side-effect.",
     )
+    approval_id: str | None = Field(
+        None,
+        description="Resume a previously-registered web-search approval (see GET/POST /api/v1/approvals). "
+        "When Settings.web_search_requires_approval is enabled and confirm_web_search was not set, the "
+        "first request registers a pending Approval and its id is returned in the response metadata; "
+        "resubmit the same query with that id here once an operator has resolved it via "
+        "POST /api/v1/approvals/{id}/resolve. Ignored if the referenced approval is not approved.",
+    )
     structured_response: bool = Field(
         False,
         description="Request a JSON-mode structured answer. Only takes effect when "

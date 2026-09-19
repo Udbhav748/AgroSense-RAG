@@ -1677,6 +1677,7 @@ class ChatService:
         persona: str | None = None,
         document_ids: list[str] | None = None,
         language: str = "en",
+        approval_id: str | None = None,
     ) -> ChatResponse:
         start = time.perf_counter()
         steps_taken = 1  # planning
@@ -1774,6 +1775,7 @@ class ChatService:
                 top_k=top_k,
                 min_score=min_score,
                 perf_start=start,
+                approval_id=approval_id,
             )
         except AppError:
             # Already a well-formed domain exception from retrieval, prompt
@@ -1799,6 +1801,7 @@ class ChatService:
         top_k: int | None,
         min_score: float | None,
         perf_start: float,
+        approval_id: str | None = None,
     ) -> ChatResponse:
         """Builds the initial AgentState from an already-decided plan (this
         method never re-plans — `plan` is handle_query's own `_route()`
@@ -1836,6 +1839,7 @@ class ChatService:
             intent=plan.action,
             metadata={"structured_response": structured_response, "language": language},
             perf_start=perf_start,
+            approval_payload_reference=approval_id,
         )
         context = GraphContext(
             chat_service=self,

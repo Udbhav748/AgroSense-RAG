@@ -133,7 +133,11 @@ def build_chat_graph(max_steps: int = 16) -> CompiledGraph:
     graph.add_conditional_edges(
         "retrieval_grader",
         route_after_grader,
-        {"generator": "generator", "web_research": "context_augmentation"},
+        {
+            "generator": "generator",
+            "web_research": "context_augmentation",
+            "approval_required": "human_approval",
+        },
     )
     # context_augmentation replicates handle_query's full weak-retrieval
     # escalation (vision QA -> local research -> research agent -> web
@@ -156,18 +160,27 @@ def build_chat_graph(max_steps: int = 16) -> CompiledGraph:
     graph.add_edge("reflection", "output_validation")
     graph.add_edge("output_validation", "finalizer")
 
-    # human_approval is registered but only reachable once a node sets
-    # state.approval_required=True and routes into it explicitly (wired to
-    # the web_research entry point in the streaming-migration commit, so the
-    # existing confirm_web_search flag continues to be the fast path and
-    # this becomes the traced, standardized slow path). Left unattached to
-    # any edge here (not reachable from the entry point) — a CompiledGraph
-    # node with no inbound edge is inert, not a live one, so this does not
-    # add a hidden production path.
+    # PHASE 5 FIX: human_approval is now genuinely reachable — retrieval_grader_node
+    # flags approval_required=True for the web-search escalation when
+    # Settings.web_search_requires_approval is on and the caller hasn't
+    # already satisfied the gate (confirm_web_search=true or an
+    # already-approved reference), and route_after_grader sends it here.
+    # "resume" routes to context_augmentation (the actual guarded action),
+    # not straight to generator — an approved request must still perform
+    # the web search it was approved for, not skip past it. A
+    # pending/rejected/expired approval routes to "generator" (NOT straight
+    # to finalizer): web search specifically is the guarded action, not
+    # generation itself — the request should still get the best answer the
+    # LLM can produce from whatever chunks retrieval already, legitimately
+    # found, exactly as it would have before this approval gate existed.
+    # human_approval_node's own never-auto-approve guarantee is preserved:
+    # only "resume" (approval_status == "approved") ever reaches
+    # context_augmentation, so web search itself is never performed
+    # without a genuine approval.
     graph.add_conditional_edges(
         "human_approval",
         route_after_approval,
-        {"resume": "generator", "safe_finalizer": "finalizer"},
+        {"resume": "context_augmentation", "safe_finalizer": "generator"},
     )
 
     return graph.compile(max_steps=max_steps)

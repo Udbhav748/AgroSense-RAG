@@ -803,10 +803,36 @@ def retrieval_grader_node(state: AgentState, context: GraphContext | None = None
         extra={"grade": grade},
     )
     logger.info(RETRIEVAL_GRADED, extra={"extra_fields": {"grade": grade, "reason": reason}})
+
+    # PHASE 5 FIX: web search is the guarded action a weak/insufficient
+    # grade escalates to (see route_after_grader/context_augmentation_node).
+    # When Settings.web_search_requires_approval is on and the caller
+    # hasn't already satisfied the gate (confirm_web_search=true, the
+    # existing fast path, or a genuinely-approved approval already
+    # attached via approval_payload_reference), flag the state so
+    # route_after_grader sends this request through human_approval_node
+    # instead of straight to context_augmentation -- making the
+    # already-registered Approval record (see ChatService._search_web)
+    # actually gate the action, not just log it for visibility.
+    approval_required = (
+        grade != "good"
+        and settings.web_search_requires_approval
+        and not state.confirm_web_search
+        and state.approval_status != "approved"
+    )
     new_state = state.copy_with(
         retrieval_grade=grade,
         retrieval_grade_reason=reason,
         steps_taken=state.steps_taken + 1,
+        **(
+            {
+                "approval_required": True,
+                "approval_type": "web_search",
+                "approval_reason": "weak_retrieval_web_search_fallback",
+            }
+            if approval_required
+            else {}
+        ),
     )
     new_state.node_timings["retrieval_grader"] = timer.latency_ms
     return new_state
@@ -1130,7 +1156,13 @@ def finalizer_node(state: AgentState, context: GraphContext | None = None) -> Ag
                 is_clarifying_question=is_clarifying_question,
                 follow_up_questions=follow_up_questions,
             )
-            if action == "retrieve":
+            # PHASE 5 FIX: never cache a response that only exists because a
+            # guarded action (web search) was blocked pending/rejected/
+            # expired approval -- it's an incomplete answer for this
+            # specific request, not a reusable good answer for the query in
+            # general. A later, approved retry of the same query must not
+            # be served this placeholder from cache.
+            if action == "retrieve" and state.approval_status not in ("pending", "rejected", "expired"):
                 plan = state.plan if isinstance(state.plan, dict) else {}
                 chat_service._cache_response(  # noqa: SLF001
                     query=state.query,
@@ -1142,6 +1174,10 @@ def finalizer_node(state: AgentState, context: GraphContext | None = None) -> Ag
                 )
             source_type = chat_resp.answer_source
             final_sources = [s.model_dump() for s in chat_resp.sources]
+            if state.approval_status in ("pending", "rejected", "expired"):
+                chat_resp.metadata["approval_status"] = state.approval_status
+                if state.approval_payload_reference:
+                    chat_resp.metadata["approval_id"] = state.approval_payload_reference
         else:
             sources: list[SourceReference] = []
             if state.retrieved_chunks:
