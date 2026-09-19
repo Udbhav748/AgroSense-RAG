@@ -103,6 +103,46 @@ class TestGroqClientGenerate:
         with pytest.raises(LLMAPIError):
             client.generate("some prompt")
 
+    def test_rate_limit_surviving_all_retries_raises_bounded_and_classified(self, monkeypatch):
+        """PHASE 5 STEP 4: deterministic, mocked provider rate-limit test --
+        no real 429 call. A genuine groq.RateLimitError (429) on every
+        attempt must: (a) be retried a BOUNDED number of times (tenacity's
+        stop_after_attempt(3), not infinitely), (b) ultimately raise
+        LLMAPIError (correct classification -- a rate limit is an API
+        error, not a timeout or an empty-response case), (c) never raise
+        an uncaught/unclassified exception. The generator_node-level
+        consequence (GENERATION_ERROR_REPLY, not a false "not in
+        documents" fallback) is covered separately by
+        test_agent_graph_production.py::test_generator_exception_uses_generation_error_reply_not_fallback,
+        which already proves the same exception type reaching that node
+        produces the correct sentinel -- not duplicated here."""
+        import httpx
+
+        client = _client(monkeypatch)
+        call_count = 0
+
+        def _raise_rate_limit(**kwargs):
+            nonlocal call_count
+            call_count += 1
+            response = httpx.Response(
+                status_code=429,
+                request=httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions"),
+            )
+            raise groq.RateLimitError(
+                "Rate limit reached for model in organization on tokens per day (TPD)",
+                response=response,
+                body=None,
+            )
+
+        monkeypatch.setattr(client._client.chat.completions, "create", _raise_rate_limit)
+
+        with pytest.raises(LLMAPIError) as exc_info:
+            client.generate("some prompt")
+
+        assert call_count == 3  # tenacity's stop_after_attempt(3) -- bounded, not infinite
+        # No sensitive information (API keys, raw auth headers) leaked into the exception message.
+        assert settings.groq_api_key not in str(exc_info.value)
+
 
 class _FakeDelta:
     def __init__(self, content):
