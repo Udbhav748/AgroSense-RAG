@@ -1,19 +1,16 @@
 """Tests for the 10/10-upgrade Agent 1 features:
 
-1. Specialized agents (services/agents/): DocumentAnalyst, WebResearcher,
-   FactChecker, Summarizer — each wraps an existing capability behind the
-   Agent ABC.
-2. PlanningAgent (services/planning_agent.py): LLM planner that decides
+1. PlanningAgent (services/planning_agent.py): LLM planner that decides
    one next step at a time (plan_next), with defensive JSON parsing and a
    deterministic fallback step.
-3. AgentExecutor (services/agent_executor.py): the genuine ReAct
+2. AgentExecutor (services/agent_executor.py): the genuine ReAct
    plan→act→observe→repeat loop over the dynamic tool registry — each
    iteration's plan_next() call sees every earlier step's actual result.
-4. ChatService._handle_via_executor: the flag-gated wiring so eligible
+3. ChatService._handle_via_executor: the flag-gated wiring so eligible
    queries route through the executor.
-5. pgvector config surface (Settings.pgvector_*): the store swap is
+4. pgvector config surface (Settings.pgvector_*): the store swap is
    config-driven; these assert the settings exist with sane defaults.
-6. eval/nightly_eval.py's summary builder.
+5. eval/nightly_eval.py's summary builder.
 
 Like the rest of the suite, these are offline: the LLM is a FakeLLM, the
 vector store is a fake, and no real Postgres/Gemini is touched. The
@@ -30,11 +27,6 @@ import pytest
 
 from app.core.config import settings
 from app.models.document import RetrievedChunk
-from app.services.agents.base import AgentContext
-from app.services.agents.document_analyst import DocumentAnalyst
-from app.services.agents.fact_checker import FactChecker
-from app.services.agents.summarizer import Summarizer
-from app.services.agents.web_researcher import WebResearcher
 from app.services.planning_agent import Observation, PlanningAgent, PlanStep
 from app.services.tools.base import ToolContext
 from app.services.tools.factory import build_tool_registry
@@ -88,20 +80,6 @@ def make_chunk(chunk_id="c1", document_id="doc-1", text="alpha beta gamma delta"
         text=text,
         score=score,
         metadata={"chunk_index": 0, "tenant_id": None},
-    )
-
-
-def make_context(llm=None, store=None, metadata=None):
-    return AgentContext(
-        vector_store=store or FakeVectorStore([make_chunk()]),
-        llm_client=llm or FakeLLM(["grounded answer"]),
-        agent_memory=None,
-        tenant_id=None,
-        history=None,
-        prompt_builder=lambda query, chunks, history, web_results: (
-            f"Prompt for {query} with {len(chunks)} chunks"
-        ),
-        metadata=metadata or {},
     )
 
 
@@ -254,50 +232,6 @@ class TestAgentExecutor:
         # Exactly one tool step (retrieval) + synthesis — the planner
         # stopped as soon as it had enough, not after a fixed plan length.
         assert result.steps_taken == 2
-
-
-class TestSpecializedAgents:
-    def test_document_analyst_retrieves_and_synthesizes(self):
-        llm = FakeLLM(["grounded answer"])
-        analyst = DocumentAnalyst(make_registry())
-        result = run(analyst.run("what does the doc say?", make_context(llm=llm)))
-        assert result.answer == "grounded answer"
-        assert result.metadata["success"] is True
-
-    def test_document_analyst_empty_retrieval_reports_failure(self):
-        analyst = DocumentAnalyst(make_registry())
-        context = make_context(store=FakeVectorStore([]))
-        result = run(analyst.run("anything", context))
-        assert result.metadata["success"] is False
-
-    def test_summarizer_missing_document_id_reports_failure(self):
-        summarizer = Summarizer()
-        result = run(summarizer.run("summarize it", make_context()))
-        assert result.metadata["success"] is False
-        assert result.metadata["reason"] == "missing_document_id"
-
-    def test_fact_checker_skips_without_verification_enabled(self, monkeypatch):
-        monkeypatch.setattr(settings, "citation_verification_enabled", False)
-        checker = FactChecker(FakeLLM())
-        context = make_context(metadata={"answer": "answer [1]", "chunks": [make_chunk()]})
-        result = run(checker.run("q", context))
-        assert result.metadata["skipped"] is True
-        assert result.metadata["verified"] is True
-
-    def test_fact_checker_verifies_citations(self, monkeypatch):
-        monkeypatch.setattr(settings, "citation_verification_enabled", True)
-        llm = FakeLLM([json.dumps({"1": True})])
-        checker = FactChecker(llm)
-        context = make_context(metadata={"answer": "answer [1]", "chunks": [make_chunk()]})
-        result = run(checker.run("q", context))
-        assert result.metadata["verified"] is True
-
-    def test_web_researcher_disabled_without_web_search(self, monkeypatch):
-        monkeypatch.setattr(settings, "web_search_enabled", False)
-        researcher = WebResearcher(FakeLLM())
-        result = run(researcher.run("latest news", make_context()))
-        assert result.metadata["success"] is False
-        assert result.metadata["reason"] == "web_search_disabled"
 
 
 class TestChatServiceExecutorWiring:
