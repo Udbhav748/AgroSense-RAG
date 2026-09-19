@@ -420,14 +420,23 @@ flowchart TD
     cache_lookup -- hit --> END
     cache_lookup -- miss --> retrieval --> retrieval_grader
     retrieval_grader -- good --> generator
-    retrieval_grader -- weak/insufficient --> context_augmentation
+    retrieval_grader -- weak/insufficient, approval not needed --> context_augmentation
+    retrieval_grader -- weak/insufficient, approval required --> human_approval
+    human_approval -- approved --> context_augmentation
+    human_approval -- pending/rejected/expired --> generator
     context_augmentation -- direct answer --> finalizer
     context_augmentation -- no direct answer --> generator
     generator --> reflection --> output_validation --> finalizer
     finalizer --> END
-    human_approval -. approved .-> generator
-    human_approval -. rejected/pending .-> finalizer
 ```
+
+*(Phase 5, 2026-09-19: `human_approval` is now genuinely reachable — see
+its node description below. It is reached only when
+`Settings.web_search_requires_approval` is on and the caller hasn't
+already satisfied the gate; `context_augmentation` is the guarded action
+[performing the web search], never `generator` — a pending/rejected/
+expired approval still lets the request generate the best answer from
+whatever `retrieval` already, legitimately found.)*
 
 Node responsibilities (all in `agent_graph/nodes.py` unless noted):
 
@@ -543,13 +552,31 @@ enforced in code (`route_after_approval` only returns `"resume"` when
 `not_required | pending | approved | rejected | expired` (the last two —
 document-store-observed lazy expiry via an optional `ttl_seconds` on
 `register()` — are additive; every existing call site that never passed
-one keeps behaving exactly as before). The node is registered in
-`build_chat_graph()` but has no inbound edge from the entry point in this
-phase — the existing `confirm_web_search=true`/`approved=true`
-request-flag fast path remains how approval is actually granted today
-(unchanged); `human_approval_node` is the reusable, traced, standardized
-form for a future caller to route through explicitly, per PDF §21's
-"create the abstraction now, keep the surface small."
+one keeps behaving exactly as before).
+
+**Phase 5 (2026-09-19): genuinely wired in for the web-search escalation.**
+`retrieval_grader_node` flags `approval_required=True`/`approval_type="web_search"`
+when the grade is weak/insufficient, `Settings.web_search_requires_approval`
+is on, and the caller hasn't already satisfied the gate (`confirm_web_search=true`
+or an already-approved reference); `route_after_grader` then sends the
+request to `human_approval_node` instead of straight to
+`context_augmentation_node`. `human_approval`'s `"resume"` edge (approved)
+goes to `context_augmentation` — the actual guarded action — while
+`"safe_finalizer"` (pending/rejected/expired) goes to `generator`, so the
+request still gets the best answer from whatever `retrieval` already
+found, without ever performing the unapproved web search.
+`context_augmentation_node` computes an effective confirm flag
+(`state.confirm_web_search or state.approval_status == "approved"`)
+before delegating to `ChatService._augment_weak_retrieval`. The
+pre-existing `confirm_web_search=true` client fast path is unchanged and
+still bypasses the approval queue entirely for callers who don't use it.
+`ChatRequest.approval_id` (optional) lets a client resume a request once
+an operator resolves its registered approval via
+`POST /api/v1/approvals/{id}/resolve`. Document deletion's approval gate
+is enforced separately, at the route level (`app/api/v1/routes/documents.py`),
+not through this graph node — see that route's own docstring. Tested in
+`tests/test_agent_graph_production.py` (4 cases: required-blocks-search,
+genuine-approval-allows-search, rejected-blocks-search, fast-path-still-works).
 
 ### Streaming interaction
 
@@ -621,5 +648,5 @@ lines).
   `"reflection"` branch, `MAX_REFLECTIONS` in `routing.py`) are built and
   unit-tested but not part of the live topology (see "Retry, reflection,
   and termination" above).
-- `human_approval_node` has no inbound edge from the entry point yet —
-  see "Human approval" above.
+- ~~`human_approval_node` has no inbound edge from the entry point yet~~ —
+  **fixed in Phase 5**, see "Human approval" above.

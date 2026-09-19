@@ -1,8 +1,8 @@
 # Module 10 — Final Audit
 
-**Date**: 2026-09-19 · **Commit at audit time**: `6128667` (Phase 3's final commit; this audit adds no code changes — see the Phase 4 report's scope-discipline note)
+**Date**: 2026-09-19 (originally written after Phase 4, updated in place after Phase 5 — see each section's own PHASE 5 UPDATE notes for what changed) · **Commit at audit time of last edit**: `e435ff7` (Phase 5's final commit) · **Regression at last edit**: 819 passed, 1 skipped.
 
-This is the terminal evidence document for Module 10. It consolidates Phases 1–4 rather than re-deriving them: where a prior phase already produced a reproducible test and a measured artifact, this audit cites that evidence instead of re-running it (Phase 4's own instruction: "do not blindly rerun every expensive live evaluation if nothing changed in that component"). Nothing in Phase 4 touched RAG generation, retrieval, security, or memory code — only two new findings were produced (Section 8), neither of which triggered a code change (see rationale there) — so those areas' Phase 2/3 measurements stand unchanged and are cited, not re-run.
+This is the terminal evidence document for Module 10, consolidated in Phase 6 (release freeze) rather than rewritten. It consolidates Phases 1–5 rather than re-deriving them: where a prior phase already produced a reproducible test and a measured artifact, this audit cites that evidence instead of re-running it. Sections below marked "PHASE 5 UPDATE" record what Phase 5 fixed after this document was first written; everything else reflects Phase 1–4 evidence, unchanged and cited, not re-run. See `docs/MODULE10_EVIDENCE_INDEX.md` for a flat requirement→evidence→command→result index, and `docs/REPRODUCE_MODULE10.md` for exact reproduction commands with their external-dependency requirements stated.
 
 ---
 
@@ -122,7 +122,31 @@ Full-depth answers already exist in `docs/DESIGN_REVIEW.md`; this is the termina
 7. **How are data/secrets protected?** API-key auth + tenant isolation (Section 13); `.env` confirmed never committed (Section 24, Secrets hygiene row); PII detection with measured 1.0 recall.
 8. **Cost per successful task?** $0.001124, measured from real per-request token/cost telemetry (Section 21) — not estimated, not assumed zero for missing data.
 9. **Scaling 10→1M users?** Unchanged from `docs/DESIGN_REVIEW.md` §9's existing honest answer: single-process FastAPI, in-memory FAISS index, no autoscaling — this audit adds no new scaling work and claims no new capability.
-10. **Why should a customer trust this system?** Because its own failure modes are measured and disclosed rather than hidden — including this very audit finding and fixing a real regression (Section 11) and disclosing two approval-flow limitations (Section 8) instead of marking them ✅ because the code merely exists.
+10. **Why should a customer trust this system?** Because its own failure modes are measured and disclosed rather than hidden — including finding and fixing a real Faithfulness regression (Section 11), finding and fixing two real approval-flow gaps (Section 8, both resolved in Phase 5), and never marking an item ✅ merely because the code exists.
+
+## 24b. Teacher-Friendly Evaluation Summary
+
+| Area | Dataset | Cases | Metrics | Result | Status | Evidence |
+|---|---|---:|---|---|---|---|
+| RAG — semantic only | `rag_eval.json` | 23/30 (with keyword ground truth) | P@5 / Recall@5 / Hit@5 / MRR | 0.4174 / 0.6014 / 0.6957 / 0.6739 | ✅ baseline | `eval/module10/reports/rag_eval_20260919T103118Z.json` |
+| RAG — hybrid (BM25+vector) | same | same | same | 0.6087 / 0.7428 / 0.9130 / 0.8551 | ✅ | same |
+| RAG — hybrid + rerank | same | same | same | 0.6435 / 0.8080 / 0.9130 / 0.8783 | ✅ | same |
+| RAG — groundedness/citation | same | 30 | lexical groundedness / citation accuracy | 0.7931 / 0.6957 (hybrid, hybrid+rerank) | ⚠️ (lexical proxy scores a correct refusal as "ungrounded" — documented, not fabricated) | same |
+| Faithfulness (full-dataset, historical) | `run_rag_eval.py`'s 20-case golden set | 20 | Mean Faithfulness | 0.9420 (unverified, Aug 2026) → 0.0000 (measured live, root-caused as a generation-failure mislabeling bug, now fixed) | ⚠️ full-dataset re-run under the fix not yet performed | `docs/RAG_BENCHMARK_REPORT.md`, `docs/PHASE3_PRODUCTION_HARDENING_REPORT.md` |
+| Faithfulness (targeted post-fix) | human-eval rows 17, 19 | 2 | pass/fail (real answer vs. refusal) | 2/2 now real, cited answers (was 0/2) | ✅ limited scope, stated honestly | `eval/module10/reports/faithfulness_post_phase3_20260919T165741Z.json` |
+| Agent — planner | `agent_eval.json` | 15 | Accuracy / Macro F1 | 0.9333 / 0.9475 | ✅ | `eval/module10/reports/agent_eval_20260919T112455Z.json` |
+| Agent — tool selection / tool arguments | same | 2 / 2 | accuracy | 1.0 / 1.0 | ✅ | same |
+| Agent — planning success / workflow completion / node success | same | 3 / 2 / 17 node executions | rate | 1.0 / 1.0 / 1.0 | ✅ | same |
+| Agent — steps / loops / task success | same | 3 | avg steps / loop rate | 8.5 / 0.0 | ✅ | same |
+| Security — PII recall | `security_eval.json` | 15 planted | recall | 1.0 | ✅ | `eval/module10/reports/security_eval_20260919T111236Z.json` |
+| Security — unauthorized access rate | same | 2 cross-tenant | rate (desired 0) | 0.0 | ✅ (corrected from a mismeasured 0.3333 — see Section 13) | same |
+| Security — prompt injection / jailbreak success rate | same | 3 / 5 | rate (desired 0) | 0.0 / 0.0 | ✅ | same |
+| Security — false refusal / data leak rate | same | 1 / 1 | rate (desired 0) | 0.0 / 0.0 | ✅ | same |
+| Human evaluation | `human_eval.json` | 24 (16 + 8) | 7 rubric dimensions, 1 reviewer | scored, IAA N/A (1 reviewer) | ✅ (single-reviewer, disclosed) | `docs/HUMAN_EVAL.md` |
+| Failure/recovery | `failure_cases.json` | 11/12 measured | detection / recovery / unhandled rate | 1.0 / 1.0 / 0.0 | ✅ | `eval/module10/reports/failure_eval_20260919T092719Z.json` |
+| Failure — rate-limit-surviving-retries | mocked | 1 | bounded retry count / correct classification | 3 attempts, `LLMAPIError` | ✅ (Phase 5) | `tests/test_groq_client.py` |
+| Human approval — web search | live graph routing | 4 wiring tests | pending/rejected/approved behavior | all correct | ✅ (Phase 5) | `tests/test_agent_graph_production.py` |
+| Human approval — document delete | live route | 8 tests | full state matrix | all correct | ✅ (Phase 5) | `tests/test_main.py` |
 
 ## 24. Final Module 10 Checklist
 
@@ -150,7 +174,7 @@ Full-depth answers already exist in `docs/DESIGN_REVIEW.md`; this is the termina
 
 ```
 cd backend
-pytest -q                                              # full regression: 809 passed, 1 skipped
+pytest -q                                              # full regression: 819 passed, 1 skipped (Phase 5)
 python eval/unauthorized_access_check.py               # RBAC: 0.0 unauthorized, member path PASS
 python -m pytest tests/test_agent_graph_production.py -q   # faithfulness fix regression tests
 python -m pytest tests/test_module10_telemetry_capture.py -q
