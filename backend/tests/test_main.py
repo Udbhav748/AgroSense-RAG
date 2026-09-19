@@ -631,15 +631,24 @@ class TestDocumentDeleteApprovalGate:
     shape as web_search_requires_approval (see
     test_human_approval_structured_output.py), applied to document
     deletion. Distinct from confirm=true (mistake-prevention) and the role
-    gate above (access control): this is a deployment policy toggle."""
+    gate above (access control): this is a deployment policy toggle.
 
-    def test_gate_off_by_default_deletes_without_approved(self, client):
+    PHASE 5 SECURITY FIX: this gate used to accept a bare client-supplied
+    `approved=true` query param as proof of approval, which any caller with
+    valid API-key credentials could self-satisfy without an operator ever
+    resolving the registered Approval (see docs/MODULE10_FINAL_AUDIT.md §8,
+    Finding 2). It now requires a real, resolved `approval_id` looked up
+    against the actual ApprovalStore — `approved=true` alone no longer has
+    any effect. This class replaces the old `test_gate_on_and_approved_deletes`
+    (which asserted the insecure behavior) with the 7 cases Phase 5 requires."""
+
+    def test_gate_off_by_default_deletes_without_approval(self, client):
         response = client.delete(
             f"/documents/{SEEDED_DOCUMENT_ID}", params={"confirm": "true"}, headers=VALID_HEADERS
         )
         assert response.status_code == 200
 
-    def test_gate_on_and_not_approved_returns_400(self, client, monkeypatch, seeded_vector_store):
+    def test_no_approval_denied(self, client, monkeypatch, seeded_vector_store):
         monkeypatch.setattr(settings, "document_delete_requires_approval", True)
 
         response = client.delete(
@@ -650,12 +659,116 @@ class TestDocumentDeleteApprovalGate:
         # A denied request must never have touched the vector store.
         assert seeded_vector_store.get_chunks_by_document(SEEDED_DOCUMENT_ID) != []
 
-    def test_gate_on_and_approved_deletes(self, client, monkeypatch):
+    def test_bare_approved_true_no_longer_bypasses_gate(self, client, monkeypatch, seeded_vector_store):
+        """The exact behavior the Phase 5 fix removes: a caller-supplied
+        `approved=true` with no real approval_id must be denied."""
         monkeypatch.setattr(settings, "document_delete_requires_approval", True)
 
         response = client.delete(
             f"/documents/{SEEDED_DOCUMENT_ID}",
             params={"confirm": "true", "approved": "true"},
+            headers=VALID_HEADERS,
+        )
+
+        assert response.status_code == 400
+        assert seeded_vector_store.get_chunks_by_document(SEEDED_DOCUMENT_ID) != []
+
+    def test_pending_approval_denied(self, client, monkeypatch, seeded_vector_store):
+        from app.services import approval_service
+
+        monkeypatch.setattr(settings, "document_delete_requires_approval", True)
+        approval = approval_service.get_approval_store().register(
+            action=approval_service.APPROVAL_ACTION_DOCUMENT_DELETE,
+            payload={"document_id": SEEDED_DOCUMENT_ID},
+        )
+
+        response = client.delete(
+            f"/documents/{SEEDED_DOCUMENT_ID}",
+            params={"confirm": "true", "approval_id": approval.approval_id},
+            headers=VALID_HEADERS,
+        )
+
+        assert response.status_code == 400
+        assert seeded_vector_store.get_chunks_by_document(SEEDED_DOCUMENT_ID) != []
+
+    def test_rejected_approval_denied(self, client, monkeypatch, seeded_vector_store):
+        from app.services import approval_service
+
+        monkeypatch.setattr(settings, "document_delete_requires_approval", True)
+        approval = approval_service.get_approval_store().register(
+            action=approval_service.APPROVAL_ACTION_DOCUMENT_DELETE,
+            payload={"document_id": SEEDED_DOCUMENT_ID},
+        )
+        approval_service.get_approval_store().resolve(
+            approval.approval_id, approved=False, resolved_by="operator"
+        )
+
+        response = client.delete(
+            f"/documents/{SEEDED_DOCUMENT_ID}",
+            params={"confirm": "true", "approval_id": approval.approval_id},
+            headers=VALID_HEADERS,
+        )
+
+        assert response.status_code == 400
+        assert seeded_vector_store.get_chunks_by_document(SEEDED_DOCUMENT_ID) != []
+
+    def test_expired_approval_denied(self, client, monkeypatch, seeded_vector_store):
+        from app.services import approval_service
+
+        monkeypatch.setattr(settings, "document_delete_requires_approval", True)
+        approval = approval_service.get_approval_store().register(
+            action=approval_service.APPROVAL_ACTION_DOCUMENT_DELETE,
+            payload={"document_id": SEEDED_DOCUMENT_ID},
+            ttl_seconds=-1,  # already expired
+        )
+
+        response = client.delete(
+            f"/documents/{SEEDED_DOCUMENT_ID}",
+            params={"confirm": "true", "approval_id": approval.approval_id},
+            headers=VALID_HEADERS,
+        )
+
+        assert response.status_code == 400
+        assert seeded_vector_store.get_chunks_by_document(SEEDED_DOCUMENT_ID) != []
+
+    def test_mismatched_document_id_denied(self, client, monkeypatch, seeded_vector_store):
+        """An approval genuinely APPROVED, but for a different document_id,
+        must not authorize deleting this one."""
+        from app.services import approval_service
+
+        monkeypatch.setattr(settings, "document_delete_requires_approval", True)
+        approval = approval_service.get_approval_store().register(
+            action=approval_service.APPROVAL_ACTION_DOCUMENT_DELETE,
+            payload={"document_id": "99999999-9999-9999-9999-999999999999"},
+        )
+        approval_service.get_approval_store().resolve(
+            approval.approval_id, approved=True, resolved_by="operator"
+        )
+
+        response = client.delete(
+            f"/documents/{SEEDED_DOCUMENT_ID}",
+            params={"confirm": "true", "approval_id": approval.approval_id},
+            headers=VALID_HEADERS,
+        )
+
+        assert response.status_code == 400
+        assert seeded_vector_store.get_chunks_by_document(SEEDED_DOCUMENT_ID) != []
+
+    def test_genuinely_approved_approval_allowed(self, client, monkeypatch):
+        from app.services import approval_service
+
+        monkeypatch.setattr(settings, "document_delete_requires_approval", True)
+        approval = approval_service.get_approval_store().register(
+            action=approval_service.APPROVAL_ACTION_DOCUMENT_DELETE,
+            payload={"document_id": SEEDED_DOCUMENT_ID},
+        )
+        approval_service.get_approval_store().resolve(
+            approval.approval_id, approved=True, resolved_by="operator"
+        )
+
+        response = client.delete(
+            f"/documents/{SEEDED_DOCUMENT_ID}",
+            params={"confirm": "true", "approval_id": approval.approval_id},
             headers=VALID_HEADERS,
         )
 

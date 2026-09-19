@@ -10,13 +10,21 @@ here as a pending approval; an operator lists pending approvals (GET
 (POST /api/v1/approvals/{id}/resolve), which records the decision, who
 made it, when, and why. Every mutation is also logged as an audit_event.
 
-Scope: this is a management/audit + sign-off surface. It does NOT execute
-the gated action itself — the existing `confirm_web_search=true` /
-`approved=true` request flags remain the execution path (the operator's
-approval here is what a deployer uses to pre-clear such requests). Keeping
-execution out of the queue avoids duplicating the involved tenant/owner/
-confirmation checks of the two routes, and keeps this store a plain,
-testable registry.
+Scope: this store does NOT execute the gated action itself — callers
+(routes/documents.py::delete_document, agent_graph/human_approval.py)
+still perform their own tenant/owner/confirmation checks and the actual
+delete/search. But as of the Phase 5 gap-closure pass, both guarded
+actions now verify a request's approval against THIS store's resolved
+state rather than trusting a client-supplied boolean alone:
+document_delete requires a caller-supplied `approval_id` that resolves
+here to `STATUS_APPROVED` for that exact document_id (see
+delete_document's docstring for the full before/after); the chat graph's
+web-search escalation routes through `human_approval_node`, which reads
+this same store via `state.approval_payload_reference`. The historical
+`confirm_web_search=true` client flag remains a separate, still-valid
+fast path for callers who don't use the approval queue at all — it is
+not a way to bypass a queued approval once one has been registered for
+that specific request.
 
 Storage follows the exact precedent of InMemorySessionStore (session_store.py):
 in-memory + thread-safe + bounded with LRU eviction. No persistence —

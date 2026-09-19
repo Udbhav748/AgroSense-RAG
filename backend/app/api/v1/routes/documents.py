@@ -320,7 +320,7 @@ def list_tasks(
 
 @router.delete("/documents/{document_id}", response_model=DocumentDeleteResponse)
 def delete_document(
-    document_id: str, request: Request, confirm: bool = False, approved: bool = False
+    document_id: str, request: Request, confirm: bool = False, approval_id: str | None = None
 ) -> DocumentDeleteResponse:
     if not confirm:
         raise ConfirmationRequiredError(
@@ -330,33 +330,59 @@ def delete_document(
     # Human-approval gate: a deployment policy (off by default), separate
     # from the confirm check above (mistake-prevention) and the role check
     # below (access control) — mirrors web_search_requires_approval's exact
-    # shape in rag_service.py. When enabled, the caller must explicitly opt
-    # in with approved=true on top of confirm=true.
-    if settings.document_delete_requires_approval and not approved:
-        logger.info(
-            "audit_event",
-            extra={
-                "extra_fields": {
-                    "event": "document_delete_pending_approval",
-                    "path": request.url.path,
-                    "document_id": document_id,
-                    "client": getattr(request.state, "client_name", "unknown"),
-                }
-            },
+    # shape in rag_service.py.
+    #
+    # PHASE 5 SECURITY FIX: this gate used to accept a bare client-supplied
+    # `approved=true` query param as proof of approval — meaning any caller
+    # with valid API-key credentials could self-satisfy the gate without an
+    # operator ever resolving the registered Approval via
+    # POST /api/v1/approvals/{id}/resolve (see docs/MODULE10_FINAL_AUDIT.md
+    # §8, Finding 2, and docs/PHASE5_FINAL_GAP_CLOSURE_REPORT.md for the
+    # full before/after). The gate now requires the caller to supply the
+    # approval_id from the pending Approval this endpoint registers below,
+    # and verifies — against the real ApprovalStore, not a client claim —
+    # that it exists, is for THIS document_id, is genuinely APPROVED (not
+    # pending/rejected), and has not expired. `approved=true` alone no
+    # longer satisfies this gate; this is an intentional, documented
+    # contract change, not an oversight.
+    if settings.document_delete_requires_approval:
+        approval = approval_service.get_approval_store().get(approval_id) if approval_id else None
+        approval_valid = (
+            approval is not None
+            and approval.action == approval_service.APPROVAL_ACTION_DOCUMENT_DELETE
+            and approval.payload.get("document_id") == document_id
+            and approval.status == approval_service.STATUS_APPROVED
         )
-        # Feature #5 — record the gated deletion as a pending approval so
-        # an operator can grant/reject it via the approval queue. Still
-        # returns 400 APPROVAL_REQUIRED to the caller (unchanged behavior;
-        # approval is a deployment policy that can't be self-granted), but
-        # the action is now visible and resolvable rather than anonymous.
-        approval_service.get_approval_store().register(
-            action=approval_service.APPROVAL_ACTION_DOCUMENT_DELETE,
-            requested_by=getattr(request.state, "client_name", None),
-            payload={"document_id": document_id},
-        )
-        raise ApprovalRequiredError(
-            "Deleting this document requires approval. Retry with ?approved=true to proceed."
-        )
+        if not approval_valid:
+            logger.info(
+                "audit_event",
+                extra={
+                    "extra_fields": {
+                        "event": "document_delete_pending_approval",
+                        "path": request.url.path,
+                        "document_id": document_id,
+                        "client": getattr(request.state, "client_name", "unknown"),
+                        "supplied_approval_id": approval_id,
+                        "supplied_approval_status": approval.status if approval else None,
+                    }
+                },
+            )
+            # Feature #5 — record the gated deletion as a pending approval
+            # (only if this exact one isn't already tracked) so an operator
+            # can grant/reject it via the approval queue. Re-registering on
+            # every retry of an already-pending request would otherwise
+            # spam the queue with duplicates for the same document.
+            if approval is None:
+                approval_service.get_approval_store().register(
+                    action=approval_service.APPROVAL_ACTION_DOCUMENT_DELETE,
+                    requested_by=getattr(request.state, "client_name", None),
+                    payload={"document_id": document_id},
+                )
+            raise ApprovalRequiredError(
+                "Deleting this document requires an operator-approved request. Retry with "
+                "?approval_id=<id> once an operator has approved it via "
+                "POST /api/v1/approvals/{approval_id}/resolve."
+            )
 
     # Permission check (see app/core/permissions.py): only enforced when
     # the DB is enabled (role has nowhere to live otherwise —
