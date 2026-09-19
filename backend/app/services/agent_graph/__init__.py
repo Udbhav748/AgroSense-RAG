@@ -12,6 +12,11 @@ Public API exporting:
 
 from __future__ import annotations
 
+from app.services.agent_graph.augmentation_node import (
+    context_augmentation_node,
+    route_after_augmentation,
+)
+from app.services.agent_graph.cache_node import cache_lookup_node, route_after_cache_lookup
 from app.services.agent_graph.engine import (
     END,
     START,
@@ -21,13 +26,25 @@ from app.services.agent_graph.engine import (
     StateGraph,
     StateSnapshot,
 )
+from app.services.agent_graph.graph import build_chat_graph
+from app.services.agent_graph.human_approval import ApprovalType, human_approval_node
 from app.services.agent_graph.nodes import (
     GraphContext,
     document_analyst_node,
     fact_checker_node,
+    finalizer_node,
+    generator_node,
+    output_validation_node,
     planner_node,
+    planner_node_v2,
+    reflection_node,
+    retrieval_grader_node,
+    retrieval_node,
     summarizer_node,
     synthesizer_node,
+    validate_request_node,
+    vision_node,
+    web_research_node_v2,
     web_researcher_node,
 )
 from app.services.agent_graph.state import AgentState
@@ -122,6 +139,7 @@ def create_rag_agent_graph(
 
 __all__ = [
     "AgentState",
+    "ApprovalType",
     "CompiledGraph",
     "END",
     "GraphCompilationError",
@@ -130,11 +148,27 @@ __all__ = [
     "START",
     "StateGraph",
     "StateSnapshot",
+    "build_chat_graph",
+    "cache_lookup_node",
+    "context_augmentation_node",
     "create_rag_agent_graph",
     "document_analyst_node",
     "fact_checker_node",
+    "finalizer_node",
+    "generator_node",
+    "human_approval_node",
+    "output_validation_node",
     "planner_node",
+    "planner_node_v2",
+    "reflection_node",
+    "retrieval_grader_node",
+    "retrieval_node",
+    "route_after_augmentation",
+    "route_after_cache_lookup",
     "summarizer_node",
     "synthesizer_node",
+    "validate_request_node",
+    "vision_node",
+    "web_research_node_v2",
     "web_researcher_node",
 ]

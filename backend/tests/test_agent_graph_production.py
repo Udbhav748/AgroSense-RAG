@@ -1,0 +1,280 @@
+"""Phase 1: the new production chat graph (build_chat_graph) — built and
+unit-tested in isolation. Not yet wired into ChatService.handle_query/
+stream_query (that lands in a later commit), so these tests drive the graph
+directly with a fake ChatService double rather than going through the HTTP
+layer.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from app.models.document import RetrievedChunk
+from app.models.schemas import ChatResponse
+from app.services.agent_graph.graph import build_chat_graph
+from app.services.agent_graph.nodes import GraphContext
+from app.services.agent_graph.state import AgentState
+from app.services.rag_service import PlanDecision, RetrievalAugmentation
+
+
+class FakeChatService:
+    """Duck-typed stand-in for ChatService exposing only the private
+    methods the new nodes delegate to — no LLM/network calls."""
+
+    def __init__(
+        self,
+        plan_action="retrieve",
+        grade="good",
+        ungrounded=False,
+        augmentation: RetrievalAugmentation | None = None,
+        cached_response: ChatResponse | None = None,
+        corrected_answer: str | None = None,
+    ):
+        self._plan_action = plan_action
+        self._grade = grade
+        self._ungrounded = ungrounded
+        self._augmentation = augmentation or RetrievalAugmentation()
+        self._cached_response = cached_response
+        self._corrected_answer = corrected_answer
+        self.generate_calls: list[str] = []
+        self.cache_write_calls: list[dict] = []
+        self.cache_lookup_calls = 0
+        self.correct_calls = 0
+
+    def _plan(self, query, history=None):
+        return PlanDecision(action=self._plan_action)
+
+    def _route(self, query, history=None):
+        return self._plan(query, history)
+
+    def _grade_retrieval(self, query, chunks):
+        return self._grade
+
+    def _generate(
+        self, query, chunks, history, extra_instruction=None, web_results=None, persona=None, language=None
+    ):
+        self.generate_calls.append(extra_instruction or "initial")
+        return "grounded answer [1]"
+
+    def _generate_structured(self, *args, **kwargs):
+        return self._generate(*args, **kwargs)
+
+    def _is_ungrounded(self, answer, chunks, web_results):
+        return self._ungrounded
+
+    def _correct(
+        self,
+        query,
+        chunks,
+        answer,
+        history,
+        web_results,
+        web_search_attempted,
+        llm_calls,
+        steps_taken,
+        confirm_web_search=False,
+        persona=None,
+        language=None,
+    ):
+        self.correct_calls += 1
+        final_answer = self._corrected_answer if self._corrected_answer is not None else answer
+        return final_answer, llm_calls + 1, steps_taken + 1, web_results, web_search_attempted
+
+    def _augment_weak_retrieval(self, *args, **kwargs):
+        return self._augmentation
+
+    def _get_cached_response(self, query, crop=None, disease=None, tenant_id=None, document_ids=None):
+        self.cache_lookup_calls += 1
+        return self._cached_response
+
+    def _cache_response(self, query, response, crop=None, disease=None, tenant_id=None, document_ids=None):
+        self.cache_write_calls.append({"query": query, "response": response})
+
+    def _maybe_ask_clarifying_question(self, query, answer, grade):
+        return answer, False
+
+    def _suggest_follow_ups(self, query, answer):
+        return []
+
+    def _respond(
+        self,
+        *,
+        answer,
+        retrieved_chunks,
+        query,
+        query_type,
+        tool_used,
+        steps_taken,
+        start,
+        web_results=None,
+        session_id=None,
+        retrieval_confidence="good",
+        is_clarifying_question=False,
+        follow_up_questions=None,
+        **_ignored,
+    ):
+        return ChatResponse(
+            answer=answer,
+            retrieved_chunks=retrieved_chunks,
+            sources=[],
+            processing_time=0.0,
+            tool_used=tool_used,
+            steps_taken=steps_taken,
+            answer_source="documents" if retrieved_chunks else ("web" if web_results else "documents"),
+            session_id=session_id or "",
+            retrieval_confidence=retrieval_confidence,
+            is_clarifying_question=is_clarifying_question,
+            follow_up_questions=follow_up_questions or [],
+        )
+
+
+def make_chunk(score: float = 0.9) -> RetrievedChunk:
+    return RetrievedChunk(chunk_id="c1", document_id="d1", text="content", score=score)
+
+
+class FakeVectorStore:
+    def __init__(self, chunks):
+        self.chunks = chunks
+
+    def search(self, *args, **kwargs):
+        return self.chunks
+
+    def search_bm25(self, *args, **kwargs):
+        return self.chunks
+
+
+@pytest.mark.asyncio
+async def test_conversational_path_finalizes_without_retrieval():
+    graph = build_chat_graph()
+    ctx = GraphContext(chat_service=FakeChatService(plan_action="conversational"))
+    state = AgentState(query="hi")
+    result = await graph.run(state, ctx)
+    assert result.workflow_status == "completed"
+    assert result.final_response is not None
+    assert result.termination_reason == "success"
+
+
+@pytest.mark.asyncio
+async def test_good_retrieval_path_skips_augmentation():
+    graph = build_chat_graph()
+    fake = FakeChatService(plan_action="retrieve", grade="good", ungrounded=False)
+    ctx = GraphContext(chat_service=fake, vector_store=FakeVectorStore([make_chunk()]))
+    state = AgentState(query="what is the scope?")
+    result = await graph.run(state, ctx)
+    assert result.retrieval_grade == "good"
+    assert result.tool_calls == []  # context_augmentation never ran
+    assert result.workflow_status == "completed"
+    assert result.final_response is not None
+
+
+@pytest.mark.asyncio
+async def test_weak_retrieval_path_falls_back_to_web_search():
+    graph = build_chat_graph()
+    augmentation = RetrievalAugmentation(web_results=[], web_search_attempted=True)
+    fake = FakeChatService(plan_action="retrieve", grade="weak", ungrounded=False, augmentation=augmentation)
+    ctx = GraphContext(chat_service=fake, vector_store=FakeVectorStore([make_chunk(score=0.2)]))
+    state = AgentState(query="what happened today?")
+    result = await graph.run(state, ctx)
+    assert result.retrieval_grade == "weak"
+    assert len(result.tool_calls) == 1
+    assert result.tool_calls[0]["tool_name"] == "web_search"
+    assert result.workflow_status == "completed"
+
+
+@pytest.mark.asyncio
+async def test_weak_retrieval_direct_hit_skips_generation_entirely():
+    """vision QA / local research / research agent producing a direct
+    answer (via _augment_weak_retrieval) must skip generator/output_
+    validation/reflection entirely and go straight to the finalizer —
+    exactly like handle_query's early `return self._respond(...)`."""
+    graph = build_chat_graph()
+    augmentation = RetrievalAugmentation(final_answer="vision says X", tool_used="vision_qa", extra_steps=1)
+    fake = FakeChatService(plan_action="retrieve", grade="insufficient", augmentation=augmentation)
+    ctx = GraphContext(chat_service=fake, vector_store=FakeVectorStore([]))
+    state = AgentState(query="what disease is this?")
+    result = await graph.run(state, ctx)
+    assert result.final_response.answer == "vision says X"
+    assert fake.generate_calls == []  # generator never invoked
+    assert result.workflow_status == "completed"
+
+
+@pytest.mark.asyncio
+async def test_reflection_delegates_to_correct_exactly_once():
+    """reflection_node calls ChatService._correct wholesale (which owns its
+    own bounded internal regenerate/web-fallback escalation) rather than
+    the graph looping generically — so from the graph's perspective this is
+    always exactly one call, regardless of whether _correct internally
+    regenerated 0, 1, or 2 extra times."""
+    graph = build_chat_graph()
+    fake = FakeChatService(
+        plan_action="retrieve", grade="good", ungrounded=True, corrected_answer="corrected [1]"
+    )
+    ctx = GraphContext(chat_service=fake, vector_store=FakeVectorStore([make_chunk()]))
+    state = AgentState(query="q")
+    result = await graph.run(state, ctx)
+    assert fake.correct_calls == 1
+    assert result.final_response.answer == "corrected [1]"
+    assert result.workflow_status == "completed"
+    assert result.termination_reason == "success"
+    assert len(fake.generate_calls) == 1  # generator itself only ran once
+
+
+@pytest.mark.asyncio
+async def test_node_timings_and_trace_ids_recorded():
+    graph = build_chat_graph()
+    fake = FakeChatService(plan_action="retrieve", grade="good", ungrounded=False)
+    ctx = GraphContext(chat_service=fake, vector_store=FakeVectorStore([make_chunk()]))
+    state = AgentState(query="q")
+    result = await graph.run(state, ctx)
+    assert result.request_id is not None
+    assert result.trace_id is not None
+    assert "planner" in result.node_timings
+    assert "cache_lookup" in result.node_timings
+    assert "retrieval" in result.node_timings
+    assert "generator" in result.node_timings
+    assert "finalizer" in result.node_timings
+
+
+@pytest.mark.asyncio
+async def test_retrieval_without_vector_store_degrades_safely():
+    graph = build_chat_graph()
+    fake = FakeChatService(plan_action="retrieve", grade="insufficient", ungrounded=False)
+    ctx = GraphContext(chat_service=fake, vector_store=None)
+    state = AgentState(query="q")
+    result = await graph.run(state, ctx)
+    assert result.error_type == "retriever"
+    # Workflow still reaches a final response rather than crashing.
+    assert result.final_response is not None
+
+
+@pytest.mark.asyncio
+async def test_cache_hit_short_circuits_retrieval_and_generation():
+    graph = build_chat_graph()
+    cached = ChatResponse(
+        answer="cached answer",
+        retrieved_chunks=[],
+        sources=[],
+        processing_time=0.01,
+        tool_used="retrieval",
+        steps_taken=3,
+        answer_source="documents",
+        session_id="",
+    )
+    fake = FakeChatService(plan_action="retrieve", cached_response=cached)
+    ctx = GraphContext(chat_service=fake, vector_store=FakeVectorStore([make_chunk()]))
+    state = AgentState(query="q")
+    result = await graph.run(state, ctx)
+    assert result.final_response.answer == "cached answer"
+    assert result.final_response.metadata.get("cached") is True
+    assert fake.generate_calls == []  # generation never ran
+    assert "retrieval" not in result.node_timings  # retrieval never ran either
+
+
+@pytest.mark.asyncio
+async def test_cache_write_happens_only_for_plain_retrieve():
+    graph = build_chat_graph()
+    fake = FakeChatService(plan_action="retrieve", grade="good")
+    ctx = GraphContext(chat_service=fake, vector_store=FakeVectorStore([make_chunk()]))
+    state = AgentState(query="q")
+    await graph.run(state, ctx)
+    assert len(fake.cache_write_calls) == 1

@@ -43,6 +43,12 @@ APPROVAL_ACTION_DOCUMENT_DELETE = "document_delete"
 STATUS_PENDING = "pending"
 STATUS_APPROVED = "approved"
 STATUS_REJECTED = "rejected"
+# Additive (Phase 1 explicit-workflow support): an action that never needed
+# a human in the loop, and one whose pending request aged out unresolved.
+# Existing callers that only ever construct/compare against PENDING/APPROVED/
+# REJECTED are unaffected — these are new states, not renames.
+STATUS_NOT_REQUIRED = "not_required"
+STATUS_EXPIRED = "expired"
 
 
 @dataclass
@@ -56,6 +62,20 @@ class Approval:
     created_at: float = field(default_factory=time.time)
     resolved_at: float | None = None
     resolved_by: str | None = None
+    # Additive: optional expiry. None (the default, and what every existing
+    # caller gets) means "never expires" — identical to current behavior.
+    expires_at: float | None = None
+
+    def is_expired(self, *, now: float | None = None) -> bool:
+        """True if this approval is still PENDING but past its expires_at.
+
+        Does not mutate status itself — callers (e.g. human_approval_node)
+        decide when to observe/apply expiry so a read-only check here can't
+        race a concurrent resolve().
+        """
+        if self.status != STATUS_PENDING or self.expires_at is None:
+            return False
+        return (now if now is not None else time.time()) >= self.expires_at
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -68,6 +88,7 @@ class Approval:
             "created_at": self.created_at,
             "resolved_at": self.resolved_at,
             "resolved_by": self.resolved_by,
+            "expires_at": self.expires_at,
         }
 
 
@@ -95,14 +116,21 @@ class ApprovalStore:
         requested_by: str | None = None,
         payload: dict[str, Any] | None = None,
         note: str | None = None,
+        ttl_seconds: float | None = None,
     ) -> Approval:
-        """Record a new pending approval and return it."""
+        """Record a new pending approval and return it.
+
+        ttl_seconds is additive and optional: omitted (the default), an
+        approval behaves exactly as before — pending until a human resolves
+        it, never auto-expiring.
+        """
         approval = Approval(
             approval_id=str(uuid.uuid4()),
             action=action,
             requested_by=requested_by,
             payload=payload or {},
             note=note,
+            expires_at=(time.time() + ttl_seconds) if ttl_seconds is not None else None,
         )
         with self._lock:
             self._evict_if_needed()
@@ -122,7 +150,11 @@ class ApprovalStore:
 
     def get(self, approval_id: str) -> Approval | None:
         with self._lock:
-            return self._approvals.get(approval_id)
+            approval = self._approvals.get(approval_id)
+            if approval is not None and approval.is_expired():
+                approval.status = STATUS_EXPIRED
+                approval.resolved_at = time.time()
+        return approval
 
     def list_approvals(
         self, action: str | None = None, status: str | None = None

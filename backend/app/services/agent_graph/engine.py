@@ -17,6 +17,7 @@ import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from app.core.metrics import get_metrics
 from app.services.agent_graph.state import AgentState
 
 if TYPE_CHECKING:
@@ -202,6 +203,10 @@ class CompiledGraph:
         context: Any = None,
     ) -> AgentState:
         """Execute the graph from entry point to END or max_steps."""
+        metrics = get_metrics()
+        metrics.record_agent_workflow_started()
+        wall_start = time.perf_counter()
+
         current_state = (
             initial_state if isinstance(initial_state, AgentState) else AgentState(**initial_state)
         )
@@ -244,6 +249,13 @@ class CompiledGraph:
             current_state = current_state.copy_with(
                 error=current_state.error or f"Max steps exceeded ({self.max_steps})"
             )
+            metrics.record_agent_loop_limit_hit()
+
+        metrics.record_agent_workflow_duration(time.perf_counter() - wall_start)
+        metrics.record_agent_steps(step_index)
+        workflow_status = getattr(current_state, "workflow_status", None)
+        completed = workflow_status == "completed" if workflow_status else current_state.error is None
+        metrics.record_agent_workflow_completed(status="completed" if completed else "failed")
 
         return current_state
 
@@ -253,6 +265,10 @@ class CompiledGraph:
         context: Any = None,
     ) -> AsyncIterator[tuple[str, AgentState]]:
         """Stream each step's (node_name, state) as nodes finish execution."""
+        metrics = get_metrics()
+        metrics.record_agent_workflow_started()
+        wall_start = time.perf_counter()
+
         current_state = (
             initial_state if isinstance(initial_state, AgentState) else AgentState(**initial_state)
         )
@@ -273,7 +289,10 @@ class CompiledGraph:
                 )
                 current_state = current_state.copy_with(error=f"{type(exc).__name__}: {exc}")
                 yield (current_node, current_state)
-                break
+                metrics.record_agent_workflow_duration(time.perf_counter() - wall_start)
+                metrics.record_agent_steps(step_index)
+                metrics.record_agent_workflow_completed(status="failed")
+                return
 
             duration_ms = (time.perf_counter() - start_t) * 1000
             self._history.append(
@@ -288,3 +307,16 @@ class CompiledGraph:
 
             yield (current_node, current_state)
             current_node = await self._get_next_node(current_node, current_state, context)
+
+        if step_index >= self.max_steps and current_node != END:
+            logger.warning(
+                "graph_cycle_capped_max_steps",
+                extra={"extra_fields": {"max_steps": self.max_steps, "last_node": current_node}},
+            )
+            metrics.record_agent_loop_limit_hit()
+
+        metrics.record_agent_workflow_duration(time.perf_counter() - wall_start)
+        metrics.record_agent_steps(step_index)
+        workflow_status = getattr(current_state, "workflow_status", None)
+        completed = workflow_status == "completed" if workflow_status else current_node == END
+        metrics.record_agent_workflow_completed(status="completed" if completed else "failed")
