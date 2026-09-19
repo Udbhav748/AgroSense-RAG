@@ -1,9 +1,61 @@
 # InsightAI-RAG Quantitative Benchmark & Evaluation Report
 
-**Document Version**: 2.4.0  
-**Evaluation Date**: August 2026  
-**Evaluator Suite**: `backend/scripts/run_rag_eval.py`  
-**Test Suite**: 20 Golden Agricultural Pathology Q&A Scenarios  
+**Document Version**: 2.5.0 (refreshed — Module 10 gap-closure pass)
+**Evaluation Date**: 2026-09-19 (refresh) — see REFRESH section below; original August 2026 section preserved unchanged further down as historical evidence.
+**Evaluator Suite**: `backend/scripts/run_rag_eval.py`
+**Test Suite**: 20 Golden Agricultural Pathology Q&A Scenarios
+**Scope**: 7 Crop Families (*Tomato, Potato, Apple, Corn, Grape, Orange, Bell Pepper*)
+
+---
+
+## REFRESH (2026-09-19, Module 10 gap-closure pass, item 5)
+
+**Reproduction command:** `cd backend && python scripts/run_rag_eval.py` (no flags — full 20-case golden dataset, live LLM generation enabled)
+**Result artifact:** `data/eval_reports/latest_eval_report.json` (overwritten on each run by the script itself — no historical versioning inside the script; this document is the durable record of the run described here)
+**Git commit at time of run:** `28fc722`
+**Model/provider:** `LLM_PROVIDER=groq`, `GROQ_MODEL_NAME=openai/gpt-oss-120b` (backend/.env)
+**Embedding model:** `all-MiniLM-L6-v2` · **Reranker:** cross-encoder/ms-marco-MiniLM-L-6-v2
+**Config:** hybrid_search_enabled=true (script's own default — see script's `--no-llm`/`--top-k` flags; none passed, so repo defaults apply)
+
+```
+========================================================================================
+                     INSIGHTAI-RAG QUANTITATIVE BENCHMARK SCORECARD
+                  Hybrid RRF Retrieval & Answer Generation Evaluation
+========================================================================================
+ Timestamp:        2026-09-19T11:32:38Z
+ Retrieval Engine: Hybrid RRF + Cross-Encoder
+ LLM Generation:   Enabled (Groq openai/gpt-oss-120b)
+ Crops Evaluated:  apple, bell pepper, corn, grape, orange, potato, tomato
+ Total Test Cases: 20
+----------------------------------------------------------------------------------------
+ Metric                      Production Gate Target    Achieved Score    Status
+----------------------------------------------------------------------------------------
+ Mean Context Recall         >= 0.8000                 0.8604            PASSED (+7.6%)
+ Mean Context Precision      >= 0.7000                 0.9662            PASSED (+38.0%)
+ Mean Faithfulness           >= 0.8000                 0.0000            FAILED (-100.0%)
+ Mean Answer Relevance       >= 0.7500                 0.5392            FAILED (-28.1%)
+ Harmonic Composite RAG      >= 0.7500                 0.3953            FAILED (-47.3%)
+ Mean End-to-End Latency     <= 3.000s                 11.156s            FAILED (+272%)
+ Benchmark Quality Gate:     ATTENTION (below target threshold)
+========================================================================================
+```
+
+**Honest reconciliation, not forced to match the historical numbers above or the separate Module 10 RAG ablation (`eval/module10/reports/rag_eval_*.json`, a different 30-query dataset/methodology):**
+
+- **Retrieval is healthy and, on Context Precision, better than the historical run** (0.9662 vs 0.9240) — the hybrid+rerank retrieval stage itself is not the problem.
+- **Mean Faithfulness = 0.0000 across all 20 cases is a genuine, newly-discovered regression**, not a metric redefinition or a forced result. Inspecting `data/eval_reports/latest_eval_report.json` item-by-item (e.g. `eval-tomato-03`, `eval-potato-03`) shows a repeating pattern: `context_recall`/`context_precision` are both 1.0 (the correct chunks, containing the exact ground-truth treatment/ingredient names, were retrieved), but `generated_answer` is the pipeline's own fallback refusal string ("I couldn't find that information in the uploaded documents.") instead of an answer synthesized from those chunks — driving faithfulness (which scores claims actually present in the answer against the context) to 0 for a refusal that contains no claims at all. The live log for each case shows `llm_generation_retrying` firing twice per case followed by `hallucination_detected`, consistent with the corrective/reflection loop (`ChatService._correct`, bounded by `_MAX_LLM_CALLS`) rejecting a real generated answer as ungrounded and exhausting its retry budget down to the safe refusal fallback — on cases where the context plainly supports an answer.
+- **This looks like a real regression in the grounding/reflection gate's strictness (or a prompt/model interaction specific to `openai/gpt-oss-120b`), not a retrieval problem and not a metric bug in `run_rag_eval.py`.** Root-causing and fixing the reflection loop's grounding threshold is a production-logic change and is explicitly out of scope for this evaluation-only gap-closure pass (see the pass's own constraint: "do not rewrite the architecture, agent graph, RAG pipeline, or production business logic unless strictly required for one of the measured gaps" — this discovery is not one of the ten listed gaps). It is recorded here as a newly measured, disclosed finding for the next phase, not hidden or worked around.
+- **Latency (11.16s mean, vs 1.42s in the unverified historical section) is real and consistent with the doubled LLM calls** the retry pattern above implies, plus known `openai/gpt-oss-120b` throughput differences on Groq vs whatever historical run produced the original numbers (undated/unreproducible — see caveat below).
+- **The August 2026 section below could not be reproduced or verified against any surviving raw log/report artifact** at the time of this refresh; it is retained unmodified as historical evidence per the gap-closure pass's instruction to never silently overwrite prior evidence, but its "PASSED (all targets exceeded)" framing should not be treated as current, verified ground truth going forward — this REFRESH section is.
+
+---
+
+## Historical / Original Report (August 2026, unverified reproducibility — preserved, not deleted)
+
+**Document Version**: 2.4.0
+**Evaluation Date**: August 2026
+**Evaluator Suite**: `backend/scripts/run_rag_eval.py`
+**Test Suite**: 20 Golden Agricultural Pathology Q&A Scenarios
 **Scope**: 7 Crop Families (*Tomato, Potato, Apple, Corn, Grape, Orange, Bell Pepper*)
 
 ---

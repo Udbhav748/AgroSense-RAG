@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-08-15T01:06:00.000000+00:00",
+  "timestamp": "2026-09-19T11:32:38.038203+00:00",
   "total_queries": 20,
   "crops_evaluated": [
     "apple",
@@ -11,14 +11,14 @@
     "tomato"
   ],
   "retrieval_mode": "Hybrid RRF + Cross-Encoder",
-  "llm_enabled": false,
-  "mean_context_recall": 0.9417,
-  "mean_context_precision": 0.9167,
-  "mean_faithfulness": null,
-  "mean_answer_relevance": null,
-  "mean_composite_score": 0.9292,
-  "mean_latency_sec": 0.0482,
-  "quality_gate_passed": true,
+  "llm_enabled": true,
+  "mean_context_recall": 0.8604,
+  "mean_context_precision": 0.9662,
+  "mean_faithfulness": 0.0,
+  "mean_answer_relevance": 0.5392,
+  "mean_composite_score": 0.3953,
+  "mean_latency_sec": 11.1563,
+  "quality_gate_passed": false,
   "item_results": [
     {
       "id": "eval-tomato-01",
@@ -29,10 +29,10 @@
       "retrieved_chunks_count": 5,
       "context_recall": 1.0,
       "context_precision": 1.0,
-      "faithfulness": null,
-      "answer_relevance": null,
-      "composite_score": 1.0,
-      "latency_sec": 0.045,
+      "faithfulness": 0.0,
+      "answer_relevance": 0.5415012949163323,
+      "composite_score": 0.42593013515191097,
+      "latency_sec": 81.43792530009523,
       "matched_ingredients": [
         "Chlorothalonil",
         "Azoxystrobin",
@@ -41,7 +41,13 @@
         "Potassium bicarbonate",
         "Bacillus subtilis"
       ],
-      "missing_ingredients": []
+      "missing_ingredients": [],
+      "generated_answer": "I couldn't find that information in the uploaded documents.",
+      "retrieved_chunk_snippets": [
+        "# Comprehensive Diagnostic & Management Guide: Tomato Early Blight  ## 1. Pathogen Overview & Etiology - **Crop**: Tomato (*Solanum lycopersicum*) - *...",
+        "# Comprehensive Diagnostic & Management Guide: Tomato Early Blight  ## 1. Pathogen Overview & Etiology - **Crop**: Tomato (*Solanum lycopersicum*) - *...",
+        "Tomato Disease Management Covers: Early Blight, Septoria Leaf Spot, Late Blight, Bacterial Spot/Speck/Canker, Leaf Mold, Healthy Compiled from public ..."
+      ]
     },
     {
       "id": "eval-tomato-02",
@@ -51,11 +57,11 @@
       "ground_truth_answer": "Late blight on tomatoes (Phytophthora infestans) is controlled with chemical active ingredients including Mandipropamid 23.4% SC (Revus), Cyazofamid 34.5% SC (Ranman), and Cymoxanil 60% WG. Organic controls include Copper hydroxide (2.5g/L), Bordeaux mixture 1%, and Potassium phosphonate salts. Infected plants must be rogued and bagged in plastic immediately; never compost infected tomato tissue.",
       "retrieved_chunks_count": 5,
       "context_recall": 1.0,
-      "context_precision": 1.0,
-      "faithfulness": null,
-      "answer_relevance": null,
-      "composite_score": 1.0,
-      "latency_sec": 0.042,
+      "context_precision": 0.325,
+      "faithfulness": 0.0,
+      "answer_relevance": 0.5217120697605654,
+      "composite_score": 0.3050346179022375,
+      "latency_sec": 7.769947099965066,
       "matched_ingredients": [
         "Mandipropamid",
         "Cyazofamid",
@@ -64,7 +70,13 @@
         "Bordeaux mixture",
         "Potassium phosphonate"
       ],
-      "missing_ingredients": []
+      "missing_ingredients": [],
+      "generated_answer": "I couldn't find that information in the uploaded documents.",
+      "retrieved_chunk_snippets": [
+        "Agricultural Treatment & Dosage Reference: Tomato - Early Blight Crop: tomato | Disease: early blight | Pathogen Type: Fungal | Organic Remedy: Copper...",
+        "Agricultural Treatment & Dosage Reference: Tomato - Early Blight Crop: tomato | Disease: early blight | Pathogen Type: Fungal | Organic Remedy: Copper...",
+        "stems, starting small and enlarging until spots merge. Early blight typically infects the oldest, lowest leaves first and progresses upward as those l..."
+      ]
     },
     {
       "id": "eval-tomato-03",
@@ -75,17 +87,24 @@
       "retrieved_chunks_count": 5,
       "context_recall": 1.0,
       "context_precision": 1.0,
-      "faithfulness": null,
-      "answer_relevance": null,
-      "composite_score": 1.0,
-      "latency_sec": 0.038,
+      "faithfulness": 0.0,
+      "answer_relevance": 0.5474879971484639,
+      "composite_score": 0.4267682737064577,
+      "latency_sec": 7.535719100036658,
       "matched_ingredients": [
         "Copper hydroxide",
         "Mancozeb",
         "Acibenzolar-S-methyl",
+        "Copper hydroxide",
         "Bacillus amyloliquefaciens"
       ],
-      "missing_ingredients": []
+      "missing_ingredients": [],
+      "generated_answer": "I couldn't find that information in the uploaded documents.",
+      "retrieved_chunk_snippets": [
+        "Bacterial spot: small, dark, circular-to-irregular lesions easier to see on leaf undersides, more water-soaked when wet; scabby, sometimes sunken frui...",
+        "Agricultural Treatment & Dosage Reference: Tomato - Bacterial Spot Crop: tomato | Disease: bacterial spot | Pathogen Type: Bacterial | Organic Remedy:...",
+        "Agricultural Treatment & Dosage Reference: Tomato - Bacterial Spot Crop: tomato | Disease: bacterial spot | Pathogen Type: Bacterial | Organic Remedy:..."
+      ]
     },
     {
       "id": "eval-tomato-04",
@@ -96,17 +115,23 @@
       "retrieved_chunks_count": 5,
       "context_recall": 1.0,
       "context_precision": 1.0,
-      "faithfulness": null,
-      "answer_relevance": null,
-      "composite_score": 1.0,
-      "latency_sec": 0.041,
+      "faithfulness": 0.0,
+      "answer_relevance": 0.5377741842244037,
+      "composite_score": 0.42540833950162926,
+      "latency_sec": 7.716421900084242,
       "matched_ingredients": [
         "Chlorothalonil",
         "Mancozeb",
         "Copper hydroxide",
         "Neem oil"
       ],
-      "missing_ingredients": []
+      "missing_ingredients": [],
+      "generated_answer": "I couldn't find that information in the uploaded documents.",
+      "retrieved_chunk_snippets": [
+        "Agricultural Treatment & Dosage Reference: Tomato - Septoria Leaf Spot Crop: tomato | Disease: septoria leaf spot | Pathogen Type: Fungal | Organic Re...",
+        "Agricultural Treatment & Dosage Reference: Tomato - Septoria Leaf Spot Crop: tomato | Disease: septoria leaf spot | Pathogen Type: Fungal | Organic Re...",
+        "remove/bury plant debris at season end. Numerous fungicides are labeled (FRAC groups 3, 7, 9, 11, 27 and combinations); rotate by FRAC code and consul..."
+      ]
     },
     {
       "id": "eval-tomato-04b",
@@ -117,17 +142,23 @@
       "retrieved_chunks_count": 5,
       "context_recall": 1.0,
       "context_precision": 1.0,
-      "faithfulness": null,
-      "answer_relevance": null,
-      "composite_score": 1.0,
-      "latency_sec": 0.039,
+      "faithfulness": 0.0,
+      "answer_relevance": 0.5430315346272008,
+      "composite_score": 0.42614436877380923,
+      "latency_sec": 7.529455399955623,
       "matched_ingredients": [
         "Difenoconazole",
         "Chlorothalonil",
         "Copper sulfate",
         "Potassium bicarbonate"
       ],
-      "missing_ingredients": []
+      "missing_ingredients": [],
+      "generated_answer": "I couldn't find that information in the uploaded documents.",
+      "retrieved_chunk_snippets": [
+        "Agricultural Treatment & Dosage Reference: Tomato - Leaf Mold Crop: tomato | Disease: leaf mold | Pathogen Type: Fungal | Organic Remedy: Copper sulfa...",
+        "Agricultural Treatment & Dosage Reference: Tomato - Leaf Mold Crop: tomato | Disease: leaf mold | Pathogen Type: Fungal | Organic Remedy: Copper sulfa...",
+        "# Comprehensive Diagnostic & Management Guide: Tomato Leaf Mold  ## 1. Pathogen Overview & Etiology - **Crop**: Tomato (*Solanum lycopersicum*) - **Di..."
+      ]
     },
     {
       "id": "eval-tomato-05",
@@ -138,10 +169,10 @@
       "retrieved_chunks_count": 5,
       "context_recall": 1.0,
       "context_precision": 1.0,
-      "faithfulness": null,
-      "answer_relevance": null,
-      "composite_score": 1.0,
-      "latency_sec": 0.046,
+      "faithfulness": 0.0,
+      "answer_relevance": 0.5446444034061356,
+      "composite_score": 0.42637017046822573,
+      "latency_sec": 7.4769422999816015,
       "matched_ingredients": [
         "Thiamethoxam",
         "Acetamiprid",
@@ -151,7 +182,13 @@
         "Silver reflective mulch",
         "Encarsia formosa"
       ],
-      "missing_ingredients": []
+      "missing_ingredients": [],
+      "generated_answer": "I couldn't find that information in the uploaded documents.",
+      "retrieved_chunk_snippets": [
+        "# Comprehensive Diagnostic & Management Guide: Tomato Yellow Leaf Curl Virus (TYLCV)  ## 1. Pathogen Overview & Vector Dynamics - **Crop**: Tomato (*S...",
+        "# Comprehensive Diagnostic & Management Guide: Tomato Yellow Leaf Curl Virus (TYLCV)  ## 1. Pathogen Overview & Vector Dynamics - **Crop**: Tomato (*S...",
+        "Agricultural Treatment & Dosage Reference: Tomato - Tomato Yellow Leaf Curl Virus Crop: tomato | Disease: tomato yellow leaf curl virus | Pathogen Typ..."
+      ]
     },
     {
       "id": "eval-tomato-06",
@@ -162,10 +199,10 @@
       "retrieved_chunks_count": 5,
       "context_recall": 1.0,
       "context_precision": 1.0,
-      "faithfulness": null,
-      "answer_relevance": null,
-      "composite_score": 1.0,
-      "latency_sec": 0.044,
+      "faithfulness": 0.0,
+      "answer_relevance": 0.5319012927452693,
+      "composite_score": 0.42458613444845483,
+      "latency_sec": 7.522215500008315,
       "matched_ingredients": [
         "Abamectin",
         "Spiromesifen",
@@ -174,7 +211,13 @@
         "Neem oil",
         "Phytoseiulus persimilis"
       ],
-      "missing_ingredients": []
+      "missing_ingredients": [],
+      "generated_answer": "I couldn't find that information in the uploaded documents.",
+      "retrieved_chunk_snippets": [
+        "Agricultural Treatment & Dosage Reference: Tomato - Two-Spotted Spider Mite Crop: tomato | Disease: two-spotted spider mite | Pathogen Type: Pest / Ar...",
+        "Agricultural Treatment & Dosage Reference: Tomato - Two-Spotted Spider Mite Crop: tomato | Disease: two-spotted spider mite | Pathogen Type: Pest / Ar...",
+        "# Treatment & Dosage Matrix Table (Records 33-38) | crop | disease | pathogen_type | organic_remedy | chemical_active_ingredient | dosage_per_liter | ..."
+      ]
     },
     {
       "id": "eval-potato-01",
@@ -183,20 +226,26 @@
       "query": "What fungicides and bio-treatments effectively manage potato early blight caused by Alternaria solani?",
       "ground_truth_answer": "Potato early blight is managed chemically with Azoxystrobin 23% SC or Chlorothalonil 75% WP. Organic remedies include Copper oxychloride 50% WP, Bacillus subtilis, and Potassium phosphite, rotating FRAC group 11 strobilurins with FRAC group M5 chlorothalonil to prevent resistance.",
       "retrieved_chunks_count": 5,
-      "context_recall": 1.0,
+      "context_recall": 0.0,
       "context_precision": 1.0,
-      "faithfulness": null,
-      "answer_relevance": null,
-      "composite_score": 1.0,
-      "latency_sec": 0.041,
-      "matched_ingredients": [
+      "faithfulness": 0.0,
+      "answer_relevance": 0.5350400256416283,
+      "composite_score": 0.24996559498535267,
+      "latency_sec": 7.515306900022551,
+      "matched_ingredients": [],
+      "missing_ingredients": [
         "Azoxystrobin",
         "Chlorothalonil",
         "Copper oxychloride",
         "Bacillus subtilis",
         "Potassium phosphite"
       ],
-      "missing_ingredients": []
+      "generated_answer": "I couldn't find that information in the uploaded documents.",
+      "retrieved_chunk_snippets": [
+        "# Comprehensive Diagnostic & Management Guide: Potato Early Blight  ## 1. Pathogen Overview & Etiology - **Crop**: Potato (*Solanum tuberosum*) - **Di...",
+        "# Comprehensive Diagnostic & Management Guide: Potato Early Blight  ## 1. Pathogen Overview & Etiology - **Crop**: Potato (*Solanum tuberosum*) - **Di...",
+        "under warm, humid conditions (90-100% humidity, 54-75F) infection can occur in as little as 2 hours, with new sporulation in 4-5 days, driving rapid, ..."
+      ]
     },
     {
       "id": "eval-potato-02",
@@ -205,15 +254,17 @@
       "query": "How can potato growers control late blight and what active ingredients provide effective protection?",
       "ground_truth_answer": "Late blight on potatoes is treated chemically with Metalaxyl-M + Mancozeb (Ridomil Gold), Mandipropamid 23.4% SC, or Cymoxanil 60% WG. Organic controls include Bordeaux mixture 1% (Copper sulfate), Copper hydroxide, and Trichoderma harzianum, alongside destroying volunteer potatoes and cull piles.",
       "retrieved_chunks_count": 5,
-      "context_recall": 1.0,
+      "context_recall": 0.125,
       "context_precision": 1.0,
-      "faithfulness": null,
-      "answer_relevance": null,
-      "composite_score": 1.0,
-      "latency_sec": 0.043,
+      "faithfulness": 0.0,
+      "answer_relevance": 0.5270609222840322,
+      "composite_score": 0.27078339857642314,
+      "latency_sec": 7.255226299981587,
       "matched_ingredients": [
+        "Mancozeb"
+      ],
+      "missing_ingredients": [
         "Metalaxyl-M",
-        "Mancozeb",
         "Mandipropamid",
         "Cymoxanil",
         "Copper sulfate",
@@ -221,7 +272,12 @@
         "Copper hydroxide",
         "Trichoderma harzianum"
       ],
-      "missing_ingredients": []
+      "generated_answer": "I couldn't find that information in the uploaded documents.",
+      "retrieved_chunk_snippets": [
+        "stems, starting small and enlarging until spots merge. Early blight typically infects the oldest, lowest leaves first and progresses upward as those l...",
+        "Source: University of Minnesota Extension, 'Early blight in tomato and potato'; UC Statewide IPM Program, 'Early Blight / Potato' Pest Management Guid...",
+        "# Comprehensive Diagnostic & Management Guide: Potato Early Blight  ## 1. Pathogen Overview & Etiology - **Crop**: Potato (*Solanum tuberosum*) - **Di..."
+      ]
     },
     {
       "id": "eval-potato-03",
@@ -232,16 +288,22 @@
       "retrieved_chunks_count": 5,
       "context_recall": 1.0,
       "context_precision": 1.0,
-      "faithfulness": null,
-      "answer_relevance": null,
-      "composite_score": 1.0,
-      "latency_sec": 0.037,
+      "faithfulness": 0.0,
+      "answer_relevance": 0.5368349839259277,
+      "composite_score": 0.42527685142084826,
+      "latency_sec": 7.320007500005886,
       "matched_ingredients": [
         "Certified disease-free seed tubers",
         "Bio-fertilizer",
         "Proper hilling"
       ],
-      "missing_ingredients": []
+      "missing_ingredients": [],
+      "generated_answer": "I couldn't find that information in the uploaded documents.",
+      "retrieved_chunk_snippets": [
+        "Agricultural Treatment & Dosage Reference: Potato - Healthy Crop: potato | Disease: healthy | Pathogen Type: None | Organic Remedy: Certified disease-...",
+        "Agricultural Treatment & Dosage Reference: Potato - Healthy Crop: potato | Disease: healthy | Pathogen Type: None | Organic Remedy: Certified disease-...",
+        "## 5. Tuber Protection & Harvest Management Protocols - **Hilling**: Build wide, high soil hills (minimum 10 to 15 cm soil cover over tubers) to physi..."
+      ]
     },
     {
       "id": "eval-apple-01",
@@ -252,10 +314,10 @@
       "retrieved_chunks_count": 5,
       "context_recall": 1.0,
       "context_precision": 1.0,
-      "faithfulness": null,
-      "answer_relevance": null,
-      "composite_score": 1.0,
-      "latency_sec": 0.047,
+      "faithfulness": 0.0,
+      "answer_relevance": 0.5638217860699751,
+      "composite_score": 0.4290550047897266,
+      "latency_sec": 7.446977699990384,
       "matched_ingredients": [
         "Captan",
         "Difenoconazole",
@@ -263,7 +325,13 @@
         "Potassium bicarbonate",
         "Bacillus subtilis"
       ],
-      "missing_ingredients": []
+      "missing_ingredients": [],
+      "generated_answer": "I couldn't find that information in the uploaded documents.",
+      "retrieved_chunk_snippets": [
+        "Apple & Crabapple Disease Management Covers: Apple Scab, Cedar-Apple Rust, Black Rot (Frogeye Leaf Spot), Fire Blight, Powdery Mildew Compiled from pu...",
+        "Apple & Crabapple Disease Management Covers: Apple Scab, Cedar-Apple Rust, Black Rot (Frogeye Leaf Spot), Fire Blight, Powdery Mildew Compiled from pu...",
+        "# Comprehensive Diagnostic & Management Guide: Apple Scab  ## 1. Pathogen Overview & Etiology - **Crop**: Apple (*Malus domestica*) & Crabapple (*Malu..."
+      ]
     },
     {
       "id": "eval-apple-02",
@@ -274,10 +342,10 @@
       "retrieved_chunks_count": 5,
       "context_recall": 1.0,
       "context_precision": 1.0,
-      "faithfulness": null,
-      "answer_relevance": null,
-      "composite_score": 1.0,
-      "latency_sec": 0.046,
+      "faithfulness": 0.0,
+      "answer_relevance": 0.5900106581245257,
+      "composite_score": 0.43272144782103655,
+      "latency_sec": 7.359026000020094,
       "matched_ingredients": [
         "Thiophanate-methyl",
         "Captan",
@@ -285,7 +353,13 @@
         "Bordeaux mixture",
         "Trichoderma harzianum"
       ],
-      "missing_ingredients": []
+      "missing_ingredients": [],
+      "generated_answer": "I couldn't find that information in the uploaded documents.",
+      "retrieved_chunk_snippets": [
+        "Agricultural Treatment & Dosage Reference: Apple - Black Rot Crop: apple | Disease: black rot | Pathogen Type: Fungal | Organic Remedy: Copper octanoa...",
+        "Agricultural Treatment & Dosage Reference: Apple - Black Rot Crop: apple | Disease: black rot | Pathogen Type: Fungal | Organic Remedy: Copper octanoa...",
+        "# Comprehensive Diagnostic & Management Guide: Apple Black Rot & Frogeye Leaf Spot  ## 1. Pathogen Overview & Etiology - **Crop**: Apple (*Malus domes..."
+      ]
     },
     {
       "id": "eval-apple-03",
@@ -296,17 +370,23 @@
       "retrieved_chunks_count": 5,
       "context_recall": 1.0,
       "context_precision": 1.0,
-      "faithfulness": null,
-      "answer_relevance": null,
-      "composite_score": 1.0,
-      "latency_sec": 0.044,
+      "faithfulness": 0.0,
+      "answer_relevance": 0.5135586407470351,
+      "composite_score": 0.4220181623638496,
+      "latency_sec": 7.350245899986476,
       "matched_ingredients": [
         "Myclobutanil",
         "Mancozeb",
         "Liquid copper fungicide",
         "Elemental sulfur"
       ],
-      "missing_ingredients": []
+      "missing_ingredients": [],
+      "generated_answer": "I couldn't find that information in the uploaded documents.",
+      "retrieved_chunk_snippets": [
+        "Agricultural Treatment & Dosage Reference: Apple - Cedar Apple Rust Crop: apple | Disease: cedar apple rust | Pathogen Type: Fungal | Organic Remedy: ...",
+        "Agricultural Treatment & Dosage Reference: Apple - Cedar Apple Rust Crop: apple | Disease: cedar apple rust | Pathogen Type: Fungal | Organic Remedy: ...",
+        "'Gala Supreme', 'Liberty', 'Freedom', 'Jonafree' are scab-resistant). Rake and remove fallen leaves to reduce early spring infection sources. If chemi..."
+      ]
     },
     {
       "id": "eval-corn-01",
@@ -317,17 +397,23 @@
       "retrieved_chunks_count": 5,
       "context_recall": 1.0,
       "context_precision": 1.0,
-      "faithfulness": null,
-      "answer_relevance": null,
-      "composite_score": 1.0,
-      "latency_sec": 0.041,
+      "faithfulness": 0.0,
+      "answer_relevance": 0.5273110068809403,
+      "composite_score": 0.4239434942312838,
+      "latency_sec": 7.460765299969353,
       "matched_ingredients": [
         "Propiconazole",
         "Azoxystrobin",
         "Trichoderma viride",
         "Bacillus subtilis"
       ],
-      "missing_ingredients": []
+      "missing_ingredients": [],
+      "generated_answer": "I couldn't find that information in the uploaded documents.",
+      "retrieved_chunk_snippets": [
+        "Northern Corn Leaf Blight (NCLB) \u2014 Exserohilum turcicum Can cause 30-50% yield loss in dent corn if established before tasseling, plus quality loss in...",
+        "for disease. Source: University of Delaware Cooperative Extension Fact Sheet, 'Northern Corn Leaf Blight' (Oct 2025) Healthy No signs of disease detec...",
+        "# Comprehensive Diagnostic & Management Guide: Northern Corn Leaf Blight (NCLB)  ## 1. Pathogen Overview & Etiology - **Crop**: Field Corn, Sweet Corn..."
+      ]
     },
     {
       "id": "eval-corn-02",
@@ -336,21 +422,28 @@
       "query": "How do you control gray leaf spot in corn fields and what active ingredients work?",
       "ground_truth_answer": "Gray leaf spot (Cercospora zeae-maydis) in corn is controlled using Azoxystrobin + Propiconazole (Quilt Xcel) or Pyraclostrobin 250 EC. Organic management includes Bacillus amyloliquefaciens foliar sprays and rotating crops out of corn for 1-2 years.",
       "retrieved_chunks_count": 5,
-      "context_recall": 1.0,
+      "context_recall": 0.8333333333333334,
       "context_precision": 1.0,
-      "faithfulness": null,
-      "answer_relevance": null,
-      "composite_score": 1.0,
-      "latency_sec": 0.045,
+      "faithfulness": 0.0,
+      "answer_relevance": 0.5674146178629519,
+      "composite_score": 0.4003913323110723,
+      "latency_sec": 7.433673999970779,
       "matched_ingredients": [
         "Azoxystrobin",
         "Propiconazole",
         "Pyraclostrobin",
         "Bacillus amyloliquefaciens",
-        "Bio-fungicide",
+        "Bio-fungicide"
+      ],
+      "missing_ingredients": [
         "Crop rotation"
       ],
-      "missing_ingredients": []
+      "generated_answer": "I couldn't find that information in the uploaded documents.",
+      "retrieved_chunk_snippets": [
+        "Corn Foliar Disease Management Covers: Gray Leaf Spot, Common Rust, Northern Corn Leaf Blight Compiled from public university cooperative extension pu...",
+        "# Comprehensive Diagnostic & Management Guide: Corn Gray Leaf Spot  ## 1. Pathogen Overview & Etiology - **Crop**: Field Corn & Seed Corn (*Zea mays*)...",
+        "# Comprehensive Diagnostic & Management Guide: Corn Gray Leaf Spot  ## 1. Pathogen Overview & Etiology - **Crop**: Field Corn & Seed Corn (*Zea mays*)..."
+      ]
     },
     {
       "id": "eval-corn-03",
@@ -359,19 +452,26 @@
       "query": "What fungicides and organic remedies are effective against common rust in corn?",
       "ground_truth_answer": "Common rust (Puccinia sorghi) in corn is treated with Mancozeb 75% WP or Pyraclostrobin 20% WG. Organic treatment includes liquid copper octanoate and compost extract bio-sprays applied at the first sign of pustules on the upper canopy.",
       "retrieved_chunks_count": 5,
-      "context_recall": 1.0,
+      "context_recall": 0.25,
       "context_precision": 1.0,
-      "faithfulness": null,
-      "answer_relevance": null,
-      "composite_score": 1.0,
-      "latency_sec": 0.042,
+      "faithfulness": 0.0,
+      "answer_relevance": 0.4972166860322175,
+      "composite_score": 0.2884802519943202,
+      "latency_sec": 7.379402399994433,
       "matched_ingredients": [
+        "Pyraclostrobin"
+      ],
+      "missing_ingredients": [
         "Mancozeb",
-        "Pyraclostrobin",
         "Copper octanoate",
         "Compost extract"
       ],
-      "missing_ingredients": []
+      "generated_answer": "I couldn't find that information in the uploaded documents.",
+      "retrieved_chunk_snippets": [
+        "Begins as fleck-like lesions developing into small, tan, circular-to-elongate spots on both leaf surfaces, erupting into jagged brick-red to cinnamon-...",
+        "# Comprehensive Diagnostic & Management Guide: Corn Common Rust  ## 1. Pathogen Overview & Etiology - **Crop**: Field Corn, Sweet Corn, and Seed Corn ...",
+        "# Comprehensive Diagnostic & Management Guide: Corn Common Rust  ## 1. Pathogen Overview & Etiology - **Crop**: Field Corn, Sweet Corn, and Seed Corn ..."
+      ]
     },
     {
       "id": "eval-grape-01",
@@ -382,17 +482,23 @@
       "retrieved_chunks_count": 5,
       "context_recall": 1.0,
       "context_precision": 1.0,
-      "faithfulness": null,
-      "answer_relevance": null,
-      "composite_score": 1.0,
-      "latency_sec": 0.043,
+      "faithfulness": 0.0,
+      "answer_relevance": 0.5288913061156231,
+      "composite_score": 0.42416473619205736,
+      "latency_sec": 7.478796000010334,
       "matched_ingredients": [
         "Mancozeb",
         "Myclobutanil",
         "Copper hydroxide",
         "Lime sulfur"
       ],
-      "missing_ingredients": []
+      "missing_ingredients": [],
+      "generated_answer": "I couldn't find that information in the uploaded documents.",
+      "retrieved_chunk_snippets": [
+        "Agricultural Treatment & Dosage Reference: Grape - Black Rot Crop: grape | Disease: black rot | Pathogen Type: Fungal | Organic Remedy: Copper hydroxi...",
+        "Agricultural Treatment & Dosage Reference: Grape - Black Rot Crop: grape | Disease: black rot | Pathogen Type: Fungal | Organic Remedy: Copper hydroxi...",
+        ". Disinfect pruning shears between individual vines using 70% isopropyl alcohol. | | grape | leaf blight (isariopsis leaf spot) | Fungal | Bordeaux mi..."
+      ]
     },
     {
       "id": "eval-grape-02",
@@ -403,17 +509,23 @@
       "retrieved_chunks_count": 5,
       "context_recall": 1.0,
       "context_precision": 1.0,
-      "faithfulness": null,
-      "answer_relevance": null,
-      "composite_score": 1.0,
-      "latency_sec": 0.044,
+      "faithfulness": 0.0,
+      "answer_relevance": 0.5350220322987274,
+      "composite_score": 0.42502303811738185,
+      "latency_sec": 7.358790699974634,
       "matched_ingredients": [
         "Thiophanate-methyl",
         "Fosetyl-Aluminium",
         "Trichoderma atroviride",
         "Pruning wound sealants"
       ],
-      "missing_ingredients": []
+      "missing_ingredients": [],
+      "generated_answer": "I couldn't find that information in the uploaded documents.",
+      "retrieved_chunk_snippets": [
+        "# Comprehensive Diagnostic & Management Guide: Grape Esca (Black Measles)  ## 1. Pathogen Overview & Grapevine Trunk Disease Complex - **Crop**: Grape...",
+        "# Comprehensive Diagnostic & Management Guide: Grape Esca (Black Measles)  ## 1. Pathogen Overview & Grapevine Trunk Disease Complex - **Crop**: Grape...",
+        "Agricultural Treatment & Dosage Reference: Grape - Esca (Black Measles) Crop: grape | Disease: esca (black measles) | Pathogen Type: Fungal | Organic ..."
+      ]
     },
     {
       "id": "eval-orange-01",
@@ -424,10 +536,10 @@
       "retrieved_chunks_count": 5,
       "context_recall": 1.0,
       "context_precision": 1.0,
-      "faithfulness": null,
-      "answer_relevance": null,
-      "composite_score": 1.0,
-      "latency_sec": 0.048,
+      "faithfulness": 0.0,
+      "answer_relevance": 0.5316268546495776,
+      "composite_score": 0.42454771310342515,
+      "latency_sec": 7.3747697999933735,
       "matched_ingredients": [
         "Imidacloprid",
         "Thiamethoxam",
@@ -435,7 +547,13 @@
         "Kaolin clay",
         "Tamarixia radiata"
       ],
-      "missing_ingredients": []
+      "missing_ingredients": [],
+      "generated_answer": "I couldn't find that information in the uploaded documents.",
+      "retrieved_chunk_snippets": [
+        "Agricultural Treatment & Dosage Reference: Orange - Citrus Greening (Huanglongbing) Crop: orange | Disease: citrus greening (huanglongbing) | Pathogen...",
+        "Agricultural Treatment & Dosage Reference: Orange - Citrus Greening (Huanglongbing) Crop: orange | Disease: citrus greening (huanglongbing) | Pathogen...",
+        "## 3. Comprehensive HLB Control & Psyllid Vector Program  Because CLas resides inside the vascular phloem, foliar bactericides cannot eradicate it. Ef..."
+      ]
     },
     {
       "id": "eval-pepper-01",
@@ -446,17 +564,23 @@
       "retrieved_chunks_count": 5,
       "context_recall": 1.0,
       "context_precision": 1.0,
-      "faithfulness": null,
-      "answer_relevance": null,
-      "composite_score": 1.0,
-      "latency_sec": 0.040,
+      "faithfulness": 0.0,
+      "answer_relevance": 0.5629935583488068,
+      "composite_score": 0.4289390528774875,
+      "latency_sec": 7.40531750000082,
       "matched_ingredients": [
         "Fixed Copper",
         "Mancozeb",
         "Copper hydroxide",
         "Bacillus amyloliquefaciens"
       ],
-      "missing_ingredients": []
+      "missing_ingredients": [],
+      "generated_answer": "I couldn't find that information in the uploaded documents.",
+      "retrieved_chunk_snippets": [
+        "# Comprehensive Diagnostic & Management Guide: Bell Pepper Bacterial Spot  ## 1. Pathogen Overview & Etiology - **Crop**: Bell Pepper, Chili Pepper (*...",
+        "# Comprehensive Diagnostic & Management Guide: Bell Pepper Bacterial Spot  ## 1. Pathogen Overview & Etiology - **Crop**: Bell Pepper, Chili Pepper (*...",
+        "Agricultural Treatment & Dosage Reference: Bell Pepper - Bacterial Spot Crop: bell pepper | Disease: bacterial spot | Pathogen Type: Bacterial | Organ..."
+      ]
     }
   ]
 }

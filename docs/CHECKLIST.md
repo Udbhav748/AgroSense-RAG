@@ -5,6 +5,19 @@ Deployment, Privacy) against what's actually implemented in this repo.
 Statuses are updated as gaps are closed. Evidence is `file:line` where
 practical.
 
+**Module 10 audit**: `docs/MODULE10_AUDIT.md` derives a project-specific,
+evidence-backed audit from this checklist — every ✅ row there requires
+implementation evidence + a reproducible test + an actual measured
+result + a saved artifact, all four, per that document's own rule.
+Several rows below are marked ✅ on implementation/methodology grounds
+alone; `MODULE10_AUDIT.md` is stricter and should be treated as
+authoritative wherever the two disagree. Unauthorized Access Rate was
+corrected from an unmeasured ✅ to a measured ⚠️ 0.3333 during the initial
+Module 10 audit, then investigated and resolved to a measured ✅ 0.0 during
+the 2026-09-19 gap-closure pass (the 0.3333 was traced to the eval
+script wrongly counting an app-authorized same-tenant member delete as
+an attack — see `docs/MODULE10_GAP_CLOSURE_REPORT.md`).
+
 Status legend:
 
 - ✅ Implemented and verified (tests or measured)
@@ -328,7 +341,7 @@ Question → Embedding (`embedding_service.py`) → Vector search (`faiss_vector
 | Human approval | ⚠️ | See §1 — web search and document deletion both gated, off by default, no general approval queue |
 | Audit logs | ✅ | `audit_event` lines + `usage_logs` table |
 | PII Recall | ✅ | `eval/pii_recall_check.py` |
-| Unauthorized Access Rate | ✅ | `eval/unauthorized_access_check.py` — real HTTP delete attempts across cross-tenant and cross-role scenarios; rate = successful unauthorized actions / attempts, desired value zero. (Previously this row cited `tests/test_security.py`, which tests auth/rate-limiting but never actually computed this rate — corrected.) |
+| Unauthorized Access Rate | ✅ | **Measured value: 0.0 (0/2 cross-tenant attempts), corrected 2026-09-19** — `eval/unauthorized_access_check.py`. The prior 0.3333 (1/3) folded a same-tenant "member"-role delete into the unauthorized-attempts denominator; investigation confirmed `app/core/permissions.py`'s `ROLE_PERMISSIONS` intentionally grants members `DOCUMENT_DELETE` (that delete is authorized by design, not an attack). The script was corrected to measure the two genuinely cross-tenant attempts only, with the authorized same-tenant path checked separately and confirmed still working (`check_member_can_delete_own_tenant_document`, PASS). Historical 0.3333 artifact preserved (`security_eval_20260919T103952Z.json`); corrected artifact: `security_eval_20260919T111236Z.json`. See `docs/MODULE10_GAP_CLOSURE_REPORT.md`. |
 | Prompt Injection Success Rate | ✅ | `prompt_injection_success_rate` in `run_eval.py` (successful injection attacks / adversarial attempts — the checklist's literal framing, computed as `1 - injection_resistance` from the same per-entry flags) + prompt-builder unit tests (`tests/test_security.py`); regression-gated (`regression_check.py`'s `LOWER_IS_BETTER`). Previously this row only cited `injection_resistance`, the inverse-framed metric — corrected, both are now reported. |
 | False Refusal Rate | ✅ | `run_eval.py:468-469` |
 | Data Leak Rate | ✅ | `run_eval.py:471-473` |

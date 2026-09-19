@@ -346,6 +346,18 @@ reflection roughly doubles cost on the queries it triggers, and
 `tenacity`'s backoff adds real wall-clock time (up to ~1+2+4s) before a
 failing request gives up.
 
+**GAP-CLOSURE UPDATE (2026-09-19): a real, measured figure now exists**,
+superseding the config-derived estimate above. `eval/module10/metrics/agent.py::cost_per_successful_task`
+sums the real, per-request `estimated_cost_usd` (`app.core.usage_tracking`,
+captured via the new `eval/module10/metrics/telemetry_capture.py`
+utility — see `docs/MODULE10_RESULTS.md`'s Agent section) over
+successful cases only, never assuming $0 for an unmeasured case. Result
+on the 3-case planning dataset: **$0.001124 per successful task** (2/3
+cases successful, both with measured cost) — real Groq
+`openai/gpt-oss-120b` pricing, not the Gemini-rate estimate above, and
+on a 3-case sample, not yet representative of full production traffic.
+Directionally consistent with the earlier estimate's order of magnitude.
+
 ## 9. What breaks when users grow from 10 to 1 million?
 
 Several things, all load-bearing for a single-user demo and all real
@@ -511,3 +523,57 @@ reimplementing a simplified, subtly-wrong version of it). Combined with
 `AgentState`'s named fields and `node_timings`, a single failed or
 surprising request is diagnosable from its own recorded trace without
 needing to reproduce it.
+
+---
+
+## Module 10 audit: measured values, not theoretical answers
+
+The ten questions above were answered before a systematic, evidence-backed
+evaluation existed. `docs/MODULE10_AUDIT.md` and `docs/MODULE10_RESULTS.md`
+now provide that evaluation; a few of the answers above deserve updating
+with what was actually measured, not just argued:
+
+- **Q3/Q4 (failure modes/detection)**: the Module 10 audit's failure-
+  injection suite (`backend/eval/module10/runners/run_failure_eval.py`)
+  confirms, with real measured output rather than code inspection alone,
+  that 11 of 12 deterministic failure scenarios are both detected and
+  safely recovered (Failure Detection Rate 1.0, Recovery Success Rate
+  1.0, Unhandled Failure Rate 0.0 — `failure_eval_20260919T092719Z.json`).
+  It also surfaced a failure mode this document didn't previously list:
+  **a stale/deprecated LLM model configuration** (`llama-3.3-70b-
+  versatile`, silently removed from Groq's catalog) degrading every
+  generation call to a fallback answer without raising a visible error —
+  found via a real live run, not anticipated in advance, and fixed
+  (`GROQ_MODEL_NAME=openai/gpt-oss-120b`) during the same audit.
+- **Q6 (how do you know the new version is better)**: the RAG ablation in
+  `docs/MODULE10_RESULTS.md` is a real instance of this — semantic-only
+  vs. hybrid vs. hybrid+rerank, same 30-case dataset, same process,
+  showing a genuine, monotonic, measured improvement (P@5 0.42 → 0.61 →
+  0.64; MRR 0.67 → 0.86 → 0.88), not an assumed one.
+- **Q7 (data/secrets protection)**: the Module 10 audit's live
+  Unauthorized Access Rate measurement initially found a discrepancy
+  this document had not previously stated in measured terms: a
+  same-tenant "member"-role delete succeeded where the project's own
+  pre-existing test expected it to be denied (0.3333, not 0). The
+  2026-09-19 gap-closure pass investigated this to its actual root
+  cause: `app/core/permissions.py`'s `ROLE_PERMISSIONS` deliberately
+  grants members `DOCUMENT_DELETE` (documented, intentional design) —
+  the discrepancy was in the eval script's outdated assumption, not in
+  the app's RBAC logic. The script was corrected (not the app), the
+  authorized-path behavior was separately confirmed unregressed, and
+  Unauthorized Access Rate now measures **0.0** over the two genuinely
+  cross-tenant attempts — see `docs/MODULE10_GAP_CLOSURE_REPORT.md` and
+  `docs/MODULE10_AUDIT.md` §18 for the full before/after record.
+- **Q10 (would you trust it as a customer)**: unchanged in spirit, now
+  with harder evidence behind it — PII Recall 1.0, Prompt Injection and
+  Jailbreak Success Rate both 0.0 across a dedicated adversarial suite
+  (role override, system-prompt extraction, instruction-hierarchy attack,
+  malicious retrieved content, data exfiltration, tool misuse), and the
+  RBAC investigation above resolved rather than left open. One new,
+  disclosed caveat from the same gap-closure pass: a live re-run of
+  `backend/scripts/run_rag_eval.py` surfaced Mean Faithfulness dropping
+  to 0.0000 (from a historical, unverified 0.9420) — several cases with
+  perfect retrieval still returned the safe-refusal fallback instead of
+  an answer, consistent with the corrective/reflection loop exhausting
+  its retry budget. Not fixed in this evaluation-only pass; see
+  `docs/RAG_BENCHMARK_REPORT.md`'s REFRESH section.
