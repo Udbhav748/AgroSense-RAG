@@ -12,8 +12,9 @@ import pytest
 from app.models.document import RetrievedChunk
 from app.models.schemas import ChatResponse
 from app.services.agent_graph.graph import build_chat_graph
-from app.services.agent_graph.nodes import GraphContext
+from app.services.agent_graph.nodes import GraphContext, generator_node
 from app.services.agent_graph.state import AgentState
+from app.services.prompt_builder import FALLBACK_REPLY, GENERATION_ERROR_REPLY
 from app.services.rag_service import PlanDecision, RetrievalAugmentation
 
 
@@ -278,3 +279,55 @@ async def test_cache_write_happens_only_for_plain_retrieve():
     state = AgentState(query="q")
     await graph.run(state, ctx)
     assert len(fake.cache_write_calls) == 1
+
+
+class _RaisingChatService(FakeChatService):
+    """_generate raises every call -- simulates an LLM provider failure
+    (timeout/rate-limit/API error) that survives all of groq_client.py's/
+    gemini_client.py's tenacity retries and propagates out of
+    ChatService._generate, exactly as it does in production."""
+
+    def _generate(self, *args, **kwargs):
+        self.generate_calls.append("raised")
+        raise RuntimeError("simulated LLM provider failure (e.g. Groq 429 after 3 retries)")
+
+
+def test_generator_exception_uses_generation_error_reply_not_fallback():
+    """PHASE 3 FAITHFULNESS-REGRESSION FIX regression test: before this fix,
+    generator_node's except block set draft_answer=FALLBACK_REPLY on ANY
+    exception from ChatService._generate, making a provider failure
+    indistinguishable from a legitimate 'not in the documents' answer.
+    This reproduces the failure path directly (bypassing the graph's own
+    retry/reflection wiring) and asserts the node now emits the distinct
+    GENERATION_ERROR_REPLY sentinel instead, with error_type/root_cause
+    still recorded for tracing."""
+    fake = _RaisingChatService(plan_action="retrieve")
+    ctx = GraphContext(chat_service=fake, vector_store=FakeVectorStore([make_chunk()]))
+    state = AgentState(query="q", retrieved_chunks=[make_chunk()])
+
+    result = generator_node(state, ctx)
+
+    assert result.draft_answer == GENERATION_ERROR_REPLY
+    assert result.draft_answer != FALLBACK_REPLY
+    assert result.error_type is not None
+    assert "simulated LLM provider failure" in result.error_message
+
+
+def test_generation_error_reply_triggers_reflection_retry():
+    """A GENERATION_ERROR_REPLY draft answer must still be treated as
+    ungrounded by ChatService._is_ungrounded (the real implementation, not
+    the FakeChatService stub) so the corrective loop gives a transient
+    provider failure a second, real chance to succeed -- the same
+    treatment FALLBACK_REPLY already got before this fix."""
+    from app.models.document import RetrievedChunk
+    from app.services.rag_service import ChatService
+
+    chunks = [RetrievedChunk(chunk_id="c1", document_id="d1", text="content", score=0.9)]
+    service = ChatService.__new__(ChatService)  # no LLM/vector-store deps needed for _is_ungrounded
+    assert service._is_ungrounded(GENERATION_ERROR_REPLY, chunks, []) is True
+    assert service._is_ungrounded(FALLBACK_REPLY, chunks, []) is True
+    assert service._is_ungrounded("a real grounded answer [1]", chunks, []) is False
+    # No context at all: GENERATION_ERROR_REPLY would never legitimately be
+    # produced here (there's nothing to call the LLM with), but confirm the
+    # "no context -> not ungrounded" short-circuit still holds regardless.
+    assert service._is_ungrounded(GENERATION_ERROR_REPLY, [], []) is False
