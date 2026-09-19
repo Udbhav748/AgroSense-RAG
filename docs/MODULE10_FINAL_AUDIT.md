@@ -154,7 +154,7 @@ Full-depth answers already exist in `docs/DESIGN_REVIEW.md`; this is the termina
 |---|---|---|---|---|---|
 | Explicit AgentState + graph | ✅ | `agent_graph/{state,nodes,graph}.py` | `test_agent_graph_production.py` (11/11) | Workflow Completion Rate 1.0 | `eval/module10/reports/agent_eval_20260919T112455Z.json` |
 | Retrieval (hybrid+rerank) | ✅ | `retrieval_service.py` | `run_rag_eval.py` | Context Precision 0.9662 | `data/eval_reports/latest_eval_report.json` |
-| Faithfulness/groundedness | ✅ (limited scope) | fix implemented (`GENERATION_ERROR_REPLY`) | 2 regression tests + live re-run of rows 17/19 | both cases now real, cited, grounded answers (was `FALLBACK_REPLY` on both) | `eval/module10/reports/faithfulness_post_phase3_*.json` |
+| Faithfulness/groundedness | ⚠️ (measured, below target) | fix implemented (`GENERATION_ERROR_REPLY`) | 2 regression tests + targeted 2-case re-run + **full 20-case post-fix re-run (Phase 7)** | Mean Faithfulness 0.0000 (pre-fix) → **0.6485 (post-fix, full dataset)** — real, large improvement, still below the 0.80 target on 4/20 cases | `eval/module10/reports/faithfulness_post_phase3_*.json`, `faithfulness_full_postfix_20260919T180541Z.json` |
 | Planning Success Rate | ✅ | `telemetry_capture.py` | `test_module10_telemetry_capture.py` (6/6) | 1.0 (3/3) | `eval/module10/reports/agent_eval_20260919T112455Z.json` |
 | Cost Per Successful Task | ✅ | `cost_per_successful_task()` | covered by above | $0.001124 | same artifact |
 | RBAC / Unauthorized Access | ✅ | `app/core/permissions.py` | `eval/unauthorized_access_check.py`, re-run 3x across phases | 0.0 (0/2) | `eval/module10/reports/security_eval_20260919T111236Z.json` |

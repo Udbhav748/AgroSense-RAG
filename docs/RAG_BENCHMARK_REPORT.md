@@ -1,14 +1,38 @@
 # InsightAI-RAG Quantitative Benchmark & Evaluation Report
 
-**Document Version**: 2.5.0 (refreshed — Module 10 gap-closure pass)
-**Evaluation Date**: 2026-09-19 (refresh) — see REFRESH section below; original August 2026 section preserved unchanged further down as historical evidence.
+**Document Version**: 2.6.0 (post-fix full re-run — Phase 7)
+**Evaluation Date**: 2026-09-19 — three dated sections below, in order: POST-FIX FULL RE-RUN (current, authoritative), REFRESH (pre-fix, superseded), original August 2026 section (historical, unverified).
 **Evaluator Suite**: `backend/scripts/run_rag_eval.py`
 **Test Suite**: 20 Golden Agricultural Pathology Q&A Scenarios
 **Scope**: 7 Crop Families (*Tomato, Potato, Apple, Corn, Grape, Orange, Bell Pepper*)
 
 ---
 
-## REFRESH (2026-09-19, Module 10 gap-closure pass, item 5)
+## POST-FIX FULL RE-RUN (2026-09-19, Phase 7 — CURRENT, authoritative)
+
+**Reproduction**: `cd backend && python scripts/run_rag_eval.py` · **Command output saved to**: `eval/module10/reports/faithfulness_full_postfix_20260919T180541Z.json` (full metadata: git commit, dataset version, model/provider, retrieval config, timestamp) · **Model**: Groq `openai/gpt-oss-120b`
+
+This is the mandatory full-dataset re-measurement of Faithfulness after the Phase 3 `GENERATION_ERROR_REPLY` fix, superseding the REFRESH section below (which was the pre-fix run that discovered the regression) for full-dataset claims. The Phase 5 report's 2-case targeted verification (rows 17/19 only) remains correctly described as targeted, not full-dataset — this section is the full-dataset one.
+
+```
+ Metric                      Production Gate Target    Achieved Score    Status
+----------------------------------------------------------------------------------------
+ Mean Context Recall         >= 0.8000                 0.8604            PASSED (+7.6%)
+ Mean Context Precision      >= 0.7000                 0.9662            PASSED (+38.0%)
+ Mean Faithfulness           >= 0.8000                 0.6485            FAILED (-18.9%)
+ Mean Answer Relevance       >= 0.7500                 0.8354            PASSED (+11.4%)
+ Harmonic Composite RAG      >= 0.7500                 0.7768            PASSED (+3.6%)
+ Mean End-to-End Latency     <= 3.000s                 19.28s            FAILED (+543%)
+ Benchmark Quality Gate:     PASSED (composite clears its own threshold; Faithfulness and latency do not, individually)
+```
+
+**Honest reading, not cherry-picked**: Faithfulness recovered dramatically from the pre-fix 0.0000 to **0.6485** — the `GENERATION_ERROR_REPLY` fix works, confirmed on the full 20-case dataset, not just the 2 targeted rows. But 0.6485 is still **below** the 0.80 target. Per-case breakdown shows 4 of 20 cases (`eval-potato-01`, `eval-potato-02`, `eval-orange-01`, `eval-pepper-01`) still scoring **0.000** Faithfulness despite Recall/Precision both 1.0 (retrieval found the right content) — this is a **different, more nuanced failure** than the Phase 3 bug: the model did generate a real answer this time (not a mislabeled refusal), but the automated faithfulness scorer found it insufficiently grounded in the retrieved text. This is disclosed as a genuine, remaining RAG-generation-quality limitation, not fixed in this pass. Mean latency (19.28s) is well above the 3s target — consistent with `openai/gpt-oss-120b`'s reasoning-model behavior (Section 21 of `docs/MODULE10_FINAL_AUDIT.md`) — also disclosed, not fixed.
+
+**Do not read this as "Faithfulness is now fully solved."** It is a large, real, measured improvement (0.0000 → 0.6485) with an honestly reported remaining gap (target 0.80, still 4/20 cases at 0.000), not a claim of full compliance.
+
+---
+
+## REFRESH (2026-09-19, Module 10 gap-closure pass, item 5 — SUPERSEDED by the POST-FIX FULL RE-RUN above for full-dataset Faithfulness claims; kept as the historical record of the run that discovered the regression)
 
 **Reproduction command:** `cd backend && python scripts/run_rag_eval.py` (no flags — full 20-case golden dataset, live LLM generation enabled)
 **Result artifact:** `data/eval_reports/latest_eval_report.json` (overwritten on each run by the script itself — no historical versioning inside the script; this document is the durable record of the run described here)

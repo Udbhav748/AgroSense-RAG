@@ -2,16 +2,14 @@
 
 # InsightAI-RAG
 
-**Upload a PDF. Ask it questions. Get answers grounded in what it actually says.**
-
-InsightAI-RAG is a full-stack Retrieval-Augmented Generation app: a FastAPI backend that chunks and embeds your documents into a FAISS vector index, and a React SPA for uploading files and chatting with them — with every answer traceable back to the source passage.
+**Upload a PDF. Ask it questions. Get answers grounded in what it actually says — with citations.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-![Python](https://img.shields.io/badge/Python-3.14-3776AB?logo=python&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
 ![FAISS](https://img.shields.io/badge/FAISS-vector%20search-4B8BBE)
-![Gemini](https://img.shields.io/badge/LLM-Gemini-8E75B2)
+![Tests](https://img.shields.io/badge/tests-820%20collected-brightgreen)
 
 </div>
 
@@ -21,721 +19,525 @@ InsightAI-RAG is a full-stack Retrieval-Augmented Generation app: a FastAPI back
 
 ## Table of contents
 
-- [How it works](#how-it-works)
-- [Architecture Blueprint](docs/ARCHITECTURE_OVERVIEW.md)
-- [Features](#features)
-- [Screenshots](#screenshots)
+- [What is InsightAI-RAG](#what-is-insightai-rag)
+- [Key capabilities](#key-capabilities)
+- [Why this architecture](#why-this-architecture)
+- [System architecture](#system-architecture)
+- [Agent workflow](#agent-workflow)
+- [RAG pipeline](#rag-pipeline)
+- [Multimodal / vision](#multimodal--vision)
+- [Memory & sessions](#memory--sessions)
+- [Tools](#tools)
+- [Security & privacy](#security--privacy)
+- [Observability](#observability)
+- [Evaluation & benchmarks](#evaluation--benchmarks)
+- [Hard cases & failure recovery](#hard-cases--failure-recovery)
+- [Performance](#performance)
+- [Cost](#cost)
 - [Tech stack](#tech-stack)
-- [Getting started](#getting-started)
-- [Configuration](#configuration)
-- [API reference](#api-reference) ([Full Typed API Docs](docs/API_REFERENCE.md))
-- [Quantitative Benchmark & Evaluation](#evaluation) ([Full Benchmark Report](docs/RAG_BENCHMARK_REPORT.md))
 - [Project structure](#project-structure)
-- [Known limitations](#known-limitations)
-- [Future work](#future-work)
+- [Installation](#installation)
+- [Environment variables](#environment-variables)
+- [Docker](#docker)
+- [API reference](#api-reference)
+- [Reproduce the results](#reproduce-the-results)
+- [Documentation map](#documentation-map)
+- [Current limitations](#current-limitations)
+- [Roadmap](#roadmap)
 - [License](#license)
 
-## How it works
+## What is InsightAI-RAG
 
+**30 seconds:** A full-stack Retrieval-Augmented Generation app. Upload a PDF, it's chunked, embedded, and indexed into FAISS; a React chat UI then answers questions about it, streaming a live "agent trace" as it plans, retrieves, grades, and — if the first attempt is ungrounded — corrects itself, always citing the exact passages an answer came from.
+
+**Deeper:** The backend (`backend/`, FastAPI) is not scaffolding — every route in `app/api/v1/routes/` (`health`, `documents`, `query`, `auth`, `admin`, `approvals`, `metrics`) is wired to a real service. A chat turn runs through a small, dependency-free state machine (`app/services/agent_graph/`, plus the simpler `ChatService` used by the non-streaming path) rather than an LLM-framework agent runtime — deliberately, see [Why this architecture](#why-this-architecture). Two abstractions are injected rather than imported directly: `VectorStore` (FAISS today) and `LLMClient` (Gemini or Groq), so orchestration code never touches a concrete SDK. The frontend (`frontend/`, React + Vite + Tailwind) sits behind JWT-based per-user login, with per-tenant document/session isolation when `DATABASE_URL` is set. The project went through several rounds of self-audit ("Module 10" evaluation, `docs/MODULE10_*`) that found and fixed two real bugs — see [Hard cases & failure recovery](#hard-cases--failure-recovery).
+
+## Key capabilities
+
+- **Grounded chat with chunk-level citations.** Every answer is generated only from retrieved chunks (or, when the corrective loop escalates, web results); the response carries `sources`, one entry per contributing chunk/result with its own excerpt — never a bare model reply.
+- **Streamed agent trace.** `POST /chat/stream` (Server-Sent Events) emits `plan → retrieve → grade → generate/correct → answer` as it happens, token-by-token for the answer itself, consumed by the frontend via `fetch` + a hand-parsed `ReadableStream` (`EventSource` can't send the required `Authorization` header or a POST body).
+- **Corrective RAG loop.** Retrieval is graded `insufficient`/`weak`/`good` by a score threshold; weak/insufficient grades can pull in a web search fallback (off by default) before generation. An ungrounded first answer regenerates once with an explicit "you didn't use the context" instruction, then escalates to a web-augmented regeneration if still ungrounded — capped at 3 total `generate()` calls per request.
+- **Hybrid retrieval.** FAISS semantic search fused with a BM25 lexical index by default (`HYBRID_SEARCH_ENABLED=true`), plus an opt-in cross-encoder reranking stage (`RERANKING_ENABLED`), both config-gated and A/B-measured against a semantic-only baseline (`docs/OPERATIONS.md`).
+- **Multi-modal ingestion (opt-in, off by default).** Embedded figures extracted and persisted, captioned by Gemini into searchable `source="image_caption"` chunks, ruled-line tables reduced to markdown and indexed as `source="table"` chunks, and a vision-QA path that answers directly from a page raster when retrieval scores weak — each behind its own flag (`IMAGE_EXTRACTION_ENABLED`, `IMAGE_CAPTIONING_ENABLED`, `TABLE_EXTRACTION_ENABLED`, `VISION_QA_ENABLED`).
+- **Plant-disease diagnosis from a photo.** `POST /chat/diagnose` sends an uploaded leaf image to LeafSense (a separate, optional vision service over HTTP); the predicted disease becomes the query and runs through the same retrieve → grade → correct pipeline as a text question.
+- **Individual user accounts.** `POST /auth/signup`/`/auth/login` issue JWTs (`app/core/auth.py`); each user gets a private tenant, scoping documents and chat sessions per-person when `DATABASE_URL` is set. A separate `X-API-Key` path exists for non-browser/service clients.
+- **RBAC and human-approval gates.** Admin-only document deletion (`ADMIN_CLIENT_NAMES`), and deployment-toggleable approval requirements on web search and document deletion (`app/services/approval_service.py`, `app/api/v1/routes/approvals.py`).
+- **OCR fallback for scanned PDFs.** Pages with no extractable text layer are rasterized and OCR'd via `pytesseract` (`OCR_DPI` configurable) automatically — no separate upload path.
+- **Semantic response cache.** An in-memory LRU cache keyed by embedding cosine similarity for near-duplicate queries (`app/services/cache_service.py`, `app/services/agent_graph/cache_node.py`).
+- **Prometheus metrics.** `GET /metrics` exposes request counts/latencies, retrieval-chunk distributions, rerank scores, token/cost counters, loop-cap rate in standard exposition format.
+- **Rate limiting.** In-memory sliding-window limiter, 60 req/min per identity, applied to both auth paths.
+- **Structured JSON logging and a typed exception hierarchy** — every domain error subclasses `AppError` (`app/core/exceptions.py`) and carries its own HTTP status; one global handler in `app/core/error_handlers.py` maps it automatically.
+
+## Why this architecture
+
+| Decision | Why |
+|---|---|
+| Hand-rolled state machine, not LangGraph/CrewAI | The agent's control flow is a fixed, small sequence (plan → retrieve → grade → generate → correct); a general graph runtime buys nothing here and adds a dependency + debugging surface. Confirmed in code: `rag_service.py` opens with "Deliberately plain Python — no LangChain/LangGraph agent runtime." `app/services/agent_graph/` is a **custom** node/edge state graph the project built itself, not the `langgraph` package — `langgraph` does not appear in `requirements.txt`. |
+| FAISS `IndexFlatIP` over a managed vector DB | Exact (not approximate) inner-product search is fast enough at this project's document-count scale, persisted to a single on-disk file with a mirrored `metadata.json` — no external service to run for local dev/small deployments. |
+| Sentence-Transformers (`all-MiniLM-L6-v2`) over a hosted embeddings API | Local, free, no per-call cost or network dependency for the embed step; small enough to run on CPU. |
+| Two swappable LLM providers (Gemini, Groq) behind one `LLMClient` interface | `FallbackLLMClient` retries against the secondary provider if the primary's own retries are exhausted — single-hop failover without coupling orchestration code to either SDK. |
+| Threshold-based retrieval grading, not an LLM judge | Cheap (no extra LLM call) and fast; explicitly documented as a proxy for relevance, not a real semantic check (see [Current limitations](#current-limitations)). |
+| Confirm-then-delete + optional approval gate on document deletion | `confirm=true` prevents accidental deletes from a stray request; `DOCUMENT_DELETE_REQUIRES_APPROVAL` adds a second, deployment-policy gate on top for higher-stakes environments. |
+| In-memory store by default, Postgres opt-in via `DATABASE_URL` | Keeps local dev and free-tier deployments (Render) dependency-free; Postgres (with Alembic migrations auto-applied at startup) is a straight upgrade path for durable multi-user persistence without code changes. |
+
+## System architecture
+
+```mermaid
+flowchart TD
+    subgraph Client["Frontend (React + Vite)"]
+        UI[Chat / Upload / Documents / Diagnose UI]
+    end
+
+    subgraph API["FastAPI backend"]
+        Auth[Auth middleware<br/>JWT or X-API-Key]
+        UploadRoute["POST /upload"]
+        ChatRoute["POST /chat, /chat/stream"]
+        DiagRoute["POST /chat/diagnose"]
+        DocSvc[DocumentProcessingService]
+        ChatSvc[ChatService / Agent Graph]
+    end
+
+    subgraph Storage["Storage"]
+        FAISS[(FAISS index<br/>index.faiss + metadata.json)]
+        PG[(PostgreSQL<br/>optional, DATABASE_URL)]
+        Files[(Uploaded PDFs /<br/>extracted images)]
+    end
+
+    subgraph External["External services"]
+        Gemini[Google Gemini]
+        Groq[Groq]
+        LeafSense[LeafSense vision service<br/>separate process, optional]
+        Web[Web search<br/>duckduckgo-search, optional]
+    end
+
+    UI -->|Bearer JWT| Auth
+    Auth --> UploadRoute
+    Auth --> ChatRoute
+    Auth --> DiagRoute
+
+    UploadRoute --> DocSvc
+    DocSvc -->|chunks + embeddings| FAISS
+    DocSvc --> Files
+    DocSvc -.->|metadata, if enabled| PG
+
+    ChatRoute --> ChatSvc
+    DiagRoute -->|leaf photo| LeafSense
+    LeafSense -->|predicted disease| ChatSvc
+
+    ChatSvc -->|semantic + BM25 search| FAISS
+    ChatSvc -->|generate / correct| Gemini
+    ChatSvc -.->|fallback provider| Groq
+    ChatSvc -.->|weak/insufficient retrieval| Web
+    ChatSvc -.->|sessions, if enabled| PG
 ```
-                    ┌──────────────┐
-   PDF upload  ───▶ │  PyMuPDF     │  extract text per page
-                    └──────┬───────┘  (OCR fallback for scanned/thin-text pages)
-                           ▼
-                    ┌──────────────┐
-                    │  Chunking    │  langchain-text-splitters
-                    │  (1000 chars,│  200 char overlap
-                    │   overlap)   │
-                    └──────┬───────┘
-                           ▼
-                    ┌──────────────┐
-                    │  Embeddings  │  Sentence Transformers
-                    │              │  (all-MiniLM-L6-v2)
-                    └──────┬───────┘
-                           ▼
-                    ┌──────────────┐
-                    │  FAISS index │  persisted to disk,
-                    │ (IndexFlatIP)│  cosine similarity search
-                    └──────────────┘
+
+## Agent workflow
+
+`app/services/agent_graph/` is a **custom, dependency-free node/edge state machine** (`graph.py`, `engine.py`, `nodes.py`, `state.py`) — not the LangGraph package. The simpler, non-streaming `ChatService` (`rag_service.py`) runs an equivalent sequence directly in plain Python; both are described by the same flow:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Plan
+    Plan --> Conversational: small talk detected
+    Plan --> Summarize: "summarize" + document UUID
+    Plan --> Retrieve: default
+    Conversational --> [*]: canned reply, no LLM call
+
+    Retrieve --> Grade: hybrid FAISS+BM25 (+ optional rerank)
+    Grade --> Generate: score >= RETRIEVAL_GRADE_THRESHOLD (good)
+    Grade --> WebSearchCheck: score below threshold (weak/insufficient)
+
+    WebSearchCheck --> Generate: WEB_SEARCH_ENABLED true, results fetched
+    WebSearchCheck --> Generate: web search off / no results (degrades gracefully)
+
+    Generate --> Answer: grounded answer produced
+    Generate --> Correct: empty / ungrounded answer
+
+    Correct --> Answer: regeneration grounded
+    Correct --> WebAugmentedRegenerate: still ungrounded and web search not yet used
+    WebAugmentedRegenerate --> Answer: final attempt (capped at 3 total generate() calls)
+
+    Answer --> [*]
 ```
 
-A document uploaded through `/upload` is chunked, embedded, and written into the same in-memory FAISS index that `/chat` queries — so a new document is searchable immediately, no reload or reindex step required.
+## RAG pipeline
 
-A chat message doesn't go straight to the LLM — it goes through a small hand-rolled agent (`ChatService`, plain Python, no LangGraph/CrewAI — see `docs/ARCHITECTURE.md`'s "Framework choice" for why):
+**Ingestion** (`POST /upload` → `documents.py` → `DocumentProcessingService`):
 
-1. **Plan.** A keyword/regex planner (no LLM call) routes the query to one of three actions: `conversational` (small talk, answered directly), `summarize` (a "summarize"/"summary" keyword plus a document-id-shaped UUID in the text), or `retrieve` (the default).
-2. **Retrieve.** FAISS semantic search fused with a BM25 lexical index by default (hybrid search), then an optional cross-encoder re-ranking pass over the candidate pool before narrowing to `top_k` — both config-gated and A/B'd against a semantic-only baseline (`docs/OPERATIONS.md`'s "Retrieval ablation").
-3. **Grade.** The top result's score sorts retrieval into `insufficient` / `weak` / `good` — no LLM call, just a threshold check. `weak`/`insufficient` pulls in a web search fallback (off by default) *before* the first generation attempt, so the model has it alongside whatever document context came back.
-4. **Generate, then correct.** Gemini (or Groq) answers from the retrieved context. If the answer comes back empty or ungrounded, the corrective loop regenerates once with an explicit "you didn't use the context" instruction, then — if still ungrounded and web search wasn't already used — escalates to a web-search-augmented regeneration. Every path is capped at 3 total `generate()` calls per request.
-5. **Answer**, with per-chunk citations (and, when web search contributed, per-result citations) attached — never a bare model reply.
+1. **Validate** — file type/size (`validation_service.py`, `MAX_UPLOAD_SIZE_MB`).
+2. **Save to disk** (`upload_service.py`).
+3. **Extract text per page** with PyMuPDF (`document_service.py`); pages with no text layer fall back to OCR (`pytesseract`, `OCR_DPI`).
+4. **Chunk** with `langchain-text-splitters`, 1000 chars / 200 overlap (`chunking_service.py`).
+5. **Embed** with Sentence Transformers `all-MiniLM-L6-v2` (`embedding_service.py`), L2-normalized so inner product equals cosine similarity.
+6. **Index** into FAISS `IndexFlatIP`, persisted to `backend/vector_store/index.faiss` with row-aligned `metadata.json` (`faiss_vector_store.py`). Writes are `threading.Lock`-guarded so concurrent `/upload` and `DELETE` calls can't corrupt the index.
+7. If enabled: extract embedded figures/tables (`document_parser.py`, `table_extraction_service.py`) and caption images via a vision-capable Gemini call (`image_captioning_service.py`), indexed as additional searchable chunks.
 
-`POST /chat/stream` fans this same sequence out live as Server-Sent Events (plan → retrieve → grade → generate/correct → answer, token by token) instead of waiting for the final response.
+**Retrieval and generation** (`POST /chat` → `query.py` → `ChatService`/agent graph):
 
-**Image-based diagnosis** (`POST /chat/diagnose`) skips the planner entirely: an uploaded leaf photo goes to [LeafSense](#running-with-leafsense-image-diagnosis), a separate vision service, which returns a predicted crop/disease; that prediction becomes the query and runs through the exact same retrieve → grade → correct pipeline above.
+1. **Plan** — keyword/regex router, no LLM call: `conversational`, `summarize`, or `retrieve`.
+2. **Retrieve** — FAISS semantic search fused with BM25 (`hybrid_search.py`) by default; optional cross-encoder reranking (`reranker.py`/`reranking_service.py`) narrows to `RETRIEVAL_TOP_K`.
+3. **Grade** — top chunk's score vs. `RETRIEVAL_GRADE_THRESHOLD`/`RETRIEVAL_MIN_SCORE` sorts into `insufficient`/`weak`/`good` (a threshold check, not a semantic judgment).
+4. **Generate** — Gemini or Groq (`llm_provider.py`) answers from a grounded prompt (`prompt_builder.py`) that asks the model to cite sources inline; the API response strips that inline section and surfaces sources structurally instead.
+5. **Correct** — an empty/ungrounded first answer triggers one "you didn't use the context" regeneration, then an optional web-augmented regeneration; capped at 3 `generate()` calls total.
+6. **Citations** — `sources` returns one entry per contributing chunk/web result, each with its own `chunk_id`/`url` and a ~200-character excerpt.
 
-## Features
+## Multimodal / vision
 
-- **Visual Explainability Heatmap & Lesion Saliency** — Computer vision color segmentation in HSV and LAB spaces isolates foliar tissue, segments necrotic lesion centers and chlorotic halo margins, computes infected area percentage and lesion counts, and renders an interactive alpha-blended overlay with opacity controls.
-- **Multilingual Agronomic Localization & Vernacular Voice I/O** — Complete UI and prompt localization across 6 global agricultural languages (English, Spanish, Hindi, Portuguese, French, Swahili), integrated with hands-free browser Speech-to-Text (STT) and 24-48h emergency field protocol Text-to-Speech (TTS) audio narration.
-- **Multi-Agent StateGraph Execution Visualizer** — Live execution topology visualization for `POST /chat/agent-graph/stream` displaying active node transitions (`planner`, `document_analyst`, `fact_checker`, `synthesizer`), latency metrics (ms), and intermediate state drawer inspection.
-- **Open-Meteo Microclimate Engine & Pathogen Risk** — Real-time microclimate forecasting integrated with epidemiology models (e.g. Smith Periods for Late Blight, powdery mildew humidity windows, and wind drift spray advisories) via `GET /weather/risk`.
-- **Official Agronomic Prescription PDF Work Order** — Formatted chemical and biological spray work orders with calculated tank mix dosages, Worker Protection Standard (WPS) PPE checklist, REI/PHI safety intervals, and Agronomist verification seals.
-- **GPS Field Scouting Log & Outbreak History** — Local field scouting record with pathogen timeline distributions, outbreak severity filters, and CSV/JSON export.
-- **PWA Offline Field Resilience** — Full offline service worker caching for field workers and rural farm connectivity transitions with active offline status banners.
-- **Thread-Safe Semantic Query Cache** — In-memory LRU cache with embedding cosine similarity matching for sub-50ms instant repeated query responses.
-- **Quantitative RAG Evaluation Harness** — Standalone evaluation CLI benchmarking Faithfulness, Context Recall, Context Precision, and Answer Relevance over 20 golden plant pathology Q&A pairs.
-- **Prometheus Observability** — Standard Prometheus metrics exporter (`GET /metrics`) tracking request counts, latencies, retrieval chunk distributions, rerank scores, and vision inferences.
-- **Drag-and-drop PDF ingestion** — validated for type and size, chunked with configurable overlap, embedded, and indexed in one request. Pages with no extractable text layer (scanned/image-only PDFs) fall back to OCR (`document_service.py`, pytesseract/tesseract) automatically — no separate upload path or user action needed.
-- **Layout-Aware Tabular Parser** — Preserves row-column semantic associations across multi-column structured tables and CSV chemical dosage matrices.
-- **Grounded chat** — every answer is generated only from retrieved chunks, with the source document and matched excerpts shown alongside the response.
-- **Streamed, visible agent progress** — `POST /chat/stream` (Server-Sent Events) fans out each pipeline stage (planning, retrieval, grading, web search, generating, reflecting) as it happens, plus the answer token-by-token, instead of one response at the end. The chat UI renders this as a live "agent trace" strip above the forming answer, collapsing into an expandable summary once done.
-- **Plant disease diagnosis from a photo** — `POST /chat/diagnose` classifies an uploaded leaf image via [LeafSense](#running-with-leafsense-image-diagnosis) (a separate vision service) and runs the predicted disease through the same grounded retrieval pipeline as a text question.
-- **Hybrid retrieval** — FAISS semantic search fused with a BM25 lexical index by default (`HYBRID_SEARCH_ENABLED`), plus an opt-in cross-encoder re-ranking stage (`RERANKING_ENABLED`). Both are config-gated specifically so they've been A/B'd against a semantic-only baseline — see `docs/OPERATIONS.md`'s "Retrieval ablation" for the measured Precision@5/Recall@5/MRR numbers behind the defaults.
-- **Corrective RAG loop** — retrieval is graded (insufficient/weak/good) right after it runs; a weak or insufficient grade can pull in a web search fallback (off by default) alongside document context. An ungrounded answer regenerates once with an explicit "you didn't use the context" instruction, then — if still ungrounded and web search wasn't already used — escalates to one more, web-augmented regeneration; every path is capped at 3 total generation calls per request before falling back to a clear "couldn't find that" reply. See `docs/ARCHITECTURE.md`'s "Framework choice" section for how this stays plain Python rather than a graph runtime.
-- **Conversational query routing** — small talk and meta-questions are handled without spending a retrieval + generation round trip on them.
-- **Document management** — browse everything you've uploaded, see page/chunk counts, and delete a document (which also removes its vectors from the index).
-- **Multi-modal ingestion (off by default, opt-in per deployment)** — embedded figures are extracted and persisted (`IMAGE_EXTRACTION_ENABLED`), captioned by a vision-capable Gemini call into searchable `source="image_caption"` chunks (`IMAGE_CAPTIONING_ENABLED`), tables are reduced to markdown and indexed as `source="table"` text (`TABLE_EXTRACTION_ENABLED`), and questions that score weak on retrieval can route to a vision-grounded answer over the page raster (`VISION_QA_ENABLED`). Extracted images are browsable via `GET /documents/{id}/images`, and `/health` reports which capabilities a deployment has on.
-- **Light & dark themes**, keyboard-friendly chat input, and toast notifications throughout.
-- **Structured JSON logging** and a typed exception hierarchy that maps domain errors (corrupted PDF, empty vector store, LLM timeout, ...) to the correct HTTP status code.
+Two independent multimodal surfaces exist, both real and code-verified, kept clearly separate:
 
-## Screenshots
+- **Document multimodal RAG (opt-in, off by default):** `IMAGE_EXTRACTION_ENABLED`, `IMAGE_CAPTIONING_ENABLED`, `TABLE_EXTRACTION_ENABLED`, `VISION_QA_ENABLED` — extracts embedded figures, captions them via Gemini into searchable chunks, extracts ruled-line tables to markdown chunks, and answers directly from a page raster when text retrieval is weak. `GET /documents/{id}/images` lists extracted images from a per-document manifest; `/health` reports which of these are live.
+- **LeafSense plant-disease classification (separate, optional service):** `POST /chat/diagnose` sends an uploaded leaf photo to LeafSense (its own repo/process, TensorFlow/Keras) over HTTP (`vision_client.py`); the returned disease prediction (with `confidence`, flagged `low_confidence` below `VISION_CONFIDENCE_THRESHOLD`) becomes the query for the same retrieve → grade → correct pipeline as a text question. This is a standalone vision-model prediction from LeafSense, distinct from — and not blended into — the RAG pipeline's own retrieval-quality metrics; no LeafSense classifier accuracy benchmark is included in this repo, only its role as an upstream input to the RAG answer.
 
-<table>
-<tr>
-<td width="50%">
+## Memory & sessions
 
-**Chat, grounded in your documents**
-Every answer links back to the excerpt it came from.
+Chat history is server-side per `session_id` (`session_store.py`; `postgres_session_store.py` when `DATABASE_URL` is set), capped at 1000 sessions with LRU eviction and 50 turns per session, no TTL. With Postgres enabled, `GET /chat/sessions` lists a user's past conversations and `GET /chat/sessions/{id}` resumes one (frontend History page, `useChat`). Without Postgres, sessions still work for the active conversation but there's nothing to list afterward. `history` in a `/chat` request body is optional — only the most recent 6 turns are used to build the prompt.
 
-![Chat](docs/screenshots/chat.png)
+## Tools
 
-</td>
-<td width="50%">
+| Tool | Purpose | Input | Output | Failure handling |
+|---|---|---|---|---|
+| FAISS retrieval (`retrieval_service.py`, `hybrid_search.py`) | Fetch relevant chunks for a query | query text, `top_k`, `min_score` | scored chunks | empty result set feeds the `insufficient` grade, not an exception |
+| Cross-encoder reranker (`reranker.py`) | Re-score the candidate pool before truncation | candidate chunks + query | reordered chunks | disabled via `RERANKING_ENABLED=false`; not on the default path |
+| Web search (`web_search_service.py`) | Fallback context when retrieval is weak/insufficient | query text | web result snippets + URLs | `duckduckgo-search` is an unofficial scraper with no SLA; silent rate-limit/zero-results is treated as "no web results" and falls through gracefully, no exception surfaced to the caller |
+| LeafSense vision client (`vision_client.py`) | Classify a leaf photo | image bytes | crop, disease, confidence | `502` if LeafSense is unreachable at `VISION_SERVICE_URL`; timeout via `VISION_SERVICE_TIMEOUT_SECONDS` |
+| Gemini/Groq LLM client (`gemini_client.py`, `groq_client.py`, `fallback_llm_client.py`) | Answer generation | grounded prompt | generated text | `tenacity`-based retries on the primary; `FallbackLLMClient` retries once against the secondary provider if configured, then fails |
+| Semantic cache (`cache_service.py`) | Serve near-duplicate queries without a fresh LLM call | query embedding | cached response | cache miss falls through to the normal pipeline; no error path |
 
-**Upload**
-Drag, drop, done — chunked and embedded in seconds.
+## Security & privacy
 
-![Upload](docs/screenshots/upload.png)
+**Implemented:**
+- Every endpoint except `/health`, `/metrics`, `/auth/signup`, `/auth/login` requires either an `X-API-Key` header or a JWT `Authorization: Bearer` header (`app/core/auth.py`); missing/invalid credentials return `401`.
+- Per-user accounts with bcrypt-hashed passwords (`user_service.py`, `bcrypt` dependency) and JWT issuance/verification (`PyJWT`, `JWT_SECRET_KEY`/`JWT_ALGORITHM`/`JWT_EXPIRY_MINUTES`).
+- Per-tenant isolation of documents and chat sessions when `DATABASE_URL` is set (`tenant_service.py`, `test_tenant_isolation.py`).
+- RBAC: `ADMIN_CLIENT_NAMES` gates `DELETE /documents/{id}` and cross-tenant document listing (`app/core/permissions.py`, `test_permissions.py`).
+- Human-approval gates: `DOCUMENT_DELETE_REQUIRES_APPROVAL` and an equivalent web-search approval flag require an explicit `approved=true` on top of normal auth (`approval_service.py`, `routes/approvals.py`).
+- Rate limiting: in-memory sliding window, 60 requests/min per identity, applied to both auth paths.
+- PII detection (`pii_service.py`) and prompt-injection/jailbreak detection (`prompt_injection_service.py`), both covered by dedicated tests (`test_prompt_injection_service.py`, `test_security.py`).
+- Structured audit logging of feedback and admin-relevant events (`core/logging.py`).
+- API keys are SHA-256-hashed at startup; only hashes are kept in memory (`.env.example`'s `API_KEYS` documentation, `core/auth.py`).
 
-</td>
-</tr>
-<tr>
-<td width="50%">
+**Explicitly NOT implemented:**
+- No encryption at rest for the local/file-based FAISS index or uploaded PDFs in a self-hosted deployment. (`docs/CHECKLIST.md` credits S3 default SSE + Lambda KMS-encrypted env vars for the AWS Lambda deployment path specifically — that is infrastructure-level, not an application-level encryption feature, and doesn't apply to a plain Docker/local run.)
+- No password reset or refresh-token flow for JWT auth; a token is simply valid for `JWT_EXPIRY_MINUTES` and then the user logs in again.
+- No API key rotation, expiration, or revocation endpoint — only a `.env` edit + restart.
+- No GDPR/HIPAA or other compliance certification of any kind.
+- No field-level or application-level encryption of stored chat/document content.
 
-**Documents**
-Everything in your knowledge base, at a glance.
+## Observability
 
-![Documents](docs/screenshots/documents.png)
+| Item | Status |
+|---|---|
+| Structured JSON logging (`core/logging.py`) | **IMPLEMENTED** |
+| `X-Request-ID` on every response, for log correlation | **IMPLEMENTED** |
+| Typed exception hierarchy → automatic HTTP status mapping (`core/error_handlers.py`) | **IMPLEMENTED** |
+| `GET /health` — liveness, LLM provider config booleans, multimodal capability flags | **IMPLEMENTED** |
+| `GET /metrics` — Prometheus exposition format (latency percentiles, tool/LLM call counts, tokens/cost, loop-cap rate) | **IMPLEMENTED** |
+| `backend/eval/metrics_report.py` — parses JSON logs into latency percentiles, error-rate-by-category, token/cost totals, feedback acceptance rate | **IMPLEMENTED** (offline tool, not a live dashboard) |
+| Prometheus/Grafana monitoring stack (`docker-compose.monitoring.yml`, `monitoring/`) | **OPTIONAL** — separate compose file, not part of the default `docker-compose.yml` stack |
+| Automated alerting (error-rate/latency thresholds, on-call paging) | **NOT DEPLOYED** — `/health`/`/metrics` are queryable but nothing currently watches them automatically |
+| Live production dashboard | **NOT DEPLOYED** — no current cloud deployment (see [Current limitations](#current-limitations)) |
 
-</td>
-<td width="50%">
+## Evaluation & benchmarks
 
-**Settings**
-Light or dark, your call.
+The full backend test suite: **820 tests collected** via `pytest --collect-only` on the current tree (measured directly in this repo, matching the 819-passed/1-skipped figure the Module 10 audit docs report). Coverage spans the API end-to-end, RAG orchestration, LLM/Groq/Gemini clients and fallback, hybrid search/reranking, vision/diagnose, document/table/image extraction, agent-graph state machine, sessions, permissions, tenant isolation, and security (`test_security.py`, `test_prompt_injection_service.py`).
 
-![Settings](docs/screenshots/settings.png)
+`backend/eval/` — three independent, code-verified tools (see `backend/eval/README.md`):
 
-</td>
-</tr>
-</table>
+| Tool | What it measures | Source |
+|---|---|---|
+| `run_eval.py` | Planner routing accuracy (confusion matrix), Task Success Rate, a lexical-overlap groundedness proxy, Injection Resistance, Source Accuracy | live run against `dataset_v1.json`/`dataset_v2.json`; requires a real `GEMINI_API_KEY` |
+| `metrics_report.py` | Latency percentiles, error rate by taxonomy, token/cost usage, feedback Acceptance Rate | parses backend's own JSON logs + `backend/feedback/feedback.jsonl` |
+| `docs/HUMAN_EVAL.md` rubric | 1–5 scores across correctness, helpfulness, completeness, safety, tone, groundedness, citation quality | manual, human-rated |
+
+Module 10 results, as reported in `docs/MODULE10_FINAL_AUDIT.md`/`docs/MODULE10_EVIDENCE_INDEX.md` (repo-internal audit documents — figures below are **as-documented in-repo**, not independently re-run for this README pass):
+
+| Area | Result | Label |
+|---|---|---|
+| RAG retrieval (hybrid + rerank) | P@5 0.64, Recall@5 0.81, MRR 0.88 | measured |
+| Agent planner | Accuracy 0.9333, Planning Success 1.0 | measured |
+| Security (PII / unauthorized access / injection / jailbreak) | 1.0 / 0.0 / 0.0 / 0.0 (unauthorized-access, injection, jailbreak rates are 0 = none succeeded) | measured |
+| Human evaluation | 24 cases, 7 rubric dimensions, **1 reviewer** | human-rated, no inter-annotator agreement (single reviewer, disclosed) |
+| Full test suite | 819 passed, 1 skipped | measured (confirmed by this pass: 820 collected) |
+
+The RAG benchmark report (`docs/RAG_BENCHMARK_REPORT.md`) itself states that its original numbers (Faithfulness 0.942, Context Recall 0.968, Context Precision 0.924) could not be reproduced against a surviving artifact and are marked **historical/unverified** in that document; the report's own "REFRESH" section gives Context Recall 0.86 and Context Precision 0.97 as the current, reproducible figures. This README defers to that document's own caveat rather than restating the unverified numbers as current.
+
+Faithfulness after the corrective-loop fix (see below) was first spot-verified live on 2 targeted cases (a quota-conservation choice), then confirmed on the **full 20-case golden benchmark**: Mean Faithfulness recovered from **0.0000** (pre-fix, the regression) to **0.6485** (post-fix, measured 2026-09-19) — a large, real improvement, still below the 0.80 target, with 4/20 cases still at 0.000 despite correct retrieval (a distinct, disclosed, unresolved generation-quality gap, not the same bug). See `docs/RAG_BENCHMARK_REPORT.md`'s "POST-FIX FULL RE-RUN" section and `eval/module10/reports/faithfulness_full_postfix_20260919T180541Z.json`.
+
+## Hard cases & failure recovery
+
+Two genuine bugs were found and fixed during self-audit, documented in-repo rather than hidden:
+
+- **Mislabeled LLM-provider-failure regression** (`docs/PHASE3_PRODUCTION_HARDENING_REPORT.md`): the corrective-generation loop was silently relabeling LLM provider failures (timeouts, rate limits) as confident "not in the documents" answers — indistinguishable from a genuine grounded refusal. Root-caused and fixed with a distinct error sentinel; re-verified live on the two cases that first exposed it.
+- **A self-bypassable authorization gate**, found and fixed during the same audit cycle (referenced in `docs/MODULE10_FINAL_AUDIT.md`).
+
+Hand-run demo scenarios exist at `docs/demo/DEMO.md` — one successful, one failing, and one recovery path per capability.
+
+Graceful-degradation behaviors verified in code:
+- Web search failures (rate-limited/zero-result scraper) fall through to the normal "couldn't find that" reply rather than raising.
+- OCR fallback: if the `tesseract` binary is missing/broken, the affected page is skipped and logged as a warning rather than failing the whole upload.
+- Provider fallback (`FallbackLLMClient`) is single-hop only — if both the primary and fallback LLM providers are down, the request fails; there's no health-based routing back to the primary.
+
+## Performance
+
+No dedicated load-testing artifact was found in this repo (no `k6`/`locust`/latency-under-load report located in `docs/` or `backend/eval/`). What is measured:
+
+- `processing_time` is returned per `/chat` response (see API reference below) — a real, request-level wall-clock figure, not a benchmark aggregate.
+- `backend/eval/metrics_report.py` computes latency percentiles (p50/p95/p99) from live JSON logs when run against real traffic — a tool, not a pre-computed number this README can restate without running it.
+
+No performance numbers are stated here as repo-verified facts beyond these two mechanisms; treat any specific latency figure elsewhere in older docs as unverified for this pass.
+
+## Cost
+
+`COST_PER_1K_TOKENS` (Gemini, `$0.00025` default) and `GROQ_COST_PER_1K_TOKENS` (`$0.0006` default) in `backend/.env.example` are used only to log a **rough per-generation cost estimate**, not billed/metered usage — stated explicitly in the config comments. `backend/eval/metrics_report.py` aggregates these into a total token/cost figure from real logs, but only when run against real traffic; no aggregate dollar figure from a completed run was found checked into the repo, so none is restated here.
 
 ## Tech stack
 
-| | |
+**Backend**
+
+| Category | Technology |
 |---|---|
-| **Backend** | FastAPI, Pydantic v2 (`pydantic-settings`), Uvicorn |
-| **Document parsing** | PyMuPDF |
-| **Chunking** | `langchain-text-splitters` |
-| **Embeddings** | Sentence Transformers (`all-MiniLM-L6-v2`) |
-| **Vector store** | FAISS (`IndexFlatIP`, cosine similarity) |
-| **LLM** | Google Gemini (`google-genai`) |
-| **Frontend** | React 18, Vite, Tailwind CSS, Framer Motion, React Router |
-| **Testing** | Pytest |
-
-## Getting started
-
-### Prerequisites
-
-- Python 3.11+
-- Node.js 18+
-- A [Gemini API key](https://ai.google.dev/)
-
-### Backend
-
-```bash
-cd backend
-pip install -r requirements.txt
-cp .env.example .env        # then set GEMINI_API_KEY
-uvicorn app.main:app --reload
-```
-
-The API is now running at `http://localhost:8000` (interactive docs at `/docs`).
-
-### Frontend
-
-```bash
-cd frontend
-npm install
-cp .env.example .env        # leave unset in dev (same-origin /api proxy)
-npm run dev
-```
-
-The app is now running at `http://localhost:5173`.
-
-### Running tests
-
-```bash
-cd backend
-pytest
-```
-
-```bash
-cd frontend
-npx vitest run     # jsdom unit tests
-npm run lint       # eslint
-npm run build      # production build
-```
-
-### Leaf Diagnosis (optional)
-
-`POST /chat/diagnose` lets a user upload a plant leaf photo instead of
-typing a question — InsightAI calls out to LeafSense (a separate
-repo/process with its own TensorFlow/Keras stack) over HTTP to classify
-it, then runs the predicted disease through the normal retrieval +
-grounding pipeline. This is **optional**: the rest of the app works fully
-without it, and if you never hit `/chat/diagnose`, LeafSense doesn't need
-to be running at all.
-
-To enable it, run the app as documented above (backend in one terminal,
-frontend in another), then start LeafSense in a **third terminal** with
-its one-command launcher:
-
-```powershell
-# in the LeafSense repo (Windows)
-backend/start.ps1
-
-# in the LeafSense repo (Linux / macOS)
-backend/start.sh
-```
-
-Or start all three together in one command: from this repo's root (on
-Windows), `.\start-local.ps1` opens backend, frontend, and (if `../LeafSense`
-is checked out alongside this repo) LeafSense each in their own console
-window.
-
-`start.ps1` and `start.sh` create a dedicated venv (`LeafSense/backend/.venv`) on first
-run, install requirements, warm up the Keras graph, and serve on port **8001** —
-LeafSense's own standalone default of 8000 would collide with this backend's default
-port, and InsightAI's config already points at 8001.
-
-InsightAI connects to the vision service at:
-
-```bash
-VISION_SERVICE_URL=http://127.0.0.1:8001
-```
-
-`VISION_SERVICE_TIMEOUT_SECONDS` (default `15`) and
-`VISION_CONFIDENCE_THRESHOLD` (default `0.5`) are also configurable — see
-Configuration below. The knowledge base covers all **38 PlantVillage disease classes**
-across 12 crop collections with detailed extension guides and dosage matrices
-indexed into the vector store. Real-time diagnosis results and treatment plans
-stream via Server-Sent Events on `POST /chat/diagnose/stream`.
-
-## Configuration
-
-All backend configuration lives in `backend/.env` (see `backend/.env.example`), loaded via `pydantic-settings`:
-
-| Variable | Default | Description |
-|---|---|---|
-| `GEMINI_API_KEY` | — | **Required.** Your Google Gemini API key. |
-| `API_KEY` | — | **Required.** Shared secret clients must send in the `X-API-Key` header to reach the documents/chat routers — the auth path for non-browser/service clients (scripts, CI). The web frontend uses individual user login (JWT) instead; see `JWT_SECRET_KEY` below. |
-| `DATABASE_URL` | — | Optional PostgreSQL connection string (e.g. `postgresql://user:pass@host:5432/db`). When set, document metadata, tenants, users, API keys, chat sessions, and usage logs are persisted in Postgres (tables auto-created at startup; Alembic migrations in `backend/alembic/`). When empty, the app falls back to the legacy in-memory/file stores — those are S3-synced on the AWS Lambda deployment (see `docs/OPERATIONS.md`), but still bound to a single execution environment for correctness (in-memory sessions) and safe concurrent writes (FAISS), enforced by `reserved_concurrent_executions = 1`. Individual user login and chat-history browsing both require this to be set — there's nowhere to persist a `User`/personal `Tenant` otherwise. |
-| `JWT_SECRET_KEY` | — | Signing secret for JWTs issued by `POST /auth/signup`/`/auth/login`. Unset = user login unavailable (`AuthConfigurationError`); `X-API-Key` auth is unaffected either way. |
-| `JWT_ALGORITHM` | `HS256` | Signing algorithm for the JWT above. |
-| `JWT_EXPIRY_MINUTES` | `1440` | How long an issued JWT stays valid. |
-| `FRONTEND_URL` | `http://localhost:5173` | Origin allowed by CORS. |
-| `MAX_UPLOAD_SIZE_MB` | `20` | Maximum accepted PDF size. |
-| `CHUNK_SIZE` / `CHUNK_OVERLAP` | `1000` / `200` | Characters per chunk / overlap between chunks. |
-| `OCR_DPI` | `200` | Rasterization DPI for OCR fallback on pages with no text layer. Higher improves accuracy at the cost of extraction time. |
-| `EMBEDDING_MODEL_NAME` | `all-MiniLM-L6-v2` | Sentence Transformers model. |
-| `RETRIEVAL_TOP_K` | `5` | Chunks retrieved per query by default. |
-| `RETRIEVAL_MIN_SCORE` | `0.3` | Minimum cosine similarity to keep a retrieved chunk. |
-| `RETRIEVAL_GRADE_THRESHOLD` | `0.5` | Minimum top-chunk score for retrieval to grade `"good"`. Below it (but above `RETRIEVAL_MIN_SCORE`), retrieval grades `"weak"` — the corrective loop's trigger for the web search fallback below. |
-| `WEB_SEARCH_ENABLED` | `false` | Enables the web search fallback for `"weak"`/`"insufficient"` retrieval grades. Off by default. |
-| `HYBRID_SEARCH_ENABLED` | `true` | Fuses FAISS semantic search with a BM25 lexical index instead of semantic search alone. On by default — a measured, no-downside win; see `docs/OPERATIONS.md`'s "Retrieval ablation." |
-| `RERANKING_ENABLED` | `false` | Re-scores the retrieval candidate pool with a cross-encoder before returning the top results. Off by default — a real but thinly-evidenced (n=7) gain against a real per-request cost; see the same ablation section. |
-| `WEB_SEARCH_RESULT_COUNT` | `3` | Web results fetched when the fallback fires. |
-| `WEB_SEARCH_TIMEOUT_SECONDS` | `10` | Timeout for the web search call. |
-| `GEMINI_MODEL_NAME` | `gemini-3.5-flash` | Gemini model used for answer generation. |
-| `GEMINI_TIMEOUT_SECONDS` | `30` | Timeout for Gemini API calls. |
-| `COST_PER_1K_TOKENS` | `0.00025` | Estimated USD cost per 1,000 tokens for Gemini, used only to log a rough per-generation cost estimate — not billed usage. |
-| `LLM_PROVIDER` | `gemini` | Which provider `/chat` and `/summarize` use: `gemini` or `groq`. Both implement the same `LLMClient` interface (see `services/llm_provider.py`). |
-| `FALLBACK_LLM_PROVIDER` | — | Optional. If set to the other provider, `FallbackLLMClient` retries against it after the primary's own retries are exhausted. |
-| `GROQ_API_KEY` | — | Required only if `LLM_PROVIDER` or `FALLBACK_LLM_PROVIDER` is `groq`. |
-| `GROQ_MODEL_NAME` | `llama-3.3-70b-versatile` (code default — **deprecated by Groq**, see below) | Groq model used for text generation. The code's own fallback default is a model Groq has since removed from its catalog (discovered and worked around during Module 10 evaluation — see `docs/MODULE10_RESULTS.md`); **set this explicitly** (e.g. `openai/gpt-oss-120b`, the model verified working and used for all Module 10 live evaluation) in your own `.env` rather than relying on the code default. |
-| `GROQ_TIMEOUT_SECONDS` | `30` | Timeout for Groq API calls. |
-| `GROQ_COST_PER_1K_TOKENS` | `0.0006` | Estimated USD cost per 1,000 tokens for Groq. |
-| `VISION_SERVICE_URL` | `http://127.0.0.1:8001` | Base URL of the LeafSense vision service (separate repo/process). Not LeafSense's own default of `8000` — that collides with this backend's own default port. |
-| `VISION_SERVICE_TIMEOUT_SECONDS` | `15` | Timeout for calls to the vision service. |
-| `VISION_CONFIDENCE_THRESHOLD` | `0.5` | Below this confidence, a diagnosis is flagged `low_confidence: true` rather than presented as certain. |
-| `IMAGE_EXTRACTION_ENABLED` | `false` | Extracts embedded figures (and full-page rasters of low-text pages) from uploaded PDFs and persists the bytes under `IMAGE_STORAGE_DIR_NAME`. |
-| `IMAGE_CAPTIONING_ENABLED` | `false` | Captions each extracted image with a vision-capable Gemini call and indexes the caption as a searchable chunk (`source="image_caption"`, citable as "a figure on page N"). Requires `IMAGE_EXTRACTION_ENABLED` and a configured `GEMINI_API_KEY` — with it off (the default), uploads never build an LLM client at all. |
-| `TABLE_EXTRACTION_ENABLED` | `false` | Detects ruled-line tables and indexes each as markdown text chunks (`source="table"`), so tables are searchable exactly like body text. |
-| `VISION_QA_ENABLED` | `false` | When a question's retrieval grades weak/insufficient, sends the relevant page raster(s) to the vision-capable Gemini model and answers from the image directly (covers scanned/image-only pages). Requires `IMAGE_EXTRACTION_ENABLED`. |
-| `IMAGE_STORAGE_DIR_NAME` | `extracted_images` | Directory (under the data dir) where extracted image bytes and the per-document listing manifest live. |
-| `IMAGE_MIN_SIDE_PX` | `50` | Images smaller than this on either side are skipped (icons, dividers, noise). |
-| `IMAGE_MAX_COUNT_PER_DOCUMENT` | `50` | Cap on extracted image records per document. |
-| `IMAGE_CAPTION_MAX_CHARS` | `600` | Captions are truncated to this many characters. |
-| `VISION_QA_MAX_PAGES` | `3` | Max page rasters sent to the vision model per vision-QA request. |
-| `TABLE_MAX_COUNT_PER_DOCUMENT` | `50` | Cap on tables extracted per document. |
-
-The frontend reads from `frontend/.env`:
-
-| Variable | Default | Description |
-|---|---|---|
-| `VITE_API_BASE_URL` | `/api` (dev proxy) | Backend API origin. Leave **unset** in dev — API calls go same-origin through Vite's `/api` proxy (`vite.config.js`), so there's no CORS and no need for the browser to reach the backend host directly (works from localhost and LAN IPs). Set it to the real backend origin only when building for production. |
-
-No API key needed here — the web app authenticates via individual user
-login (sign up / log in), which attaches a JWT to every request
-automatically (`services/api.js`).
-
-## API reference
-
-> [!NOTE]
-> For the complete, typed specification covering all REST and SSE endpoints, request/response models, SSE trace wire formats, and multi-language code snippets, see [`docs/API_REFERENCE.md`](docs/API_REFERENCE.md).
-
-Every endpoint except `/health`, `/metrics`, and `/auth/signup`/`/auth/login`
-requires authentication — either an `X-API-Key` header matching the
-backend's `API_KEY` setting, or an `Authorization: Bearer <jwt>` header
-from `POST /auth/login`/`/auth/signup`. A missing or invalid credential
-returns `401`.
-
-¹ `/metrics` is unauthenticated by default like `/health` (metrics carry
-no payload data); set `METRICS_BEARER_TOKEN` to require an
-`Authorization: Bearer <token>` header from scrapers.
-
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| `GET` | `/health` | — | Liveness + readiness: LLM provider config (booleans, never a key) and enabled multi-modal capabilities. |
-| `GET` | `/metrics` | —¹ | Live metrics in Prometheus text exposition format — request latency (p50/p95/p99), tool and LLM call counts, tokens/cost, loop-capped rate, retrieval timeouts. See `backend/monitoring/README.md`. |
-| `POST` | `/auth/signup` | — | Create an account (email, password, consent) — returns a JWT. |
-| `POST` | `/auth/login` | — | Log in — returns a JWT. |
-| `GET` | `/auth/me` | required | Current caller's identity (email, tenant, role). |
-| `POST` | `/upload` | required | Upload a PDF — extracts, chunks, embeds, and indexes it. |
-| `DELETE` | `/documents/{document_id}?confirm=true` | required | Remove a document and its vectors from the index. |
-| `GET` | `/documents/{document_id}/images` | required | List images extracted from a document (metadata + a `url` per image) — multi-modal RAG. |
-| `GET` | `/documents/{document_id}/images/{image_id}` | required | Fetch one extracted image's bytes, served inline with its MIME type. |
-| `POST` | `/chat` | required | Ask a question; returns an answer grounded in retrieved chunks. |
-| `POST` | `/chat/stream` | required | Same as `/chat`, but streamed as Server-Sent Events — pipeline progress and the answer as it's generated, instead of one response at the end. |
-| `POST` | `/chat/diagnose` | required | Upload a plant leaf photo; classifies it via LeafSense, then returns a grounded, cited answer for the predicted disease. |
-| `POST` | `/chat/feedback` | required | Record a thumbs up/down (and optional comment) on a previous answer. |
-| `GET` | `/chat/sessions` | required | List the caller's own past conversations (title, timestamps). Requires `DATABASE_URL`. |
-| `GET` | `/chat/sessions/{session_id}` | required | Full turn history for one session — how the frontend resumes a past conversation. |
-| `DELETE` | `/chat/sessions/{session_id}` | required | Delete one conversation. |
-
-**`DELETE /documents/{document_id}`** requires the `confirm=true` query
-parameter as an explicit confirmation step — omitting it returns `400`
-(`Confirmation Required`) instead of deleting.
-
-**`GET /health`** reports more than liveness — deployment readiness at a
-glance:
-
-```json
-{
-  "status": "ok",
-  "llm": {
-    "provider": "gemini",
-    "provider_configured": true,
-    "fallback_provider": "groq",
-    "fallback_configured": false,
-    "model_routing_enabled": false
-  },
-  "multimodal": {
-    "image_extraction_enabled": false,
-    "image_captioning_enabled": false,
-    "table_extraction_enabled": false,
-    "vision_qa_enabled": false,
-    "ocr_available": true
-  }
-}
-```
-
-`provider_configured`/`fallback_configured` are booleans, never the key
-itself — `/health` is unauthenticated. `"database": "connected"` is added
-when `DATABASE_URL` is set. The frontend surfaces this on the Settings
-page's "System status" card.
-
-**`GET /documents/{document_id}/images`** returns the images extracted at
-ingestion (read from a per-document manifest, never a re-extraction of
-the PDF):
-
-```json
-{
-  "document_id": "ae845151-86b1-41e8-a63b-69289b88c67a",
-  "total": 2,
-  "images": [
-    {
-      "image_id": "ae845151-86b1-41e8-a63b-69289b88c67a_img_4",
-      "document_id": "ae845151-86b1-41e8-a63b-69289b88c67a",
-      "page_number": 3,
-      "content_type": "figure",
-      "mime_type": "image/png",
-      "width": 640,
-      "height": 480,
-      "byte_size": 23104,
-      "url": "/documents/ae845151-86b1-41e8-a63b-69289b88c67a/images/ae845151-86b1-41e8-a63b-69289b88c67a_img_4"
-    }
-  ]
-}
-```
-
-`content_type` is `"figure"` (an embedded image) or `"page"` (a
-rasterized full-page render of a low-text page, used by vision QA).
-`GET /documents/{document_id}/images/{image_id}` serves the bytes inline
-with the image's MIME type; it 404s for an unknown document, unknown
-image, or missing file. Both endpoints are tenant-scoped like the rest of
-the documents router.
-
-**`POST /chat`** request body:
-
-```json
-{
-  "query": "What is a project according to the PMP document?",
-  "top_k": 5,
-  "min_score": 0.3,
-  "history": [
-    { "role": "user", "content": "What is a project?" },
-    { "role": "assistant", "content": "A temporary endeavor..." }
-  ]
-}
-```
-
-`history` is optional — prior conversation turns, oldest first, each
-`{ "role": "user"|"assistant", "content": string }`. Only the most recent
-6 are used.
-
-response:
-
-```json
-{
-  "answer": "A project is a temporary endeavor undertaken to create a unique product, service, or result...",
-  "retrieved_chunks": [
-    { "chunk_id": "...", "document_id": "...", "text": "...", "score": 0.65, "metadata": { "...": "..." } }
-  ],
-  "sources": [
-    {
-      "document_id": "ae845151-86b1-41e8-a63b-69289b88c67a",
-      "chunk_id": "ae845151-86b1-41e8-a63b-69289b88c67a-0",
-      "excerpt": "A project is a temporary endeavor undertaken to create a unique product, service, or result. Projects have a defined beginning and end...",
-      "url": null
-    }
-  ],
-  "processing_time": 18.24,
-  "tool_used": "retrieval",
-  "steps_taken": 4,
-  "answer_source": "documents"
-}
-```
-
-`tool_used` is one of `"retrieval"`, `"summarization"`, `"diagnose"`
-(image-based queries via `/chat/diagnose`), `"web_search"` (the
-corrective loop's web fallback fired and its results made it into the
-final answer, on either a text or image query), or `"none"` (small-talk
-queries answered without touching the document index or the LLM).
-`steps_taken` counts the agent's
-internal steps for that request — planning, retrieval, retrieval grading,
-generation, plus one more per regeneration (reflection retry, web search
-fetch, web-augmented regeneration) that actually fired — see
-`docs/ARCHITECTURE.md`. `answer_source` is `"documents"`, `"web"`, or
-`"mixed"`, based on which context actually made it into the final prompt.
-
-`sources` is chunk-level, not document-level: one entry per retrieved
-chunk (or web result) the answer was built from, each with its own
-`chunk_id` and a `~200`-character `excerpt`, so a citation points at the
-specific passage rather than just "this document contributed somehow."
-`retrieved_chunks` carries the full document chunks (text, score,
-metadata) for callers that need it; `sources` is the trimmed-down shape
-the frontend renders as citations, and is the only place web citations
-appear (they're not part of `retrieved_chunks`). A web-sourced entry
-looks like `{"document_id": "web", "chunk_id": "<url>", "excerpt": "...",
-"url": "<url>"}` — `url` is `null` for document citations and set only
-for web ones.
-
-**`POST /chat/stream`** — same request body as `POST /chat` (above), same
-auth, same underlying pipeline. Instead of one JSON response, it returns
-`text/event-stream`: a sequence of SSE `data:` lines, each a JSON object
-with a `type`:
-
-- `{"type": "trace", "stage": "planning"|"retrieval"|"grading"|"web_search"|"generating"|"reflecting", "detail": {...}}`
-  — emitted as the pipeline progresses through each stage. `detail`'s
-  shape depends on the stage, e.g. `{"chunk_count": 5}` for `retrieval`,
-  `{"grade": "good"}` for `grading`. A `"reflecting"` stage means the
-  corrective loop is discarding the current answer attempt and
-  regenerating from scratch — any `answer_chunk` text streamed before it
-  belongs to that discarded attempt, not a continuation of it.
-- `{"type": "answer_chunk", "text": "..."}` — a piece of the answer, in
-  order, as the LLM generates it. Already filtered so the model's own
-  "Sources:" citation list (see `tool_used`/`sources` above) never
-  reaches the client, the same way the non-streaming path strips it.
-- `{"type": "error", "detail": {"error_type": "...", "message": "...", "status_code": 404}}`
-  — emitted instead of `"done"` if the pipeline fails partway. SSE
-  responses commit to a `200` status as soon as streaming starts, so a
-  failure can't become an HTTP error status the way it would on
-  `POST /chat`; this is how it's surfaced instead.
-- exactly one final `{"type": "done", "payload": {...}}` on success —
-  `payload` is the identical `ChatResponse` shape `POST /chat` returns.
-
-`EventSource` (the browser's built-in SSE client) can't send an
-`Authorization` header or a POST body, so the frontend consumes this
-with `fetch` + a manually-parsed `ReadableStream` instead (see
-`frontend/src/services/chatService.js`'s `streamChatMessage`).
-
-**`POST /chat/diagnose`** — `multipart/form-data`, not JSON (FastAPI
-resolves a request body as either JSON or multipart per the endpoint's
-declared parameters, not per-request, so this couldn't share `/chat`'s
-JSON body without breaking every existing text-only caller):
-
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `image` | file | yes | The leaf photo. |
-| `query` | text | no | Optional accompanying question, e.g. "is this from poor fertilization?" — folded into the retrieval query alongside the predicted disease. |
-
-Requires LeafSense to be running and reachable at `VISION_SERVICE_URL`
-(see "Running with LeafSense" above); returns `502` if it isn't.
-
-response — the same `ChatResponse` shape as `/chat`, plus a `diagnosis` field:
-
-```json
-{
-  "answer": "These symptoms indicate Bacterial Spot... nitrogen deficiency symptoms concentrate along the midrib.",
-  "retrieved_chunks": [ { "...": "..." } ],
-  "sources": [ { "...": "..." } ],
-  "processing_time": 4.1,
-  "tool_used": "diagnose",
-  "steps_taken": 5,
-  "answer_source": "documents",
-  "diagnosis": {
-    "raw_class": "Peach___Bacterial_spot",
-    "crop": "peach",
-    "disease": "bacterial spot",
-    "confidence": 0.94,
-    "low_confidence": false
-  }
-}
-```
-
-`diagnosis` is `null` on every other endpoint's response — it's only
-populated for `/chat/diagnose`. `low_confidence` is `true` below
-`VISION_CONFIDENCE_THRESHOLD`; the answer is still generated (a low-
-confidence prediction is a flag for the caller to surface, not a refusal
-to answer).
-
-**`POST /chat/feedback`** request body:
-
-```json
-{ "message_id": "msg-12-1733500000000", "rating": "up", "comment": null }
-```
-
-`message_id` is an opaque client-generated identifier (the frontend's
-own message id — the backend has no server-side concept of a message,
-since conversations aren't persisted, see Known Limitations). `rating`
-must be `"up"` or `"down"`; anything else returns `422`. `comment` is
-optional free text. Response: `{ "status": "recorded" }`. Each event is
-appended as a JSON line to `backend/feedback/feedback.jsonl` and logged
-as an `audit_event`; `eval/metrics_report.py` reads that file to report
-an Acceptance Rate (see Evaluation below).
-
-Every response also carries an `X-Request-ID` header (generated, or
-echoed back if you send one) for correlating a request against the
-backend's structured logs.
-
-Full interactive documentation (generated by FastAPI) is available at `/docs` while the backend is running.
-
-## Evaluation
-
-> [!TIP]
-> For the quantitative benchmark scorecard evaluating 20 golden plant pathology scenarios, ablation studies, and formal metric formulations, see [`docs/RAG_BENCHMARK_REPORT.md`](docs/RAG_BENCHMARK_REPORT.md). Its original August 2026 numbers (Faithfulness 0.942, Context Recall 0.968, Context Precision 0.924) could not be reproduced or verified against a surviving artifact and are marked historical/unverified in that report; the REFRESH section's 2026-09-19 live numbers (Context Recall 0.86, Context Precision 0.97) are the current, reproducible evidence. See [Module 10 evaluation](#module-10-evaluation) below for the full measured results, including a real Faithfulness regression that was found and fixed.
-
-### Module 10 evaluation
-
-This project's evaluation was extended into a dedicated package (`backend/eval/module10/`) covering RAG, agent, security, memory, failure-recovery, and human evaluation with real, live-measured results — including two genuine bugs found and fixed along the way (a mislabeled LLM-provider-failure regression, and an authorization gate that could be self-bypassed). Full detail: [`docs/MODULE10_FINAL_AUDIT.md`](docs/MODULE10_FINAL_AUDIT.md) (terminal audit), [`docs/MODULE10_EVIDENCE_INDEX.md`](docs/MODULE10_EVIDENCE_INDEX.md) (flat requirement→evidence→command index), [`docs/REPRODUCE_MODULE10.md`](docs/REPRODUCE_MODULE10.md) (exact reproduction commands, with external-dependency requirements stated).
-
-| Area | Result |
+| Framework | FastAPI, Uvicorn, Pydantic v2 (`pydantic-settings`) |
+| Document parsing | PyMuPDF, `pytesseract` (OCR fallback) |
+| Chunking | `langchain-text-splitters` |
+| Embeddings | Sentence Transformers (`all-MiniLM-L6-v2`) |
+| Vector store | FAISS (`faiss-cpu`, `IndexFlatIP`); optional `pgvector` store (`pgvector_store.py`) |
+| Lexical/hybrid search | `rank-bm25` |
+| LLM providers | Google Gemini (`google-genai`), Groq (`groq`) |
+| Retry logic | `tenacity` |
+| Web search | `duckduckgo-search` |
+| Auth | `PyJWT`, `bcrypt` |
+| Persistence | SQLAlchemy, `psycopg2-binary`, Alembic (migrations), PostgreSQL |
+| Cloud sync | `boto3` (S3, optional) |
+| Testing | `pytest`, `pytest-asyncio` |
+
+**Frontend**
+
+| Category | Technology |
 |---|---|
-| RAG (hybrid + rerank) | P@5 0.64, Recall@5 0.81, MRR 0.88 |
-| Agent (planner / planning success) | Accuracy 0.9333, Planning Success 1.0 |
-| Security (PII / unauthorized access / injection / jailbreak) | 1.0 / 0.0 / 0.0 / 0.0 |
-| Human evaluation | 24 cases, 7 rubric dimensions, 1 reviewer (IAA N/A, disclosed) |
-| Full test suite | 819 passed, 1 skipped |
-
-**A real regression, found and fixed, not hidden**: the RAG pipeline's corrective-generation loop was silently relabeling LLM provider failures (timeouts, rate limits) as confident "not in the documents" answers — indistinguishable from a genuine grounded refusal. Root-caused, fixed with a distinct error sentinel, and verified live on the two cases that first exposed it. Full story: [`docs/PHASE3_PRODUCTION_HARDENING_REPORT.md`](docs/PHASE3_PRODUCTION_HARDENING_REPORT.md).
-
-Hand-run the demo scenarios in
-[`docs/demo/DEMO.md`](docs/demo/DEMO.md) — one successful, one failing,
-and one recovery path per capability. Automated evaluation is covered
-separately: see [`backend/eval/README.md`](backend/eval/README.md) for
-the offline harness (`run_eval.py` + the `regression_check.py` CI gate),
-[`docs/HUMAN_EVAL.md`](docs/HUMAN_EVAL.md) for the 7-dimension rubric,
-and [`docs/CHECKLIST.md`](docs/CHECKLIST.md) for the full production
-checklist.
-
-`backend/eval/` has three independent tools:
-
-- **`run_eval.py`** — runs a dataset (`dataset_v1.json` by default, 16
-  entries; `dataset_v2.json` adds 2 web-findable entries for the
-  corrective loop's fallback) through the real `ChatService` and reports
-  planner routing accuracy (confusion matrix, precision/recall/F1), Task
-  Success Rate, a groundedness proxy, Injection Resistance, and — for
-  entries with an `expected_source` — **Source Accuracy** (did
-  `answer_source` match?). Requires a live `GEMINI_API_KEY` and at least
-  one indexed document; Source Accuracy on `dataset_v2.json`'s web
-  entries additionally needs `WEB_SEARCH_ENABLED=true`.
-- **`metrics_report.py`** — parses the backend's own JSON logs into
-  latency percentiles, error rate by taxonomy category, and total
-  token/cost usage, and reads `backend/feedback/feedback.jsonl` to report
-  **Acceptance Rate** (thumbs-up ÷ total feedback from `POST
-  /chat/feedback`) — the LLMOps acceptance-rate metric. A local stand-in
-  for real observability, not a replacement for it.
-- A manual rubric — [`docs/HUMAN_EVAL.md`](docs/HUMAN_EVAL.md) defines a
-  1-5 scoring rubric (correctness, helpfulness, completeness, safety,
-  tone, groundedness, citation quality) over the same dataset, for the
-  subjective quality the automated metrics above don't capture.
-
-See `backend/eval/README.md` for exact usage, metric definitions, and the
-dataset versioning convention, and
-[`docs/DESIGN_REVIEW.md`](docs/DESIGN_REVIEW.md) (Q6) for how this fits
-into the overall evaluation approach.
+| Framework | React 18, Vite |
+| Routing | React Router 6 |
+| Styling | Tailwind CSS |
+| Animation | Framer Motion |
+| HTTP | Axios (`services/api.js`) |
+| Icons | Lucide React |
+| PDF rendering | `pdfjs-dist` |
+| Testing | Vitest, Testing Library (jsdom), Playwright (present in devDependencies) |
+| Linting | ESLint 9 |
 
 ## Project structure
 
 ```
 InsightAI-RAG/
 ├── backend/
-│   └── app/
-│       ├── api/v1/routes/     # health, documents, query
-│       ├── core/              # config, logging, exceptions, error handlers
-│       ├── models/            # Pydantic schemas
-│       └── services/          # chunking, embedding, FAISS store, RAG pipeline, Gemini client, multi-modal (images/captions/tables/vision QA)
+│   ├── app/
+│   │   ├── api/v1/routes/     # health, documents, query, auth, admin, approvals, metrics
+│   │   ├── core/               # config, auth, security, exceptions, error handlers, database, logging, permissions
+│   │   ├── models/             # Pydantic schemas, DB models
+│   │   └── services/
+│   │       ├── agent_graph/    # custom dependency-free node/edge state machine
+│   │       ├── tools/          # tool registry + implementations
+│   │       └── ...             # chunking, embedding, FAISS/pgvector stores, RAG orchestration,
+│   │                            # Gemini/Groq clients, hybrid search, reranking, vision QA,
+│   │                            # image/table extraction, session stores, tenant/user services
+│   ├── alembic/                 # DB migrations
+│   ├── eval/                    # run_eval.py, metrics_report.py, module10/
+│   └── tests/                   # ~65 test files, 820 tests collected
+├── docs/                        # architecture, API reference, operations, Module 10 audit trail
+├── monitoring/                  # optional Prometheus/Grafana stack
 └── frontend/
     └── src/
-        ├── pages/              # Home, Upload, Chat, Documents, Settings
-        ├── components/         # chat/, upload/, layout/, ui/
-        ├── hooks/              # useChat, useUpload, useTheme, useToast
-        └── services/           # api client, chat/document services
+        ├── pages/                # Home, Chat, Upload, Documents, Diagnose, History, Settings, Admin, Login, Signup
+        ├── components/           # chat/, upload/, diagnose/, documents/, command/, layout/, ui/
+        ├── contexts/             # Auth, Theme, Toast
+        ├── hooks/                # useAuth, useChat, useUpload, useDiagnose, useTheme, useToast
+        └── services/             # api client, chat/document/diagnose/feedback/admin/health services
 ```
 
-## Known limitations
+## Installation
 
-- **Single, unsharded FAISS index.** One `backend/vector_store/index.faiss`
-  file serves every document, loaded as a single process-wide instance —
-  no per-tenant isolation. Concurrent writes are guarded by a `threading.Lock`
-  in `FAISSVectorStore` (covers both async `/upload` and sync `DELETE` routes),
-  so index/metadata corruption from concurrent writers is prevented.
-- **Two auth paths: API keys for service clients, JWT login for the web
-  app.** Individual user accounts (`POST /auth/signup`/`/auth/login`) now
-  exist for the frontend — each user gets a private tenant, so documents
-  and chat history are scoped per-person, not shared across everyone
-  holding one API key. No key rotation API, no expiration, no revocation
-  without `.env` edit + restart for the API-key side; no password reset
-  or refresh-token flow yet for the JWT side (a token is valid for
-  `JWT_EXPIRY_MINUTES`, 24h by default, then the user logs in again).
-  Basic rate limiting (60 req/min per identity, in-memory sliding window)
-  applies to both paths.
-- **Document history is per-browser, not server-side.** `GET /documents`
-  exists and is tenant/user-scoped, but the Documents page still reads
-  `localStorage` rather than calling it — a different browser or device
-  shows nothing even though the documents are indexed server-side.
-- **Chat history is server-side per `session_id`, bounded by LRU — and
-  now browsable, not just an internal store.** In-memory (or Postgres,
-  when `DATABASE_URL` is set) store capped at 1000 sessions with LRU
-  eviction; each session's history capped at 50 turns, no TTL. When
-  Postgres is enabled, `GET /chat/sessions` lists a user's past
-  conversations and `GET /chat/sessions/{id}` resumes one (History page)
-  — with the DB disabled, sessions still work for the active conversation
-  but there's nothing to list.
-- **OCR is a best-effort fallback, not equivalent to real text.** It only
-  runs on pages with no extractable text layer at all — it doesn't
-  improve or re-check pages PyMuPDF already got text from. Accuracy
-  depends on scan quality (skew, resolution, handwriting), and it
-  requires the `tesseract` system binary (installed in
-  `backend/Dockerfile`; not a pip package) — if that binary is missing or
-  broken, ingestion degrades to the pre-OCR behavior (page skipped,
-  logged as a warning) rather than failing the upload.
-- **The corrective loop catches one failure mode.** `ChatService._correct`
-  only regenerates when chunks/web-results were available but the answer
-  came back empty/fallback — it doesn't catch subtly wrong answers, only
-  the "context existed but got ignored" pattern.
-- **Extracted-image listing reads a per-document manifest, not the DB.**
-  `GET /documents/{id}/images` lists what was persisted at ingestion from
-  `{document_id}_images.json` in the image storage dir; documents ingested
-  before manifests existed (or with a corrupt/unreadable manifest) list as
-  empty even if their bytes are still on disk. Listing is best-effort —
-  it never re-extracts the PDF and never fails the request.
-- **Retrieval grading is a score threshold, not a semantic judgment.**
-  `_grade_retrieval` compares the top chunk's similarity score against
-  `RETRIEVAL_GRADE_THRESHOLD` — a chunk can score high while being
-  off-topic, or score just under the threshold while actually answering
-  the question. It's a cheap proxy for "is this confidently on-topic,"
-  not a real relevance check.
-- **Web search is off by default and fragile when on.** `WEB_SEARCH_ENABLED`
-  defaults to `false`. When enabled, `duckduckgo-search` is an unofficial
-  scraper with no API key or SLA — it's known to silently rate-limit or
-  return zero results from cloud/data-center IPs (bot detection), with no
-  exception raised. `ChatService` treats that identically to "genuinely no
-  web results" and falls through to the normal fallback reply, so this
-  degrades gracefully rather than erroring — but it means the fallback
-  can be quietly unavailable depending on where the backend runs.
-- **Groundedness is measured by a lexical-overlap proxy**, not a real
-  faithfulness check (see `backend/eval/README.md`).
-- **Provider fallback is single-hop.** `FallbackLLMClient` tries the
-  primary provider (with its own internal retries), then the fallback
-  provider once — if both are down, the request fails. There's no
-  health-based routing or automatic recovery back to the primary.
-- **No live cloud deployment currently.** The app has run on Render/Vercel
-  historically (see `docs/OPERATIONS.md` "Deploying to Render") and is
-  self-hostable via Docker Compose, including a production EC2 path
-  (`docker-compose.prod.yml`, `docker-compose.caddy.yml` — see
-  `docs/OPERATIONS.md` "Deploying to EC2"), where the named Docker volumes
-  give real persistent storage with no ephemeral-filesystem workaround
-  needed. `demo_seed_service.py`'s auto-seed-on-empty-store behavior still
-  runs harmlessly on first boot — a no-op once the store has real data. If
-  a `DATABASE_URL` is configured, document metadata, sessions, and usage
-  logs also persist in Postgres. An optional S3-sync integration
-  (`backend/app/services/s3_sync_service.py`) exists in the codebase for a
-  future ephemeral-filesystem deployment target but isn't exercised by any
-  current deployment path.
+### Backend (from `backend/`)
 
-- **Faithfulness has only been re-verified live on 2 targeted cases**
-  after the Phase 3 fix (see [Module 10 evaluation](#module-10-evaluation)
-  above), not the full 20-case RAG benchmark or 24-case human evaluation
-  — a deliberate choice to conserve LLM API quota rather than risk a
-  second exhaustion mid-run. Stated explicitly so this isn't read as a
-  full-dataset re-measurement.
-- **No fair A/B comparison has been run** between the current Groq model
-  (a reasoning model, contributing to both elevated generation latency
-  and faster token-quota consumption) and a non-reasoning alternative.
-- **No operational alerting exists** (error-rate/latency thresholds,
-  on-call paging) — `/health` and `/metrics` are queryable, but nothing
-  currently watches them automatically.
+```bash
+pip install -r requirements.txt
+cp .env.example .env        # then set GEMINI_API_KEY (required)
+uvicorn app.main:app --reload
+```
 
-See [`docs/DESIGN_REVIEW.md`](docs/DESIGN_REVIEW.md) and
-[`docs/NOT_APPLICABLE.md`](docs/NOT_APPLICABLE.md) for the fuller
-reasoning behind these, plus what's explicitly out of scope
-(non-document tool integrations, live metrics dashboards) and why.
+Runs at `http://localhost:8000` (interactive docs at `/docs`).
 
-## Future work
+### Frontend (from `frontend/`)
 
-- [ ] Persistent, server-side document history in the *frontend* (backend has `GET /documents` + optional Postgres metadata; the Documents page still tracks uploads per-browser in `localStorage`)
-- [ ] Multi-document collections / workspaces
-- [ ] Support for additional file types beyond PDF (currently PDF-only; scanned/image-only PDFs are handled via OCR, see Features)
-- [x] Per-user authentication (JWT) alongside the existing shared/per-client API key — self-serve signup/login, each user gets a private tenant (see `docs/CHECKLIST.md` §13, `docs/NOT_APPLICABLE.md`'s JWT row); API keys remain for non-browser/service clients, not replaced
-- [x] Chat history browsing — `GET /chat/sessions` (list) and `GET /chat/sessions/{id}` (resume), a History page in the frontend; requires `DATABASE_URL` (session listing needs durable storage the in-memory store can't provide)
-- [x] RBAC — minimal admin/member role gates on document deletion and cross-tenant document listing (see `docs/CHECKLIST.md` §13); not a general permission/scope system
-- [x] Human approval — deployment-toggleable approval gates on web search and document deletion (see `docs/CHECKLIST.md` §1, §13); not a general approval queue
-- [x] Encryption at rest for the vector store and uploaded files — S3 default SSE + Lambda's default KMS-encrypted environment variables on AWS (see `docs/CHECKLIST.md` §13); application-level/field-level encryption remains open
-- [x] Multi-modal RAG — image extraction (`GET /documents/{id}/images` listing), Gemini figure captioning into searchable chunks, table extraction to markdown, and vision QA over page rasters; all config-gated and off by default (see Features/Configuration)
-- [ ] A multi-tenant / shardable vector store, replacing the single FAISS file
+```bash
+npm install
+cp .env.example .env        # leave VITE_API_BASE_URL unset in dev
+npm run dev
+```
+
+Runs at `http://localhost:5173`.
+
+### Tests
+
+```bash
+cd backend && pytest                       # full suite
+cd backend && pytest tests/test_main.py    # single file
+```
+
+```bash
+cd frontend
+npm run lint
+npx vitest run
+npm run build
+```
+
+## Environment variables
+
+Full, current tables with defaults and descriptions live in `backend/.env.example` and `frontend/.env.example` — this section highlights the load-bearing ones; **see those files for the complete, authoritative list** (both are extensively commented in-repo).
+
+**Backend — required**
+
+| Variable | Description |
+|---|---|
+| `GEMINI_API_KEY` | Google Gemini API key. Only strictly required variable. |
+| `API_KEY` (or `API_KEYS`) | Shared secret(s) for `X-API-Key` auth on non-browser clients. |
+
+**Backend — notable optional**
+
+| Variable | Default | Description |
+|---|---|---|
+| `DATABASE_URL` | unset | PostgreSQL connection string; enables durable multi-user persistence, RBAC, sessions. Alembic migrations auto-apply at startup. |
+| `JWT_SECRET_KEY` | unset | Required for `/auth/signup`/`/auth/login` to work. |
+| `LLM_PROVIDER` / `FALLBACK_LLM_PROVIDER` | `gemini` / unset | Primary/fallback LLM provider (`gemini` or `groq`). |
+| `HYBRID_SEARCH_ENABLED` | `true` | BM25 + FAISS fusion. |
+| `RERANKING_ENABLED` | `false` | Cross-encoder reranking pass. |
+| `WEB_SEARCH_ENABLED` | `false` | Web search fallback for weak/insufficient retrieval. |
+| `IMAGE_EXTRACTION_ENABLED` / `IMAGE_CAPTIONING_ENABLED` / `TABLE_EXTRACTION_ENABLED` / `VISION_QA_ENABLED` | `false` each | Multi-modal ingestion/answering features. |
+| `VISION_SERVICE_URL` | `http://127.0.0.1:8001` | LeafSense vision service address. |
+| `ADMIN_CLIENT_NAMES` | unset | Grants admin role (document deletion) to named API clients; requires `DATABASE_URL`. |
+| `DOCUMENT_DELETE_REQUIRES_APPROVAL` | `false` | Human-approval gate on delete. |
+| `METRICS_BEARER_TOKEN` | unset | Requires a bearer token to scrape `/metrics`. |
+
+**Frontend**
+
+| Variable | Default | Description |
+|---|---|---|
+| `VITE_API_BASE_URL` | `/api` (dev proxy) | Backend origin. Leave unset in dev — Vite proxies `/api` to `localhost:8000`. |
+
+## Docker
+
+The repo ships four Compose files, code-verified by their presence at the repo root:
+
+- `docker-compose.yml` — local dev stack: `postgres`, `leafsense`, `backend`, `frontend`, plus named volumes for uploads/vector store/Postgres data.
+- `docker-compose.prod.yml` — production variant.
+- `docker-compose.caddy.yml` — adds Caddy for HTTPS/reverse-proxy termination (`Caddyfile` at repo root).
+- `docker-compose.monitoring.yml` — optional Prometheus/Grafana stack (`monitoring/`).
+
+```bash
+docker compose up          # local dev stack (postgres, backend, frontend, leafsense)
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up   # production overlay
+```
+
+## API reference
+
+Every endpoint except `/health`, `/metrics`, `/auth/signup`, `/auth/login` requires an `X-API-Key` header or a JWT `Authorization: Bearer <token>`. Full typed reference: [`docs/API_REFERENCE.md`](docs/API_REFERENCE.md).
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| `GET` | `/health` | — | Liveness/readiness, LLM provider config booleans, multimodal capability flags. |
+| `GET` | `/metrics` | optional | Prometheus text exposition format. |
+| `POST` | `/auth/signup` / `/auth/login` | — | Create account / log in; returns a JWT. |
+| `POST` | `/upload` | required | Upload, chunk, embed, and index a PDF. |
+| `DELETE` | `/documents/{id}?confirm=true` | required | Remove a document and its vectors. |
+| `POST` | `/chat` | required | Ask a question; grounded answer + `sources`. |
+| `POST` | `/chat/stream` | required | Same as `/chat`, as Server-Sent Events. |
+| `POST` | `/chat/diagnose` | required | Leaf photo → LeafSense prediction → grounded, cited answer. |
+| `POST` | `/chat/feedback` | required | Record thumbs up/down on an answer. |
+| `GET`/`DELETE` | `/chat/sessions[/{id}]` | required | List/resume/delete a conversation. Requires `DATABASE_URL`. |
+
+**`POST /chat` request:**
+
+```json
+{ "query": "What is a project according to the PMP document?", "top_k": 5, "min_score": 0.3 }
+```
+
+**`POST /chat` response (abridged):**
+
+```json
+{
+  "answer": "A project is a temporary endeavor undertaken to create a unique product...",
+  "sources": [
+    { "document_id": "ae845151-...", "chunk_id": "ae845151-...-0", "excerpt": "A project is a temporary endeavor...", "url": null }
+  ],
+  "tool_used": "retrieval",
+  "answer_source": "documents"
+}
+```
+
+`tool_used` is one of `retrieval`, `summarization`, `diagnose`, `web_search`, or `none`. `answer_source` is `documents`, `web`, or `mixed`.
+
+**`POST /chat/stream`** — same body, `text/event-stream` response: `{"type": "trace", "stage": ...}` events, `{"type": "answer_chunk", "text": ...}` per streamed token, then one final `{"type": "done", "payload": {...}}` (identical shape to `POST /chat`'s response) or `{"type": "error", ...}`.
+
+Full interactive OpenAPI docs are available at `/docs` while the backend is running.
+
+## Reproduce the results
+
+```bash
+cd backend
+pytest                                   # full suite (820 tests collected on this tree)
+python -m eval.run_eval --dataset dataset_v1.json     # planner/groundedness/injection metrics (needs GEMINI_API_KEY + indexed docs)
+python -m eval.metrics_report                          # latency/cost/acceptance from real logs
+```
+
+See [`backend/eval/README.md`](backend/eval/README.md) for exact flags and dataset versioning, and [`docs/REPRODUCE_MODULE10.md`](docs/REPRODUCE_MODULE10.md) for the Module 10 package's own reproduction commands (states its external-dependency requirements explicitly).
+
+## Documentation map
+
+Every link below was checked against the actual `docs/` directory contents at write time.
+
+| Document | Covers |
+|---|---|
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Architecture detail, framework-choice rationale |
+| [`docs/ARCHITECTURE_OVERVIEW.md`](docs/ARCHITECTURE_OVERVIEW.md) | High-level architecture blueprint |
+| [`docs/API_REFERENCE.md`](docs/API_REFERENCE.md) | Full typed API spec, SSE wire formats, code snippets |
+| [`docs/OPERATIONS.md`](docs/OPERATIONS.md) | Deployment (Render, EC2), retrieval ablation study |
+| [`docs/DESIGN_REVIEW.md`](docs/DESIGN_REVIEW.md) | Design rationale Q&A |
+| [`docs/NOT_APPLICABLE.md`](docs/NOT_APPLICABLE.md) | Explicitly out-of-scope items and why |
+| [`docs/CHECKLIST.md`](docs/CHECKLIST.md) | Production readiness checklist |
+| [`docs/HUMAN_EVAL.md`](docs/HUMAN_EVAL.md) | 7-dimension manual scoring rubric |
+| [`docs/RAG_BENCHMARK_REPORT.md`](docs/RAG_BENCHMARK_REPORT.md) | Retrieval benchmark scorecard, with its own historical/unverified vs. refreshed caveat |
+| [`docs/MODULE10_FINAL_AUDIT.md`](docs/MODULE10_FINAL_AUDIT.md) | Terminal Module 10 audit |
+| [`docs/MODULE10_EVIDENCE_INDEX.md`](docs/MODULE10_EVIDENCE_INDEX.md) | Requirement → evidence → command index |
+| [`docs/REPRODUCE_MODULE10.md`](docs/REPRODUCE_MODULE10.md) | Exact reproduction commands |
+| [`docs/PHASE3_PRODUCTION_HARDENING_REPORT.md`](docs/PHASE3_PRODUCTION_HARDENING_REPORT.md) | The corrective-loop regression story |
+| [`docs/demo/DEMO.md`](docs/demo/DEMO.md) | Hand-run demo scenarios |
+| [`backend/eval/README.md`](backend/eval/README.md) | Evaluation harness usage and metric definitions |
+
+## Current limitations
+
+- **Single, unsharded FAISS index** — one file serves every document, no per-tenant vector isolation (though writes are lock-guarded against corruption).
+- **Document history is per-browser, not server-side** — `GET /documents` exists and is tenant-scoped, but the Documents page still reads `localStorage`.
+- **Retrieval grading is a score threshold, not a semantic judgment** — a chunk can score high while off-topic, or score just under threshold while relevant.
+- **Groundedness in `run_eval.py` is a lexical-overlap proxy**, not a real faithfulness check.
+- **Web search is off by default and fragile when on** — `duckduckgo-search` has no SLA and can silently rate-limit from cloud IPs.
+- **Provider fallback is single-hop** — no health-based routing or automatic recovery to the primary.
+- **No live cloud deployment currently.** Self-hostable via Docker Compose (including a production EC2 path); has run on Render/Vercel historically per `docs/OPERATIONS.md`.
+- **Faithfulness re-verification after the Phase 3 fix covered only 2 targeted cases**, not the full benchmark/human-eval datasets (a stated quota-conservation tradeoff).
+- **Human evaluation is single-reviewer** — no inter-annotator agreement measured.
+- **No automated alerting** on `/health`/`/metrics` — nothing currently pages on threshold breach.
+- **No dedicated load-testing artifact found in the repo** — no throughput/latency-under-load numbers to report.
+
+## Roadmap
+
+- [ ] Multi-tenant / shardable vector store, replacing the single FAISS file
+- [ ] Persistent, server-side document history in the frontend (backend endpoint exists; UI still uses `localStorage`)
+- [ ] Multi-document collections/workspaces
+- [ ] File types beyond PDF
+- [ ] Automated alerting on `/health`/`/metrics`
+- [x] Per-user JWT authentication alongside API keys
+- [x] Chat history browsing (`GET /chat/sessions`, History page)
+- [x] RBAC (admin-gated document deletion, cross-tenant listing)
+- [x] Human-approval gates (web search, document deletion)
+- [x] Multi-modal RAG (image captioning, table extraction, vision QA)
 
 ## License
 
-MIT © [Udbhav Narawat](LICENSE)
+MIT © Udbhav Narawat — see [LICENSE](LICENSE).

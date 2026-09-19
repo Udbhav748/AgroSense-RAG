@@ -111,13 +111,23 @@ python eval/module10/runners/run_human_eval_new_rows.py   # captures rows 17-24'
 
 Rows 1-16's answers were captured directly via `ChatService.handle_query()` in an earlier session (see `docs/HUMAN_EVAL.md`'s "Recorded answers" section) — not re-capturable by a single script since it predates the Module 10 package's own runners.
 
-## Faithfulness post-fix verification (Phase 5, rows 17/19 only)
+## Faithfulness post-fix verification — targeted (Phase 5, rows 17/19 only)
 
-**Requires**: live LLM provider. Consumes real API quota (2 real generation calls). **Not a full-dataset re-run** — see the script's own scope note.
+**Requires**: live LLM provider. Consumes real API quota (2 real generation calls). **Not a full-dataset re-run.**
 
 ```
 python eval/module10/runners/run_faithfulness_post_phase3.py
 ```
+
+## Faithfulness post-fix verification — full 20-case dataset (Phase 7)
+
+**Requires**: live LLM provider. Consumes significant real API quota (20 real generation calls, several minutes). This is the authoritative full-dataset Faithfulness measurement, superseding the 2-case targeted verification above for full-dataset claims.
+
+```
+python scripts/run_rag_eval.py
+```
+
+Produces `data/eval_reports/latest_eval_report.json` (overwritten in place by the script's own convention); the durable, versioned snapshot is `eval/module10/reports/faithfulness_full_postfix_<timestamp>.json` and `docs/RAG_BENCHMARK_REPORT.md`'s "POST-FIX FULL RE-RUN" section.
 
 ## Multimodal (LeafSense) evaluation
 

@@ -389,7 +389,7 @@ Question → Embedding (`embedding_service.py`) → Vector search (`faiss_vector
 | How will the system recover? | ✅ |
 | How do you know the new version is better? | ✅ |
 | How will user data and secrets be protected? | ✅ |
-| Cost per successful task | ✅ (~$0.0006, `DESIGN_REVIEW.md:237-277`) |
+| Cost per successful task | ✅ **current measured value: $0.001124** (real per-request Groq token/cost telemetry, `eval/module10/reports/agent_eval_20260919T112455Z.json`). The `~$0.0006` figure in `DESIGN_REVIEW.md:237-277` is a superseded, config-derived *estimate* from an earlier pass against Gemini pricing — kept there labeled historical, not the current headline. |
 | What breaks from 10 → 1M users? | ✅ |
 | Would you trust it as a customer? | ✅ |
 
