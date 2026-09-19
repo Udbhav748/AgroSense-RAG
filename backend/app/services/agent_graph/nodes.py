@@ -42,6 +42,7 @@ from app.services.agent_graph.events import (
 )
 from app.services.prompt_builder import (
     FALLBACK_REPLY,
+    GENERATION_ERROR_REPLY,
     REFLECTION_INSTRUCTION,
     build_prompt,
     strip_sources_section,
@@ -309,7 +310,11 @@ async def synthesizer_node(
         answer = strip_sources_section(raw_answer)
     except Exception as exc:
         logger.error("synthesizer_llm_failed", extra={"extra_fields": {"error": str(exc)}})
-        answer = FALLBACK_REPLY
+        # GENERATION_ERROR_REPLY, not FALLBACK_REPLY: this is a real LLM
+        # provider failure (timeout/rate-limit/API error), not a grounded
+        # "not in the documents" answer -- see the faithfulness-regression
+        # fix in generator_node / docs/PHASE3_PRODUCTION_HARDENING_REPORT.md.
+        answer = GENERATION_ERROR_REPLY
 
     # Build structured sources
     sources: list[SourceReference] = []
@@ -921,8 +926,20 @@ def generator_node(state: AgentState, context: GraphContext | None = None) -> Ag
             latency_ms=timer.latency_ms,
             error_type=error_type,
         )
+        # PHASE 3 FIX (faithfulness regression root cause): this except
+        # block used to set draft_answer=FALLBACK_REPLY here -- the exact
+        # same text used for a genuine "the documents don't contain this"
+        # answer. That made an LLM provider failure (timeout, rate limit,
+        # API error surviving all 3 tenacity retries -- see
+        # groq_client.py/gemini_client.py) INDISTINGUISHABLE from a
+        # legitimate grounded non-answer, both to end users and to the
+        # Faithfulness/grounding evaluators (which correctly scored 0.0 for
+        # a response containing zero real claims -- the metric was right,
+        # the underlying answer was mislabeled). error_type/root_cause are
+        # still recorded on state for tracing; GENERATION_ERROR_REPLY makes
+        # the user-visible text honest about what actually happened.
         new_state = state.copy_with(
-            draft_answer=FALLBACK_REPLY,
+            draft_answer=GENERATION_ERROR_REPLY,
             error_type=error_type,
             error_message=str(exc),
             root_cause=root_cause,

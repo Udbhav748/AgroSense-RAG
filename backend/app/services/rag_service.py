@@ -45,6 +45,7 @@ from app.services.cache_service import cache_service
 from app.services.local_research_agent import LocalResearchAgent
 from app.services.prompt_builder import (
     FALLBACK_REPLY,
+    GENERATION_ERROR_REPLY,
     PROMPT_VERSION,
     REFLECTION_INSTRUCTION,
     build_prompt,
@@ -1442,10 +1443,18 @@ class ChatService:
         actually available: empty, or exactly the fixed fallback line,
         while there was at least one chunk or web result it could have
         drawn from. If there's no context at all, the fallback line is the
-        correct, expected answer — not a failure to correct."""
+        correct, expected answer — not a failure to correct.
+
+        Also true for GENERATION_ERROR_REPLY (a distinct sentinel from
+        FALLBACK_REPLY as of the Phase 3 faithfulness-regression fix —
+        see generator_node): a transient provider failure deserves the
+        same corrective-loop retry a "not found" answer gets, since a
+        second attempt has a real chance of succeeding where the first
+        hit a timeout/rate-limit."""
         if not chunks and not web_results:
             return False
-        return not answer.strip() or answer.strip() == FALLBACK_REPLY
+        stripped = answer.strip()
+        return not stripped or stripped in (FALLBACK_REPLY, GENERATION_ERROR_REPLY)
 
     def _correct(
         self,

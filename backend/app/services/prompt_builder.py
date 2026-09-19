@@ -58,6 +58,19 @@ _NO_CONTEXT_NOTE = "No documents were retrieved for this question."
 
 FALLBACK_REPLY = "I couldn't find that information in the uploaded documents."
 
+# Distinct from FALLBACK_REPLY on purpose (Phase 3 faithfulness-regression
+# fix — see docs/PHASE3_PRODUCTION_HARDENING_REPORT.md). FALLBACK_REPLY means
+# "the documents genuinely don't contain this"; GENERATION_ERROR_REPLY means
+# "the LLM provider call itself failed (timeout/rate-limit/API error) after
+# retries" — a real infrastructure failure, not a grounded non-answer.
+# Before this fix, agent_graph/nodes.py::generator_node used FALLBACK_REPLY
+# for both cases, making a rate-limited request indistinguishable from a
+# legitimate "not in the documents" answer to both users and the
+# Faithfulness/grounding evaluators.
+GENERATION_ERROR_REPLY = (
+    "I'm having trouble generating an answer right now — please try again in a moment."
+)
+
 AGRONOMY_PERSONA = (
     "Plant Pathology & Agronomy Expert Persona: You are an authoritative Land-Grant University Extension "
     "Agronomist and Plant Pathologist. For crop diagnosis and agricultural inquiries, structure your response "
