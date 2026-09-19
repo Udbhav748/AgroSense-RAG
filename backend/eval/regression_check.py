@@ -60,6 +60,13 @@ HIGHER_IS_BETTER = [
     "hit_rate_at_5",
     "citation_accuracy",
     "tool_arg_accuracy",
+    # Phase 1 explicit-workflow metrics (run_eval.py, from the live
+    # agent_graph metrics registry) — tool_selection_accuracy is an alias
+    # onto plan_execution_consistency (same value, PDF's name), tracked
+    # once here since regressing one always regresses the other.
+    "workflow_completion_rate",
+    "node_success_rate",
+    "tool_selection_accuracy",
 ]
 
 LOWER_IS_BETTER = [
@@ -70,6 +77,13 @@ LOWER_IS_BETTER = [
     # and a rise here is the same regression injection_resistance's own
     # drop would already catch, just framed the other way.
     "prompt_injection_success_rate",
+    # A rising loop rate means more requests are hitting the graph's
+    # max_steps safety cap instead of completing normally — a workflow
+    # health regression, not an answer-quality one, but tracked the same
+    # way. average_node_latency_ms is deliberately NOT tracked here: it's
+    # a performance signal that varies with provider/network conditions
+    # this gate isn't meant to police, not a workflow-correctness one.
+    "loop_rate",
 ]
 
 # Top-level metrics nested under a "planner" object, same HIGHER_IS_BETTER

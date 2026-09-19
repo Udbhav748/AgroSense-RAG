@@ -325,6 +325,83 @@ def report_timeout_rate(records: list[dict]) -> None:
     print()
 
 
+def report_agent_workflow_metrics(records: list[dict]) -> None:
+    """Phase 1 explicit-workflow metrics, parsed from the same structured
+    log stream as everything else in this file — no new logging needed:
+
+    - agent_node_trace (agent_graph/events.py::emit_node_trace, one per
+      node execution): status/latency_ms feed Node Success Rate and
+      Average Node Latency.
+    - request_validated (agent_graph/nodes.py::validate_request_node, one
+      per workflow run — including runs that fail validation): the total-
+      workflow-runs denominator for Workflow Completion Rate / Loop Rate /
+      Average Steps.
+    - finalized (agent_graph/nodes.py::finalizer_node): termination_reason
+      == "success" is a completed workflow. Note a cache-hit short-circuits
+      straight to END without calling finalizer_node, so it's absent from
+      this specific event but still counted as a completed run via its own
+      request_validated + the graph's completed/failed workflow tracking
+      in the live metrics registry (GET /metrics) — this offline log-based
+      view is a secondary, inspectable cross-check, not the source of
+      truth for a live deployment.
+    - graph_cycle_capped_max_steps (agent_graph/engine.py): one per
+      workflow run that hit max_steps without reaching END — Loop Rate's
+      numerator.
+    """
+    node_traces = [record for record in records if record.get("message") == "agent_node_trace"]
+    validated = [record for record in records if record.get("message") == "request_validated"]
+    finalized = [record for record in records if record.get("message") == "finalized"]
+    loop_capped = [
+        record for record in records if record.get("message") == "graph_cycle_capped_max_steps"
+    ]
+
+    print("=== Explicit Workflow Metrics (agent_graph) ===")
+    if not node_traces and not validated:
+        print("No agent_graph log entries found in the logs.\n")
+        return
+
+    total_workflows = len(validated)
+    successful_workflows = sum(1 for record in finalized if record.get("termination_reason") == "success")
+    workflow_completion_rate = successful_workflows / total_workflows if total_workflows else 0.0
+
+    node_success = sum(1 for record in node_traces if record.get("status") == "success")
+    node_total = len(node_traces)
+    node_success_rate = node_success / node_total if node_total else 0.0
+
+    latencies = [
+        record.get("latency_ms", 0.0)
+        for record in node_traces
+        if isinstance(record.get("latency_ms"), int | float)
+    ]
+    avg_node_latency_ms = sum(latencies) / len(latencies) if latencies else 0.0
+
+    loop_rate = len(loop_capped) / total_workflows if total_workflows else 0.0
+
+    by_node: dict[str, list[float]] = defaultdict(list)
+    node_status: dict[str, list[bool]] = defaultdict(list)
+    for record in node_traces:
+        node = record.get("node", "unknown")
+        if isinstance(record.get("latency_ms"), int | float):
+            by_node[node].append(record["latency_ms"])
+        node_status[node].append(record.get("status") == "success")
+
+    print(f"  workflow runs:            {total_workflows}")
+    print(f"  Workflow Completion Rate: {workflow_completion_rate:.4f} ({successful_workflows}/{total_workflows})")
+    print(f"  Node Success Rate:        {node_success_rate:.4f} ({node_success}/{node_total})")
+    print(f"  Average Node Latency:     {avg_node_latency_ms:.2f}ms  (n={node_total})")
+    print(f"  Loop Rate:                {loop_rate:.4f} ({len(loop_capped)}/{total_workflows})")
+    print("  Per-node breakdown:")
+    for node in sorted(by_node):
+        node_lat = by_node[node]
+        statuses = node_status[node]
+        node_rate = sum(statuses) / len(statuses) if statuses else 0.0
+        avg_lat = sum(node_lat) / len(node_lat) if node_lat else 0.0
+        print(
+            f"    {node:<22s} success={node_rate:.4f}  avg_latency={avg_lat:.2f}ms  (n={len(statuses)})"
+        )
+    print()
+
+
 def report_tokens_and_cost(records: list[dict]) -> None:
     generations = [
         record for record in records if record.get("message") == "llm_generation_completed"
@@ -516,6 +593,7 @@ def main() -> None:
     report_latency(records)
     report_error_rate_by_category(records)
     report_loop_count_and_avg_steps(records)
+    report_agent_workflow_metrics(records)
     report_retry_success_rate(records)
     report_timeout_rate(records)
     report_tokens_and_cost(records)

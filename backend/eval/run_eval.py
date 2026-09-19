@@ -105,6 +105,7 @@ from pydantic import BaseModel  # noqa: E402
 
 from app.core.config import settings  # noqa: E402
 from app.core.exceptions import AppError, VectorStoreNotFoundError  # noqa: E402
+from app.core.metrics import get_metrics, reset_metrics  # noqa: E402
 from app.models.document import RetrievedChunk  # noqa: E402
 from app.models.schemas import SourceReference  # noqa: E402
 from app.services.faiss_vector_store import DEFAULT_METADATA_PATH, FAISSVectorStore  # noqa: E402
@@ -462,6 +463,11 @@ def run(dataset_path: Path, delay: float = 0.0) -> dict:
     # entire A/B procedure documented in docs/OPERATIONS.md — no code
     # change needed here to eval a different provider.
     chat_service = ChatService(vector_store, build_llm_client())
+    # Isolate this eval run's agent-workflow counters (Commit 6's
+    # agent_workflow_*/agent_node_*/agent_reflections_total/agent_loop_
+    # limit_hits_total) from anything else that may have touched the
+    # process-wide metrics registry before this script ran.
+    reset_metrics()
 
     # Separate LLM client for the groundedness judge — uses the same provider
     # as the chat service so the run stays self-consistent. This avoids
@@ -824,6 +830,16 @@ def run(dataset_path: Path, delay: float = 0.0) -> dict:
         else None
     )
 
+    # Phase 1 explicit-workflow metrics: computed from the real
+    # agent_workflow_*/agent_node_*/agent_loop_limit_hits_total counters
+    # this eval run's handle_query calls fed into the metrics registry
+    # (reset_metrics() above isolates them to this run) — not fabricated
+    # or re-derived by a separate calculation. tool_selection_accuracy and
+    # average_steps below are aliases onto this file's own pre-existing
+    # plan_execution_consistency / avg_steps_taken metrics (same
+    # denominator, same values), given here under the PDF's names.
+    agent_workflow_stats = get_metrics().agent_workflow_summary()
+
     report = {
         "dataset": dataset_path.name,
         "dataset_version": _dataset_version(dataset_path.name),
@@ -888,6 +904,33 @@ def run(dataset_path: Path, delay: float = 0.0) -> dict:
         "tool_attempts": tool_attempts_summary,
         "memory_recall_rate": round(memory_recall_rate, 4) if memory_recall_rate is not None else None,
         "memory_recall_n": len(memory_recall_flags),
+        # Phase 1 explicit-workflow metrics (see agent_workflow_stats above).
+        "workflow_completion_rate": (
+            round(agent_workflow_stats["workflow_completion_rate"], 4)
+            if agent_workflow_stats["workflow_completion_rate"] is not None
+            else None
+        ),
+        "node_success_rate": (
+            round(agent_workflow_stats["node_success_rate"], 4)
+            if agent_workflow_stats["node_success_rate"] is not None
+            else None
+        ),
+        "average_node_latency_ms": (
+            round(agent_workflow_stats["average_node_latency_ms"], 3)
+            if agent_workflow_stats["average_node_latency_ms"] is not None
+            else None
+        ),
+        "loop_rate": (
+            round(agent_workflow_stats["loop_rate"], 4)
+            if agent_workflow_stats["loop_rate"] is not None
+            else None
+        ),
+        "average_steps": round(sum(e["steps_taken"] for e in entries_out) / len(entries_out), 4) if entries_out else None,
+        "agent_workflow_n": int(agent_workflow_stats["total_workflows"]),
+        # Alias onto the pre-existing metric of the same meaning, named per
+        # the PDF's vocabulary — not a second, independently-computed value.
+        "tool_selection_accuracy": round(plan_execution_consistency, 4) if plan_execution_consistency is not None else None,
+        "tool_selection_accuracy_n": len(plan_execution_flags),
         "entries": entries_out,
     }
     return report
@@ -954,8 +997,20 @@ def print_report(report: dict) -> None:
     print(f"Field Accuracy:         {fmt(report.get('field_accuracy'), report.get('schema_compliance_n', 0))}")
     print(f"Avg Step Efficiency:    {fmt(report.get('avg_step_efficiency'), report.get('step_efficiency_n', 0))}")
     print(f"Avg Steps Taken:        {fmt(report.get('avg_steps_taken'), len(report['entries']))}")
+    print(f"Tool Selection Accuracy: {fmt(report.get('tool_selection_accuracy'), report.get('tool_selection_accuracy_n', 0))}")
     if report.get("memory_recall_n"):
         print(f"Memory Recall Rate:     {fmt(report.get('memory_recall_rate'), report['memory_recall_n'])}")
+
+    print("\n" + "=" * 70)
+    print("EXPLICIT WORKFLOW METRICS (agent_graph)")
+    print("=" * 70)
+    n_wf = report.get("agent_workflow_n", 0)
+    print(f"Workflow Completion Rate: {fmt(report.get('workflow_completion_rate'), n_wf)}")
+    print(f"Node Success Rate:       {fmt(report.get('node_success_rate'), n_wf)}")
+    avg_latency = report.get("average_node_latency_ms")
+    print(f"Average Node Latency:    {f'{avg_latency:.2f}ms' if avg_latency is not None else 'n/a'} (n={n_wf})")
+    print(f"Loop Rate:               {fmt(report.get('loop_rate'), n_wf)}")
+    print(f"Average Steps:           {fmt(report.get('average_steps'), n_wf)}")
 
     tool_success = report.get("tool_success_rate") or {}
     tool_attempts = report.get("tool_attempts") or {}

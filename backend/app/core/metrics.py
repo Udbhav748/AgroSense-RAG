@@ -233,6 +233,107 @@ class Metrics:
         research). Feeds the agent-metrics dashboard's handoff breakdown."""
         self.inc_counter("agent_handoffs_total", {"from": frm, "to": to})
 
+    # --- Explicit agent workflow (Phase 1) --------------------------------
+    #
+    # Instrumented from agent_graph/events.py::emit_node_trace (per-node)
+    # and agent_graph/engine.py::CompiledGraph.run()/stream() (per-workflow-
+    # run), so every graph execution — the production chat graph and the
+    # older create_rag_agent_graph — gets this for free. Labels are
+    # intentionally low-cardinality (node/status/action/error_type only —
+    # never raw query text, user id, or document content), per the same
+    # cardinality discipline as normalize_path() above.
+
+    def record_agent_workflow_started(self) -> None:
+        self.inc_counter("agent_workflow_started_total")
+
+    def record_agent_workflow_completed(self, *, status: str) -> None:
+        """status: 'completed' -> success counter, anything else (e.g.
+        'failed') -> the failure counter. Never both for one run."""
+        if status == "completed":
+            self.inc_counter("agent_workflow_completed_total")
+        else:
+            self.inc_counter("agent_workflow_failed_total")
+
+    def record_agent_workflow_duration(self, seconds: float) -> None:
+        self.observe_duration("agent_workflow_duration_seconds", seconds)
+
+    def record_agent_steps(self, count: int) -> None:
+        """Total node executions in one workflow run — feeds the "Average
+        Steps" evaluation metric alongside the offline eval harness."""
+        self.inc_counter("agent_steps_total", amount=float(count))
+
+    def record_agent_node_execution(
+        self, *, node: str, status: str, latency_seconds: float, error_type: str | None = None
+    ) -> None:
+        """One node execution: status is 'success' or 'failure'."""
+        self.inc_counter("agent_node_executions_total", {"node": node, "status": status})
+        if status == "failure":
+            failure_labels: dict[str, Any] = {"node": node}
+            if error_type:
+                failure_labels["error_type"] = error_type
+            self.inc_counter("agent_node_failures_total", failure_labels)
+        self.observe_duration("agent_node_latency_seconds", latency_seconds, {"node": node})
+
+    def record_agent_reflection(self) -> None:
+        self.inc_counter("agent_reflections_total")
+
+    def record_agent_retry(self, *, node: str) -> None:
+        self.inc_counter("agent_retries_total", {"node": node})
+
+    def record_agent_loop_limit_hit(self) -> None:
+        """A workflow run hit the graph's max_steps cap without reaching
+        END — the Loop Rate evaluation metric's numerator."""
+        self.inc_counter("agent_loop_limit_hits_total")
+
+    def record_agent_approval(self, *, event: str, action: str) -> None:
+        """event: 'required' | 'approved' | 'rejected'."""
+        self.inc_counter(f"agent_approval_{event}_total", {"action": action})
+
+    def agent_workflow_summary(self) -> dict[str, float | None]:
+        """Aggregate the explicit-workflow counters/histograms above into
+        the PDF's Workflow Completion Rate / Node Success Rate / Average
+        Node Latency / Loop Rate / Average Steps — computed from whatever
+        has actually been recorded in this registry since the last reset
+        (backend/eval/run_eval.py resets before a run and reads this after;
+        a live deployment reads it cumulative since process start via
+        GET /metrics's raw counters). Never fabricated: a rate is None,
+        not 0, when its denominator is zero (no workflows recorded yet).
+        """
+        with self._lock:
+            completed = self._counters.get(("agent_workflow_completed_total", ()), 0.0)
+            failed = self._counters.get(("agent_workflow_failed_total", ()), 0.0)
+            total_workflows = completed + failed
+
+            node_success = 0.0
+            node_total = 0.0
+            for (name, label_key), value in self._counters.items():
+                if name != "agent_node_executions_total":
+                    continue
+                node_total += value
+                if dict(label_key).get("status") == "success":
+                    node_success += value
+
+            latency_sum = 0.0
+            latency_count = 0.0
+            for (name, _label_key), hist in self._histograms.items():
+                if name == "agent_node_latency_seconds":
+                    latency_sum += hist.sum
+                    latency_count += hist.count
+
+            loop_hits = self._counters.get(("agent_loop_limit_hits_total", ()), 0.0)
+            steps_total = self._counters.get(("agent_steps_total", ()), 0.0)
+
+        return {
+            "workflow_completion_rate": (completed / total_workflows) if total_workflows else None,
+            "node_success_rate": (node_success / node_total) if node_total else None,
+            "average_node_latency_ms": (
+                (latency_sum / latency_count) * 1000.0 if latency_count else None
+            ),
+            "loop_rate": (loop_hits / total_workflows) if total_workflows else None,
+            "average_steps": (steps_total / total_workflows) if total_workflows else None,
+            "total_workflows": total_workflows,
+        }
+
     def record_vectors(self, count: int) -> None:
         """Set the total number of vectors currently indexed (FAISS index
         size, or pgvector row count when PGVECTOR_ENABLED). A gauge so the
