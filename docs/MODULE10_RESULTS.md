@@ -375,17 +375,34 @@ the Faithfulness metric, from a confident grounded non-answer. Fixed by
 introducing a distinct `GENERATION_ERROR_REPLY` sentinel
 (`prompt_builder.py`) and updating `ChatService._is_ungrounded` so the
 existing corrective retry still applies to it. 2 new regression tests
-added; full suite now 809 passed, 1 skipped. **Not yet re-measured**: a
-fresh, uncontaminated RAG-benchmark/human-eval re-run to quantify the
-new Faithfulness number was blocked by the Groq daily token quota being
-exhausted mid-investigation — see the Phase 3 report's Remaining
-Limitations and Recommendation sections.
+added.
+
+**PHASE 5 UPDATE (2026-09-19): post-fix Faithfulness measured live**,
+closing the gap above — see `eval/module10/reports/faithfulness_post_phase3_20260919T165741Z.json`
+and `docs/PHASE5_FINAL_GAP_CLOSURE_REPORT.md`. The exact two previously-
+failing cases (human-eval rows 17, 19 — both real Groq calls, model
+`openai/gpt-oss-120b`, retrieval confirmed unchanged at 5 chunks/"good"
+confidence for each) now produce real, correctly-inline-cited answers
+instead of `FALLBACK_REPLY`:
+
+- Row 17 ("What's the treatment for scab?"): a full apple-scab treatment
+  answer (cultural controls + organic/conventional fungicide options
+  with dosages), citing `[1][3][4]`.
+- Row 19 ("citrus greening (HLB) treatment"): a full HLB vector-control
+  and nutrition-support answer, citing `[3][4][5]`.
+
+**Scope, stated honestly**: only these 2 cases were re-run live, not the
+full 20-case RAG benchmark or 24-case human evaluation — a deliberate
+choice to conserve the Groq daily token quota (fully exhausted once
+already during Phase 3) rather than risk a second exhaustion mid-run.
+This result should not be extrapolated as the new full-dataset
+Faithfulness score; it is direct, targeted confirmation that the fix
+resolves the exact regression these two cases demonstrated.
 
 **Still open:**
 
-1. Re-measure Mean Faithfulness under the Phase 3 fix once the Groq
-   token quota allows a clean run (see `docs/PHASE3_PRODUCTION_HARDENING_REPORT.md`
-   Section T).
-2. `docs/CHECKLIST.md`/`docs/DESIGN_REVIEW.md` updates for the Phase 3
-   fix specifically: see those files directly for what was and wasn't
-   updated.
+1. A full-dataset Faithfulness re-run (20-case RAG benchmark / 24-case
+   human evaluation) has not been performed under the fix — recommended
+   as the next quota-budgeted evaluation session.
+2. `docs/CHECKLIST.md`/`docs/DESIGN_REVIEW.md` updates for the Phase 5
+   fixes: see those files directly for what was and wasn't updated.

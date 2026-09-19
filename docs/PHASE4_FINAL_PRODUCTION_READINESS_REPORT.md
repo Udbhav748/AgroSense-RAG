@@ -74,12 +74,14 @@ No new performance run in this pass. The one carried-forward, unresolved finding
 
 ## N. Known Limitations
 
-1. Faithfulness has not been re-measured live under the Phase 3 fix.
-2. `human_approval_node` remains dead code in the live graph (disclosed, not fixed).
-3. Document-delete approval remains a double-confirmation pattern, not a true resolved-approval check (disclosed, not fixed — matches existing tested contract).
-4. No rate-limit-specific failure-injection test exists yet.
-5. No fair model A/B comparison has been run to evaluate `openai/gpt-oss-120b`'s reasoning-model cost/latency tradeoff against an alternative.
-6. Steps 7 (alerting), 11–13 (performance regression beyond the existing suite, additional Phase-4-specific tests, additional live evaluation re-runs) of the original 17-step request were not attempted this pass.
+**PHASE 5 UPDATE: items 1–4 below are now resolved** — see `docs/PHASE5_FINAL_GAP_CLOSURE_REPORT.md`. Left below unmodified as the historical record of what this phase (4) actually left open at the time.
+
+1. ~~Faithfulness has not been re-measured live under the Phase 3 fix.~~ **Resolved in Phase 5** (limited to 2 cases, stated honestly).
+2. ~~`human_approval_node` remains dead code in the live graph (disclosed, not fixed).~~ **Resolved in Phase 5.**
+3. ~~Document-delete approval remains a double-confirmation pattern, not a true resolved-approval check (disclosed, not fixed — matches existing tested contract).~~ **Resolved in Phase 5** (contract intentionally changed, old test replaced with 7 cases).
+4. ~~No rate-limit-specific failure-injection test exists yet.~~ **Resolved in Phase 5.**
+5. No fair model A/B comparison has been run to evaluate `openai/gpt-oss-120b`'s reasoning-model cost/latency tradeoff against an alternative. **Still open.**
+6. Steps 7 (alerting), 11–13 (performance regression beyond the existing suite, additional Phase-4-specific tests, additional live evaluation re-runs) of the original 17-step request were not attempted this pass. **Still open.**
 
 ## O. Exact Reproduction Commands
 
