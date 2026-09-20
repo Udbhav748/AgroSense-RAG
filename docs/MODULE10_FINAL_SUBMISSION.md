@@ -2,7 +2,7 @@
 
 **Evidence-based Module 10 audit with the following verified capabilities and documented limitations.** This document does not claim 100% completion; every item below is marked ✅ (implementation + test + measurement), ⚠️ (partial/limited measurement), ❌ (missing), or N/A (genuinely not applicable, with rationale), matching the underlying evidence exactly — never upgraded because code merely exists.
 
-**Commit at submission**: `e435ff7` (Phase 5's final commit) · **Regression**: 819 passed, 1 skipped · **Date**: 2026-09-19
+**Branch**: `module10-final-pdf-compliance` (not merged to `main` — see `git rev-parse HEAD` for the exact commit at read time) · **Regression**: 819 passed, 1 skipped · **Date**: 2026-09-19/20
 
 *(This document is written as clean Markdown for direct PDF export via any Markdown-to-PDF tool, e.g. `pandoc docs/MODULE10_FINAL_SUBMISSION.md -o submission.pdf`, or a browser's print-to-PDF on the rendered file.)*
 
@@ -133,7 +133,7 @@ Cost Per Successful Task: **$0.001124** (measured, real Groq per-request cost �
 
 See `docs/MODULE10_FINAL_AUDIT.md` §24 for the complete requirement-by-requirement table, `docs/MODULE10_EVIDENCE_INDEX.md` for the flat evidence pointer table, and `docs/REPRODUCE_MODULE10.md` for exact reproduction commands with external-dependency requirements stated.
 
-**Summary status**: 10+ requirement areas ✅ (implementation + test + measurement), 4 ⚠️ (limited-scope measurement, stated explicitly), 0 ❌ remaining (both Phase 4 findings resolved in Phase 5), N/A items (cloud deployment) correctly not claimed. **Not 100% complete — by design, and stated as such.**
+**Summary status**: no unresolved critical defects — both Phase 4 findings (human-approval graph wiring, document-delete approval bypass) were resolved with tests in Phase 5. Remaining limitations are explicitly marked ⚠️ (full Faithfulness below target, model A/B not run, no live encryption-at-rest, alerting inert without a deployment target) or N/A (cloud autoscaling/load-balancing/GPU — genuinely not applicable to a single-instance deployment). See `docs/MODULE10_PDF_TRACEABILITY_MATRIX.md` for the row-by-row count. **Not 100% complete — by design, and stated as such.**
 
 ---
 

@@ -1,6 +1,6 @@
 # Module 10 — Final Audit
 
-**Date**: 2026-09-19 (originally written after Phase 4, updated in place after Phase 5 — see each section's own PHASE 5 UPDATE notes for what changed) · **Commit at audit time of last edit**: `e435ff7` (Phase 5's final commit) · **Regression at last edit**: 819 passed, 1 skipped.
+**Date**: 2026-09-19/20 (originally written after Phase 4, updated in place after Phase 5, 7, and 8 — see each section's own update notes for what changed) · **Branch**: `module10-final-pdf-compliance` (not merged to `main`) · **Commit at last edit**: see this branch's HEAD (`git rev-parse HEAD`) — not pinned to a specific SHA in prose here since this document is updated across multiple commits on the same branch; the regression result below is re-verified at each update · **Regression at last edit**: 819 passed, 1 skipped.
 
 This is the terminal evidence document for Module 10, consolidated in Phase 6 (release freeze) rather than rewritten. It consolidates Phases 1–5 rather than re-deriving them: where a prior phase already produced a reproducible test and a measured artifact, this audit cites that evidence instead of re-running it. Sections below marked "PHASE 5 UPDATE" record what Phase 5 fixed after this document was first written; everything else reflects Phase 1–4 evidence, unchanged and cited, not re-run. See `docs/MODULE10_EVIDENCE_INDEX.md` for a flat requirement→evidence→command→result index, and `docs/REPRODUCE_MODULE10.md` for exact reproduction commands with their external-dependency requirements stated.
 
