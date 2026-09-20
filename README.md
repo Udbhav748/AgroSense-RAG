@@ -21,9 +21,9 @@
 
 A ~2:20 walkthrough recorded straight from the running app (signup → PDF upload/ingestion → grounded chat with streamed citations → multimodal leaf diagnosis → session history) — real screen capture, not a mockup.
 
-https://github.com/user-attachments/assets/PASTE_UPLOADED_VIDEO_ID_HERE
+[![Watch the demo](docs/assets/demo-poster.jpg)](https://github.com/Udbhav748/InsightAI-RAG-Project-/blob/main/docs/assets/demo.mp4)
 
-> The clip lives at `docs/assets/demo.mp4` (poster: `docs/assets/demo-poster.jpg`). GitHub doesn't render a local repo-relative `<video>` tag in README previews, so upload `docs/assets/demo.mp4` via a comment/PR attachment on GitHub.com (drag the file into any comment box) and replace the placeholder link above with the `user-attachments` URL GitHub generates — then it plays inline for anyone viewing the README.
+*Click the thumbnail to watch (`docs/assets/demo.mp4`) — GitHub's blob viewer plays it inline with full controls. For a version that autoplays directly inside this README, upload `docs/assets/demo.mp4` via a comment/PR attachment box on GitHub.com to get a `user-attachments` URL, then swap it in here.*
 
 ## Table of contents
 
