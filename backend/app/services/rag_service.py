@@ -1165,14 +1165,21 @@ class ChatService:
         web_results: list[WebSearchResult] | None = None,
         persona: str | None = None,
         language: str | None = None,
-    ) -> str:
+    ) -> tuple[str, dict[str, Any] | None]:
         """Structured-output counterpart to _generate: same context assembly
         via build_structured_prompt, but the provider is asked for a JSON
         object (response_mime_type / response_format) which is parsed and
-        validated against StructuredAnswer. The validated `answer` field is
-        returned; on any parse failure the request degrades to the plain
-        free-text path (parse_structured_answer never raises) — structured
-        output is a win-when-it-works enhancement, never a new failure mode.
+        validated against StructuredAnswer. On any parse failure the request
+        degrades to the plain free-text path (parse_structured_answer never
+        raises) — structured output is a win-when-it-works enhancement,
+        never a new failure mode.
+
+        Returns (answer_text, structured_payload). structured_payload is the
+        validated {"answer": ..., "sources": [...]} dict when the provider's
+        output actually parsed and validated against StructuredAnswer, or
+        None when the request degraded to the free-text fallback — callers
+        must not treat a fallback answer as if it were a successful
+        structured response.
         """
         prompt = build_structured_prompt(
             query, chunks, history=history, web_results=web_results, persona=persona, language=language
@@ -1197,7 +1204,10 @@ class ChatService:
                 "structured_output_fallback",
                 extra={"extra_fields": {"query_length": len(query), "chunk_count": len(chunks)}},
             )
-            return self._generate(query, chunks, history, web_results=web_results, persona=persona, language=language)
+            fallback_answer = self._generate(
+                query, chunks, history, web_results=web_results, persona=persona, language=language
+            )
+            return fallback_answer, None
         logger.info(
             "structured_output_success",
             extra={
@@ -1207,7 +1217,7 @@ class ChatService:
                 }
             },
         )
-        return structured.answer
+        return structured.answer, {"answer": structured.answer, "sources": structured.sources}
 
     def _grade_retrieval(self, query: str, chunks: list[RetrievedChunk]) -> str:
         """Cheap heuristic grade of retrieval quality — no LLM call, a

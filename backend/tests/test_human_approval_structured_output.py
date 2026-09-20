@@ -99,8 +99,9 @@ class TestStructuredOutput:
         monkeypatch.setattr(settings, "structured_output_enabled", True)
         llm_client = FakeLLMClient(structured='{"answer": "the structured answer", "sources": ["doc-1"]}')
         service = make_service(llm_client)
-        answer = service._generate_structured("q", [make_chunk()], None)
+        answer, structured_payload = service._generate_structured("q", [make_chunk()], None)
         assert answer == "the structured answer"
+        assert structured_payload == {"answer": "the structured answer", "sources": ["doc-1"]}
         assert llm_client.structured_calls  # JSON-mode was used
         assert not llm_client.generate_calls  # no fallback needed
 
@@ -111,8 +112,9 @@ class TestStructuredOutput:
         import logging
 
         with caplog.at_level(logging.INFO, logger="app.services.rag_service"):
-            answer = service._generate_structured("q", [make_chunk()], None)
+            answer, structured_payload = service._generate_structured("q", [make_chunk()], None)
         assert answer == "plain fallback"
+        assert structured_payload is None  # fallback must never be reported as a successful structured response
         assert llm_client.structured_calls
         assert llm_client.generate_calls  # fell back
         assert any(r.message == "structured_output_fallback" for r in caplog.records)

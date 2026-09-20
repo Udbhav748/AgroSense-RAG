@@ -454,9 +454,18 @@ class Settings(BaseSettings):
     # client sends structured_response=true, ChatService asks the provider
     # for a strict JSON answer (via response_mime_type / response_format)
     # and validates it against the StructuredAnswer schema, falling back to
-    # plain text if the model's output doesn't parse. Off by default so
-    # the standard free-text path is unchanged.
-    structured_output_enabled: bool = False
+    # plain text if the model's output doesn't parse.
+    #
+    # Module 10 gap-closure (2026-09-21): this is now True by default. The
+    # standard free-text path is still the default per-request behavior --
+    # structured mode only activates when a caller explicitly opts in via
+    # ChatRequest.structured_response=true (POST /chat only; /chat/stream,
+    # /chat/diagnose(/stream) never request it, since token-by-token SSE
+    # and vision-diagnosis text are intentionally free-form contracts, not
+    # structured ones). This flag being True just means the already-built,
+    # already-tested opt-in path is actually reachable in production
+    # instead of silently dead regardless of what a caller requests.
+    structured_output_enabled: bool = True
 
     # --- Multi-agent features (off by default) -------------------------
     # When True, intent classification uses an LLM router agent

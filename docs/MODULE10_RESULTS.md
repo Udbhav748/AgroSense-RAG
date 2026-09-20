@@ -464,3 +464,125 @@ Decrypted via normal read path matches original: True
 Full backend regression after this integration: 875 passed (863 + 12 new), 1 skipped, 0 failed.
 
 **Remaining limitations**: only `ChatTurn.content` is encrypted (documents/FAISS/title are not, disclosed above); this is application-level, not platform-level (no encrypted-EBS deployment exists); no key-rotation procedure exists (rotating the key makes prior rows undecryptable — a real, disclosed operational gap). This is one security control, not a GDPR/HIPAA compliance claim.
+
+
+## Structured Output — Production Path + Measured Evaluation (2026-09-21)
+
+**Root cause of the previous 0.4118 "Schema Compliance Rate"**: this was an
+evaluator-artifact, not a functional defect. The 17-case dataset
+(`eval/module10/runners/run_structured_output_eval.py`) intentionally
+contains 10 deliberately malformed fixtures (missing fields, wrong types,
+malformed JSON, empty provider responses) and 7 well-formed ones. "Schema
+Compliance Rate" was defined as the fraction of ALL 17 cases that parsed
+into a valid `StructuredAnswer` -- 7/17 = 0.4118 -- which structurally
+cannot exceed 7/17 for this dataset regardless of how correct the parser
+is. The dataset's own `parser_correctness_rate` (did the parser's
+accept/reject decision match what each case's own fixture intended) was
+already 1.0 (17/17), and `field_accuracy` was already 1.0 -- the real
+signal that the parser/validator was working correctly all along. On top
+of the evaluator-artifact issue, the underlying production path was also
+compounding the confusion: `Settings.structured_output_enabled` defaulted
+to `False`, so even a well-formed request never reached this code path
+live, and `ChatService._generate_structured` discarded the validated
+`StructuredAnswer.sources` field and never surfaced structured success/
+fallback status in the API response -- an **endpoint-integration** gap on
+top of the evaluator-artifact one.
+
+**Production-path changes**:
+- `Settings.structured_output_enabled` is now `True` by default
+  (`backend/app/core/config.py`). The opt-in per-request contract is
+  unchanged: a caller must still send `ChatRequest.structured_response=true`
+  on `POST /chat` to activate JSON mode -- this flag being `True` just
+  means that already-built, already-tested path is actually reachable in
+  production instead of silently dead no matter what a caller requests.
+- `ChatService._generate_structured` (`rag_service.py`) now returns
+  `(answer_text, structured_payload | None)` instead of just a string --
+  `structured_payload` is the validated `{"answer", "sources"}` dict when
+  the provider's output genuinely parsed/validated, `None` on any
+  fallback. Previously this information was computed and then discarded.
+- `agent_graph/nodes.py::generator_node` stores this on
+  `AgentState.structured_output` (a field that already existed on the
+  state model but was never populated).
+- `agent_graph/nodes.py::finalizer_node` surfaces it in the API response
+  as `ChatResponse.metadata["structured_output_used"]` (bool) and, when
+  true, `metadata["structured_output"]` (the validated payload) --
+  additive fields on the existing `metadata: dict[str, Any]` field, so
+  the response schema itself is unchanged and no existing consumer
+  breaks. Only set at all when the caller actually requested structured
+  mode; absent on a normal free-text response.
+- `/chat/stream` and `/chat/diagnose(/stream)` never request structured
+  mode -- confirmed by inspection (`structured_response` is never passed
+  into `stream_query`/`stream_diagnose`) and by a new endpoint test
+  proving `/chat/stream` still streams plain text even when the request
+  body sets `structured_response=true`. This is a deliberate boundary,
+  not an oversight: token-by-token SSE and vision-diagnosis text are
+  free-form contracts by design.
+
+**Failure and fallback behavior**: a malformed or schema-invalid provider
+response degrades to the existing plain-text `_generate()` path and is
+reported as `structured_output_used: false` -- proven through the real
+`POST /chat` endpoint (not just the parser in isolation) for both a
+non-JSON provider response and a syntactically-valid-but-schema-invalid
+one (missing the required `answer` field). The fallback never fabricates
+a `structured_output` payload for a request that didn't actually produce
+one.
+
+**New regression tests**: `backend/tests/test_structured_output_production.py`
+(9 new tests) -- valid structured response through the real `POST /chat`
+path, malformed-JSON safe recovery through the same path, schema-invalid
+(missing required field) safe recovery through the same path,
+`structured_response=false` never invokes JSON mode, `/chat/stream`
+ignores `structured_response` and streams plain text unaffected, plus
+direct Pydantic edge cases (null answer, null sources, complete valid
+response, missing required field). `test_human_approval_structured_output.py`
+and the two agent-graph test fakes (`test_agent_graph_metrics.py`,
+`test_agent_graph_production.py`) were updated for the new
+`_generate_structured` tuple return contract (existing tests, not
+weakened -- same assertions, adjusted for the accurate new signature).
+
+**Measured results** (`eval/module10/reports/structured_output_final_<timestamp>.json`,
+same 17-case dataset as before, for a valid before/after comparison):
+
+| Metric | Before | After |
+|---|---|---|
+| Schema Compliance Rate | 0.4118 | 0.4118 (unchanged -- see root cause above; this dataset's ratio of valid:malformed fixtures is fixed by design) |
+| Field Accuracy | 1.0 | 1.0 |
+| Parser Correctness Rate | 1.0 | 1.0 |
+| Validation Success Rate | not previously reported | 0.4118 (same population as Schema Compliance Rate for this dataset -- disclosed as such, not presented as an independent signal) |
+| Fallback cases | not previously reported | 10 |
+| Malformed-output cases | not previously reported | 10 |
+| Unrecoverable cases (intended-success cases that failed) | not previously reported | 0 |
+
+Outcome breakdown (new): 7 provider-produced-valid-structured-output, 0
+successfully-repaired/recovered (this parser has no repair/retry step --
+disclosed, not fabricated), 10 fallback-output, 0 failed/unstructured
+(every malformed case degraded safely rather than raising or corrupting
+the response).
+
+**Real endpoint evidence**: `TestEndpointStructuredOutputSuccess` and
+`TestEndpointStructuredOutputSafeRecovery` in the new test file exercise
+`POST /chat` through FastAPI's `TestClient` with a fake LLM client
+standing in for the real provider (no live Gemini/Groq call, consistent
+with this project's offline test convention) -- proving the full
+request -> `ChatService.handle_query` -> agent graph `generator_node` ->
+`_generate_structured` -> provider JSON mode -> `parse_structured_answer`
+-> Pydantic `StructuredAnswer` validation -> `ChatResponse` path, for both
+a valid structured provider response and a malformed one.
+
+**Full backend regression**: 884 passed (875 + 9 new), 1 skipped, 0
+failed. Command: `cd backend && pytest`.
+
+**Remaining structured-output limitations**: only `POST /chat`'s
+non-streaming path is structured-capable -- `/chat/stream` and
+`/chat/diagnose(/stream)` remain free-text-only by design, not gap. The
+17-case parser dataset is hand-authored, not derived from live provider
+output, so it still does not measure how often a real Gemini/Groq call
+actually emits malformed JSON in production (would require live
+generation calls, not attempted here to conserve API quota -- the new
+endpoint tests use a fake LLM client for this reason). There is no
+repair/retry step for a malformed structured response -- it degrades
+straight to free text rather than asking the provider to reformat.
+`StructuredAnswer.answer` still has no `min_length` constraint at the
+bare-Pydantic-schema level (mitigated in practice by
+`parse_structured_answer`'s own stricter empty-answer rejection, per the
+`so_010` case) -- a disclosed schema looseness, not fixed in this pass.

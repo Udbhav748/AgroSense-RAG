@@ -48,7 +48,7 @@ Not verified at audit time — see `docs/MODULE10_PROJECT_INTRO.md`.
 | Retry | ✅ | tenacity on LLM/embedding/web-search, unchanged from `docs/CHECKLIST.md` §1 — not re-measured here (see "do not duplicate" instruction). |
 | Reflection | ✅ | `ChatService._correct`; failure-injection confirms it degrades safely under a real LLM failure — `failure_eval_20260919T092719Z.json`, `fail_001-003`. |
 | Human approval | ✅ | **PHASE 5**: `human_approval_node` is now genuinely wired into `build_chat_graph()`'s live routing for the web-search escalation (previously registered but unreachable — see `docs/MODULE10_FINAL_AUDIT.md` §8). `route_after_approval` confirmed: rejected/expired/pending never resume the guarded action; only a real, resolved `approved` status does. Document-delete approval separately hardened to verify the actual `ApprovalStore` resolution state instead of a client-supplied boolean. 12 new tests (`test_agent_graph_production.py`, `test_main.py`). Off by default in production — unchanged scope from Phase 1. |
-| Structured output | ⚠️ unchanged from `docs/CHECKLIST.md` §1 — not in this audit's scope. |
+| Structured output | ✅ Module 10 gap-closure (2026-09-21): now a real, enabled production path on `POST /chat` — see `docs/CHECKLIST.md` §1/§5 and `docs/MODULE10_RESULTS.md` for the wiring, measured metrics, and endpoint-level evidence. |
 | Error handling | ✅ | `AppError` taxonomy; `run_failure_eval.py` confirms 11/12 failure scenarios map to the correct taxonomy category and recover safely (`failure_eval_20260919T092719Z.json`). |
 | Logging | ✅ | unchanged from Phase 1, confirmed still emitting during every live run in this audit (see raw log excerpts this audit captured). |
 

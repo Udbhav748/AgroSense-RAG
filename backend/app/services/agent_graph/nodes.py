@@ -910,12 +910,13 @@ def generator_node(state: AgentState, context: GraphContext | None = None) -> Ag
         extra_instruction = REFLECTION_INSTRUCTION
     recent_history = state.history[-_MAX_HISTORY_TURNS:] if state.history else None
     language = state.metadata.get("language", "en")
+    structured_payload: dict[str, Any] | None = None
     try:
         with timer:
             if chat_service is None:
                 raise RuntimeError("generator_node requires context.chat_service")
             if settings.structured_output_enabled and state.metadata.get("structured_response"):
-                answer = chat_service._generate_structured(  # noqa: SLF001
+                answer, structured_payload = chat_service._generate_structured(  # noqa: SLF001
                     state.query,
                     state.retrieved_chunks,
                     recent_history,
@@ -941,7 +942,9 @@ def generator_node(state: AgentState, context: GraphContext | None = None) -> Ag
             latency_ms=timer.latency_ms,
         )
         logger.info(GENERATION_COMPLETED, extra={"extra_fields": {"answer_length": len(answer)}})
-        new_state = state.copy_with(draft_answer=answer, steps_taken=state.steps_taken + 1)
+        new_state = state.copy_with(
+            draft_answer=answer, structured_output=structured_payload, steps_taken=state.steps_taken + 1
+        )
     except Exception as exc:
         error_type, root_cause = _node_error(exc)
         emit_node_trace(
@@ -1174,6 +1177,17 @@ def finalizer_node(state: AgentState, context: GraphContext | None = None) -> Ag
                 )
             source_type = chat_resp.answer_source
             final_sources = [s.model_dump() for s in chat_resp.sources]
+            if state.metadata.get("structured_response"):
+                # Only set when the caller actually opted into structured
+                # mode (ChatRequest.structured_response=true) -- absent
+                # otherwise, so a normal free-text response's metadata is
+                # unchanged. True only when the provider's output genuinely
+                # parsed/validated (see ChatService._generate_structured);
+                # a fallback-to-free-text degrade is reported as False, not
+                # silently presented as a successful structured response.
+                chat_resp.metadata["structured_output_used"] = state.structured_output is not None
+                if state.structured_output is not None:
+                    chat_resp.metadata["structured_output"] = state.structured_output
             if state.approval_status in ("pending", "rejected", "expired"):
                 chat_resp.metadata["approval_status"] = state.approval_status
                 if state.approval_payload_reference:

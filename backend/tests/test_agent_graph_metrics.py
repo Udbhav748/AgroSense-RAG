@@ -49,7 +49,8 @@ class FakeChatService:
         return "answer [1]"
 
     def _generate_structured(self, *a, **k):
-        return self._generate(*a, **k)
+        answer = self._generate(*a, **k)
+        return answer, {"answer": answer, "sources": []}
 
     def _is_ungrounded(self, answer, chunks, web_results):
         return self._ungrounded
