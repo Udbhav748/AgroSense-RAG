@@ -17,6 +17,14 @@
 
 ![Home screen](docs/screenshots/home.png)
 
+### Demo
+
+A ~2:20 walkthrough recorded straight from the running app (signup → PDF upload/ingestion → grounded chat with streamed citations → multimodal leaf diagnosis → session history) — real screen capture, not a mockup.
+
+https://github.com/user-attachments/assets/PASTE_UPLOADED_VIDEO_ID_HERE
+
+> The clip lives at `docs/assets/demo.mp4` (poster: `docs/assets/demo-poster.jpg`). GitHub doesn't render a local repo-relative `<video>` tag in README previews, so upload `docs/assets/demo.mp4` via a comment/PR attachment on GitHub.com (drag the file into any comment box) and replace the placeholder link above with the `user-attachments` URL GitHub generates — then it plays inline for anyone viewing the README.
+
 ## Table of contents
 
 - [What is InsightAI-RAG](#what-is-insightai-rag)
