@@ -572,6 +572,18 @@ class Settings(BaseSettings):
     # blended rate.
     cost_per_1k_tokens: float = 0.00025
 
+    # Encryption-at-rest key for app.core.encryption (AES-256-GCM), used by
+    # app/services/postgres_session_store.py to encrypt/decrypt ChatTurn.content.
+    # Loaded via Settings (like every other config value in this app) rather
+    # than encryption.py's own os.environ fallback, since this codebase's
+    # .env is parsed by pydantic-settings and never exported to the process
+    # environment -- reading raw os.environ here would silently never see a
+    # value set only in .env. None (unset) means encrypted session-content
+    # read/write fails closed (EncryptionKeyMissingError), never falls back
+    # to storing plaintext. Base64-encoded 32-byte key; generate one with
+    # `python -c "from app.core.encryption import generate_key; print(generate_key())"`.
+    encryption_key_b64: str | None = None
+
     # Base URL of the LeafSense vision service (a separate FastAPI process,
     # its own TensorFlow/Keras stack — see services/vision_client.py).
     # Defaults to 8001, NOT LeafSense's own default of 8000: LeafSense's

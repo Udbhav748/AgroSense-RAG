@@ -10,8 +10,19 @@ restarts and horizontal processes.
 Retention mirrors the in-memory store's bounds so the DB can't grow
 without limit: max_sessions (LRU by last_accessed_at) and
 max_turns_per_session per session.
+
+ENCRYPTION AT REST (Module 10 gap-closure, 2026-09-21): `ChatTurn.content`
+is the actual text of every user query and assistant answer ever sent
+through this app — the single most sensitive persisted field this store
+owns (it can contain anything a user typed, including content they
+expect the uploaded-document chat to keep private). It is now encrypted
+with `app.core.encryption` (AES-256-GCM) before being written, and
+decrypted on read — see `_encrypt_content`/`_decrypt_content` below for
+the exact boundary and the backward-compatibility strategy for rows
+written before this change.
 """
 
+import base64
 import logging
 import uuid
 from datetime import UTC, datetime
@@ -19,10 +30,55 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import SessionLocal
+from app.core.encryption import decrypt_bytes, encrypt_bytes
 from app.models.db_models import ChatSession, ChatTurn
 
 logger = logging.getLogger(__name__)
+
+# Versioned prefix marking a `content` value as ciphertext produced by
+# _encrypt_content, distinct from a legacy plaintext row written before
+# encryption was wired in here. Using an explicit marker (rather than
+# "try to decrypt, fall back to plaintext on failure") avoids ever
+# ambiguously treating a wrong-key/tampered ciphertext as if it were
+# plaintext -- a marked row that fails to decrypt is a real failure and
+# must raise, not silently degrade.
+_ENC_PREFIX = "enc1:"
+
+
+def _encrypt_content(plaintext: str, *, session_id: str) -> str:
+    """Encrypt a chat turn's content for storage. `session_id` is bound
+    as associated data (authenticated but not encrypted) so a ciphertext
+    row can never be silently moved/read under a different session's
+    context without detection -- an extra tenant/session-isolation
+    guarantee on top of the existing session_id foreign key + tenant_id
+    ownership check already enforced by callers of this store.
+
+    Raises EncryptionKeyMissingError (fails closed, never falls back to
+    storing plaintext) if Settings.encryption_key_b64 isn't configured.
+    """
+    ciphertext = encrypt_bytes(
+        plaintext.encode("utf-8"), key_b64=settings.encryption_key_b64, associated_data=session_id.encode("utf-8")
+    )
+    return _ENC_PREFIX + base64.b64encode(ciphertext).decode("ascii")
+
+
+def _decrypt_content(stored: str, *, session_id: str) -> str:
+    """Decrypt a chat turn's content read from storage. A value without
+    the _ENC_PREFIX marker is a legacy plaintext row (written before
+    this change) and is returned as-is -- no migration is required for
+    existing rows to remain readable, and no plaintext row is ever
+    mistaken for ciphertext. A value WITH the marker that fails to
+    decrypt (wrong key, tampered ciphertext, missing key) raises rather
+    than returning anything -- fails closed, per
+    app.core.encryption's own contract.
+    """
+    if not stored.startswith(_ENC_PREFIX):
+        return stored  # legacy plaintext row, pre-dates this change
+    ciphertext = base64.b64decode(stored[len(_ENC_PREFIX):])
+    plaintext = decrypt_bytes(ciphertext, key_b64=settings.encryption_key_b64, associated_data=session_id.encode("utf-8"))
+    return plaintext.decode("utf-8")
 
 
 def _utcnow() -> datetime:
@@ -88,14 +144,18 @@ class PostgresSessionStore:
                 return None
             session.last_accessed_at = _utcnow()
             db.commit()
-            return [{"role": turn.role, "content": turn.content} for turn in session.turns]
+            return [
+                {"role": turn.role, "content": _decrypt_content(turn.content, session_id=session_id)}
+                for turn in session.turns
+            ]
 
     def append_turn(self, session_id: str, role: str, content: str) -> bool:
         with _session() as db:
             session = db.get(ChatSession, session_id)
             if session is None:
                 return False
-            session.turns.append(ChatTurn(role=role, content=content, created_at=_utcnow()))
+            encrypted_content = _encrypt_content(content, session_id=session_id)
+            session.turns.append(ChatTurn(role=role, content=encrypted_content, created_at=_utcnow()))
             session.last_accessed_at = _utcnow()
             # Trim to max_turns_per_session (keep most recent)
             if len(session.turns) > self._max_turns_per_session:

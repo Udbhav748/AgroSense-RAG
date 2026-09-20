@@ -427,3 +427,40 @@ Evidence: `backend/eval/module10/reports/faithfulness_final_20260920T181537Z.jso
 2. `eval-potato-02`'s root cause is unresolved.
 3. A full 24-case human-evaluation re-run under these fixes has not been performed (out of this pass's scope — Faithfulness only).
 4. `docs/CHECKLIST.md`/`docs/DESIGN_REVIEW.md` updates for these specific fixes: see `docs/CHECKLIST.md` directly.
+
+---
+
+## Encryption at Rest — Storage Integration (2026-09-21)
+
+A standalone AES-256-GCM primitive (`app/core/encryption.py`) existed from an earlier pass but was **not wired into any real persistence** — this closes that gap.
+
+**Sensitive data identified**: `ChatTurn.content` (`chat_turns` table) — the actual text of every stored user query and assistant answer — is the single most sensitive field this app persists to a database. `ChatSession.title` is documented as a future display field but no code path currently populates it, so it's out of scope. Uploaded document files, FAISS index/metadata are explicitly **not** encrypted this pass — they're read directly by PyMuPDF/OCR/S3-sync, and wiring encryption there needs its own migration story (disclosed, not attempted).
+
+**Integration**: `app/services/postgres_session_store.py` now encrypts `content` before every `append_turn` write and decrypts on every `get_history` read, with `session_id` bound as AES-GCM associated data (a ciphertext from one session cannot be decrypted under another, even with the correct key — an extra guarantee beyond the existing session_id/tenant_id ownership checks).
+
+**Real bug found and fixed along the way**: `app/core/encryption.py`'s key lookup originally read raw `os.environ`, but this codebase's `.env` is parsed by `pydantic-settings` and never exported to the process environment — so a key set only in `.env` was silently invisible. Fixed by adding `Settings.encryption_key_b64` and having `postgres_session_store.py` pass it explicitly. Confirmed by 6 existing DB-backed tests (`test_agent_graph_stream.py`, `test_vision_diagnose.py`, `test_weather_service.py`) that broke with `EncryptionKeyMissingError` before this fix and pass cleanly after it — a real regression, caught and fixed before commit, not shipped broken.
+
+**Existing-record strategy**: backward-compatible read, no forced migration. A stored value without the `enc1:` marker is treated as a legacy plaintext row and returned as-is; every new write is unconditionally encrypted (a missing key fails the write closed, never falls back to plaintext).
+
+**Measured results** (`backend/eval/module10/reports/encryption_at_rest_integration_20260920T185450Z.json`, 12 integration test cases against a real database through the actual repository, not just the primitive in isolation):
+
+| Outcome | Result |
+|---|---|
+| Successful encrypted writes | 12/12 as expected |
+| Successful decrypts (round-trip) | 2/2 |
+| Tamper detection rate | 1/1 (100%) |
+| Wrong-key rejection rate | 2/2 (100%) |
+| Missing-key fail-closed rate | 2/2 (100%) |
+| Plaintext-at-rest leakage count | **0** |
+
+Concrete demonstration (synthetic example, no real user data):
+```
+Application value:      "What does the document say about [REDACTED SENSITIVE EXAMPLE]?"
+Raw persisted value:    "enc1:rfU5Y6//r7IY7J0gSe+P/VrB5tPB1dtL7YWvf93E/pCbHRQ24F/0lZUFSvBZeZqwy/Np9zZVfux..."
+Plaintext present in raw storage: False
+Decrypted via normal read path matches original: True
+```
+
+Full backend regression after this integration: 875 passed (863 + 12 new), 1 skipped, 0 failed.
+
+**Remaining limitations**: only `ChatTurn.content` is encrypted (documents/FAISS/title are not, disclosed above); this is application-level, not platform-level (no encrypted-EBS deployment exists); no key-rotation procedure exists (rotating the key makes prior rows undecryptable — a real, disclosed operational gap). This is one security control, not a GDPR/HIPAA compliance claim.
