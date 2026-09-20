@@ -399,10 +399,31 @@ This result should not be extrapolated as the new full-dataset
 Faithfulness score; it is direct, targeted confirmation that the fix
 resolves the exact regression these two cases demonstrated.
 
+**FAITHFULNESS ROOT-CAUSE FIXES + FULL RERUN (2026-09-20)**: the full
+20-case golden benchmark was re-run under two real root-cause fixes,
+using the exact same dataset/scoring/retrieval-setup class as every
+prior run (`scripts/run_rag_eval.py`). Both previously-disclosed
+provider-reliability failures and one of the two completeness failures
+are now genuinely fixed — not by touching the evaluator, not by
+excluding cases, and not by hardcoding answers.
+
+| Metric | Before | After | Delta |
+|---|---:|---:|---:|
+| Raw Faithfulness (20 cases) | 0.6485 | **0.7093** | **+0.0608** |
+| Zero-score cases | 4 | **1** | **-3** |
+| Excluding remaining zero-score case (n=19) | 0.7206 (n=18, old definition) | 0.7466 (n=19) | — |
+
+**Root causes and fixes, per case**:
+
+1. **`eval-orange-01`, `eval-pepper-01` (were `GENERATION_ERROR_REPLY`, 0.0 → now real answers, 0.8889 / 1.0)**: root cause was a transient Groq failure surviving Groq's own internal retries, with `Settings.fallback_llm_provider` unset — `FallbackLLMClient` (`app/services/fallback_llm_client.py`) already implements and unit-tests exactly this second-provider recovery path, it was simply never wired in. **Fix**: set `FALLBACK_LLM_PROVIDER=gemini` in `backend/.env` (and recommended in `.env.example`) — zero new code, an existing, already-tested architecture turned on. Regression tests: `tests/test_agent_graph_production.py::test_generator_node_recovers_via_fallback_provider_instead_of_generation_error_reply` (proves recovery) and `::test_generator_node_still_returns_generation_error_reply_when_both_providers_fail` (proves the fix doesn't weaken the no-fabrication guarantee when both providers genuinely fail).
+2. **`eval-potato-01` (0.0 → 0.2222, genuine content improvement)**: root cause was **not generation** — the exact "Agricultural Treatment & Dosage Reference: Potato - Early Blight" chunk (with both organic and chemical remedies matching the ground truth) was confirmed present in the corpus and in the top-20 hybrid-search candidate pool, but ranked #8, outside the old `retrieval_top_k=5` cutoff — verified directly against the live vector store. Enabling the existing cross-encoder reranking feature was tried first and did **not** surface the chunk into the top-5 either (the MS-MARCO-trained cross-encoder doesn't score this corpus's pipe-delimited dosage-table format as highly relevant to a natural-language question — a real, disclosed limitation, not fixed). **Fix**: raised `Settings.retrieval_top_k` from 5 to 8, verified empirically to include the missing chunk. Test: `tests/test_retrieval_top_k_faithfulness_fix.py`. The generated answer now genuinely covers both fungicides and organic bio-treatments (previously it explicitly said "I couldn't find information on bio-treatments" — that false claim is gone), even though the lexical scorer doesn't credit it a high score for unrelated phrasing/claim-matching reasons.
+3. **`eval-potato-02` (still 0.0 — investigated, not fixed)**: the relevant dosage chunk was **already** in this case's top-5 at `top_k=5`, so neither fix above applies to its failure mode. The exact remaining cause was not further isolated in this pass — disclosed as the one still-open item, not silently dropped.
+
+Evidence: `backend/eval/module10/reports/faithfulness_final_20260920T181537Z.json` (full before/after, all 20 per-case scores, root-cause detail, config changes, exact reproduction command). Full backend regression: 863 passed, 1 skipped, 0 failed (860 baseline + 3 new tests).
+
 **Still open:**
 
-1. A full-dataset Faithfulness re-run (20-case RAG benchmark / 24-case
-   human evaluation) has not been performed under the fix — recommended
-   as the next quota-budgeted evaluation session.
-2. `docs/CHECKLIST.md`/`docs/DESIGN_REVIEW.md` updates for the Phase 5
-   fixes: see those files directly for what was and wasn't updated.
+1. Mean Faithfulness (0.7093) remains below the 0.80 target — a real, measured improvement, not a claim the target is met.
+2. `eval-potato-02`'s root cause is unresolved.
+3. A full 24-case human-evaluation re-run under these fixes has not been performed (out of this pass's scope — Faithfulness only).
+4. `docs/CHECKLIST.md`/`docs/DESIGN_REVIEW.md` updates for these specific fixes: see `docs/CHECKLIST.md` directly.

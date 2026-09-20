@@ -176,6 +176,7 @@ Question → Embedding (`embedding_service.py`) → Vector search (`faiss_vector
 | Mean Reciprocal Rank | ✅ | `reciprocal_rank`, same |
 | Groundedness | ✅ | Lexical `is_grounded` (`run_eval.py:118-131`) + LLM-as-judge entailment (`235-265`) |
 | Citation Accuracy | ✅ | `citation_supported`, `run_eval.py:180-191` |
+| Faithfulness (20-case golden benchmark, `scripts/run_rag_eval.py`) | ⚠️ | **Measured 0.7093** (raw, 2026-09-20), below the 0.80 target. Root-caused and partially fixed this pass: 3 of 4 previously-zero-scored cases fixed (2 via wiring the already-existing `FallbackLLMClient` provider-failover, 1 via raising `retrieval_top_k` 5→8 after a confirmed retrieval-ranking miss); 1 case (`eval-potato-02`) remains unresolved. Full before/after: `backend/eval/module10/reports/faithfulness_final_*.json`, `docs/MODULE10_RESULTS.md`. |
 
 ---
 

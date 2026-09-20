@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-09-19T18:04:24.511621+00:00",
+  "timestamp": "2026-09-20T18:12:57.105472+00:00",
   "total_queries": 20,
   "crops_evaluated": [
     "apple",
@@ -12,12 +12,12 @@
   ],
   "retrieval_mode": "Hybrid RRF + Cross-Encoder",
   "llm_enabled": true,
-  "mean_context_recall": 0.8604,
+  "mean_context_recall": 0.8104,
   "mean_context_precision": 0.9662,
-  "mean_faithfulness": 0.6485,
-  "mean_answer_relevance": 0.8354,
-  "mean_composite_score": 0.7768,
-  "mean_latency_sec": 19.2802,
+  "mean_faithfulness": 0.7093,
+  "mean_answer_relevance": 0.8912,
+  "mean_composite_score": 0.8038,
+  "mean_latency_sec": 27.4192,
   "quality_gate_passed": true,
   "item_results": [
     {
@@ -29,10 +29,10 @@
       "retrieved_chunks_count": 5,
       "context_recall": 1.0,
       "context_precision": 1.0,
-      "faithfulness": 0.8888888888888888,
-      "answer_relevance": 0.9189867479238867,
-      "composite_score": 0.9501770765124185,
-      "latency_sec": 182.18488929991145,
+      "faithfulness": 0.4,
+      "answer_relevance": 0.9348037635106994,
+      "composite_score": 0.7803586533521063,
+      "latency_sec": 179.63095969997812,
       "matched_ingredients": [
         "Chlorothalonil",
         "Azoxystrobin",
@@ -42,7 +42,7 @@
         "Bacillus subtilis"
       ],
       "missing_ingredients": [],
-      "generated_answer": "Early\u202fblight on tomatoes is caused by the fungus *Alternaria solani*\u202f[3]. Effective controls include both conventional fungicides and certified organic options.  \n\n**Chemical fungicides**  \n- Chlorothalonil (75\u202f% WP) applied at 2\u202fg\u202fper\u202fL of spray mix.  \n- Azoxystrobin (23\u202f% SC) applied at 1\u202fml\u202fper\u202fL of spray mix.  \n- Difenoconazole (25\u202f% EC) (same dosage range as the other products).  \n\n**Organic\u2011compatible methods**  \n- Copper octanoate.  \n- Potassium bicarbonate.  \n- Bacillus\u202fsubtilis\u2011based products such as Serenade\u202fASO.  \n\nThese options can be rotated to manage resistance (e.g., FRAC group\u202fM5 with FRAC\u202f11/3) and should be applied according to the recommended spray interval of 7\u201310\u202fdays and a pre\u2011harvest interval of 7\u202fdays\u202f[1].",
+      "generated_answer": "The early\u2011blight fungus\u202f*Alternaria solani* on tomato can be controlled with several registered chemicals and with organic\u2011compatible products.  \n\n**Chemical fungicides**  \n- Chlorothalonil (75\u202f% wettable powder) \u2013 applied at 2\u202fg per litre of spray water.  \n- Azoxystrobin (23\u202f% suspension concentrate) \u2013 applied at 1\u202fml per litre.  \n- Difenoconazole (25\u202f% emulsifiable concentrate) \u2013 used at the same rate as the other chemistries.  \n\n**Organic\u2011approved methods**  \n- Copper octanoate  \n- Potassium bicarbonate  \n- *Bacillus subtilis* formulations (e.g., Serenade\u202fASO)  \n\nThese options are listed for tomato early blight caused by *Alternaria* species\u202f[1][3][4].",
       "retrieved_chunk_snippets": [
         "# Comprehensive Diagnostic & Management Guide: Tomato Early Blight  ## 1. Pathogen Overview & Etiology - **Crop**: Tomato (*Solanum lycopersicum*) - *...",
         "# Comprehensive Diagnostic & Management Guide: Tomato Early Blight  ## 1. Pathogen Overview & Etiology - **Crop**: Tomato (*Solanum lycopersicum*) - *...",
@@ -58,10 +58,10 @@
       "retrieved_chunks_count": 5,
       "context_recall": 1.0,
       "context_precision": 0.325,
-      "faithfulness": 0.6,
-      "answer_relevance": 0.898740311266681,
-      "composite_score": 0.6587581941539729,
-      "latency_sec": 3.0413671999704093,
+      "faithfulness": 0.75,
+      "answer_relevance": 0.9096367782974457,
+      "composite_score": 0.7011054752432264,
+      "latency_sec": 4.7710815001046285,
       "matched_ingredients": [
         "Mandipropamid",
         "Cyazofamid",
@@ -71,7 +71,7 @@
         "Potassium phosphonate"
       ],
       "missing_ingredients": [],
-      "generated_answer": "Control late blight on tomatoes by promptly removing infected plants, placing them in plastic bags, and avoiding composting the tissue\u202f[1].\u202fApply a fungicide spray every\u202f5\u20117\u202fdays, observing a\u202f1\u2011day pre\u2011harvest interval\u202f[1].\u202fEffective chemical active ingredients include\u202fMandipropamid\u202f23.4\u202f%\u202fSC (Revus) at\u202f0.8\u202fml\u202fper\u202fL,\u202fCyazofamid\u202f34.5\u202f%\u202fSC (Ranman) at\u202f0.3\u202fml\u202fper\u202fL, or\u202fCymoxanil\u202f60\u202f%\u202fWG\u202f[1].\u202fOrganic options such as copper\u202fhydroxide\u202f(2.5\u202fg/L), Bordeaux mixture\u202f1\u202f%, or potassium phosphonate salts can also be used\u202f[1].\u202fThese spray programs, combined with good moisture\u2011management (e.g., avoiding leaf wetness), further help suppress the disease\u202f[5].",
+      "generated_answer": "Control late blight on tomato by promptly removing and bagging any infected plants to prevent spread, and avoid composting the diseased tissue\u202f[1]. Apply a fungicide spray every 5\u20137\u202fdays, observing a 1\u2011day pre\u2011harvest interval\u202f[1]. Effective chemical active ingredients include Mandipropamid\u202f23.4\u202f% SC (Revus), Cyazofamid\u202f34.5\u202f% SC (Ranman) or Cymoxanil\u202f60\u202f% WG\u202f[1][8]. Organic alternatives such as copper\u202fhydroxide (2.5\u202fg/L), Bordeaux mixture\u202f1\u202f% or potassium phosphonate salts can also be used\u202f[1][8].",
       "retrieved_chunk_snippets": [
         "Agricultural Treatment & Dosage Reference: Tomato - Early Blight Crop: tomato | Disease: early blight | Pathogen Type: Fungal | Organic Remedy: Copper...",
         "Agricultural Treatment & Dosage Reference: Tomato - Early Blight Crop: tomato | Disease: early blight | Pathogen Type: Fungal | Organic Remedy: Copper...",
@@ -87,10 +87,10 @@
       "retrieved_chunks_count": 5,
       "context_recall": 1.0,
       "context_precision": 1.0,
-      "faithfulness": 1.0,
-      "answer_relevance": 0.9160236064565952,
-      "composite_score": 0.9815517806960694,
-      "latency_sec": 2.556772500043735,
+      "faithfulness": 0.8,
+      "answer_relevance": 0.8532456414958928,
+      "composite_score": 0.908855382197573,
+      "latency_sec": 3.4874551000539213,
       "matched_ingredients": [
         "Copper hydroxide",
         "Mancozeb",
@@ -99,7 +99,7 @@
         "Bacillus amyloliquefaciens"
       ],
       "missing_ingredients": [],
-      "generated_answer": "The recommended sprays for bacterial spot on tomato leaves and fruit are a copper\u2011based formulation combined with the biocontrol bacterium\u202f*Bacillus amyloliquefaciens*\u202fstrain\u202fD747, or a chemical tank\u2011mix of copper hydroxide plus Mancozeb\u202f75\u202f% WP, with Actigard (acibenzolar\u2011S\u2011methyl) as an alternative active ingredient\u202f[1].",
+      "generated_answer": "The recommended sprays for bacterial spot on tomato leaves and fruit are a copper\u2011based tank mix or the systemic product Actigard.  \n- **Copper\u202fhydroxide\u202f53.8\u202f% WG\u202f+\u202fMancozeb\u202f75\u202f% WP** (used as a tank mix) \u2013 apply\u202f2\u202fg\u202fCu\u202f+\u202f2\u202fg\u202fMancozeb per litre of spray\u202f[1].  \n- **Actigard (Acibenzolar\u2011S\u2011methyl)** \u2013 an alternative chemical option\u202f[1].  \n\nFor an organic approach, the same copper formulation can be combined with the biocontrol agent **Bacillus amyloliquefaciens\u202fstrain\u202fD747**\u202f[1].  \n\nAll treatments are applied at 5\u20117\u2011day intervals, with a 5\u2011day pre\u2011harvest interval, and should be applied only when foliage is dry and equipment is sanitized.",
       "retrieved_chunk_snippets": [
         "Bacterial spot: small, dark, circular-to-irregular lesions easier to see on leaf undersides, more water-soaked when wet; scabby, sometimes sunken frui...",
         "Agricultural Treatment & Dosage Reference: Tomato - Bacterial Spot Crop: tomato | Disease: bacterial spot | Pathogen Type: Bacterial | Organic Remedy:...",
@@ -116,9 +116,9 @@
       "context_recall": 1.0,
       "context_precision": 1.0,
       "faithfulness": 1.0,
-      "answer_relevance": 0.8982802116133801,
-      "composite_score": 0.9775302307877751,
-      "latency_sec": 3.226722600054927,
+      "answer_relevance": 0.9113006063581336,
+      "composite_score": 0.9804855910062122,
+      "latency_sec": 10.896592299919575,
       "matched_ingredients": [
         "Chlorothalonil",
         "Mancozeb",
@@ -126,7 +126,7 @@
         "Neem oil"
       ],
       "missing_ingredients": [],
-      "generated_answer": "Treat Septoria leaf spot on tomatoes with a combined program of fungicides and organic products.  \n\n- **Organic options** \u2013 Apply copper\u202fhydroxide (53.8\u202f% WG), cold\u2011pressed neem oil, or a bio\u2011fungicide foliar drench as a spray\u202f[1][3].  \n- **Chemical fungicides** \u2013 Use either chlorothalonil\u202f(75\u202f% WP) or mancozeb\u202f(75\u202f% WP) at a rate of\u202f2.0\u202fg per litre of spray mix\u202f[1][3].  \n- **Application schedule** \u2013 Spray every\u202f7\u201310\u202fdays and observe a pre\u2011harvest interval of\u202f7\u202fdays before picking\u202f[1][3].  \n- **Safety/cultural measures** \u2013 Apply a heavy organic or plastic mulch to reduce spore splash and promptly prune infected lower leaves\u202f[1][3].",
+      "generated_answer": "Treat Septoria leaf spot on tomatoes with a combination of organic and conventional fungicides.  \n\n**Organic options** \u2013 apply copper hydroxide\u202f53.8\u202f% WG, cold\u2011pressed neem oil, or a bio\u2011fungicide foliar drench at a rate of\u202f2\u202fg per litre of spray water, repeating the application every\u202f7\u201310\u202fdays and respecting a\u202f7\u2011day pre\u2011harvest interval\u202f[1][2][3].  \n\n**Chemical options** \u2013 use chlorothalonil\u202f75\u202f% WP or mancozeb\u202f75\u202f% WP at the same dosage (2\u202fg/L) and spray interval (7\u201310\u202fdays), also observing the 7\u2011day pre\u2011harvest interval\u202f[1][2][3].  \n\n**Safety and cultural practices** \u2013 lay down heavy organic or plastic mulch to reduce spore splash from the soil and promptly prune infected lower leaves before each spray\u202f[1][2][3]. Rotating fungicides by FRAC code is recommended to delay resistance development\u202f[4].",
       "retrieved_chunk_snippets": [
         "Agricultural Treatment & Dosage Reference: Tomato - Septoria Leaf Spot Crop: tomato | Disease: septoria leaf spot | Pathogen Type: Fungal | Organic Re...",
         "Agricultural Treatment & Dosage Reference: Tomato - Septoria Leaf Spot Crop: tomato | Disease: septoria leaf spot | Pathogen Type: Fungal | Organic Re...",
@@ -142,10 +142,10 @@
       "retrieved_chunks_count": 5,
       "context_recall": 1.0,
       "context_precision": 1.0,
-      "faithfulness": 0.5,
-      "answer_relevance": 0.7831464059863524,
-      "composite_score": 0.7920796024676514,
-      "latency_sec": 2.2238932999316603,
+      "faithfulness": 1.0,
+      "answer_relevance": 0.8114432987417626,
+      "composite_score": 0.95716128572565,
+      "latency_sec": 20.541323499986902,
       "matched_ingredients": [
         "Difenoconazole",
         "Chlorothalonil",
@@ -153,7 +153,7 @@
         "Potassium bicarbonate"
       ],
       "missing_ingredients": [],
-      "generated_answer": "The recommended approach combines a fungicide with non\u2011chemical cultural measures.  \nUse either **Difenoconazole\u202f25\u202f% EC at 0.5\u202fml per liter of spray water** or **Chlorothalonil\u202f75\u202f% WP at 2\u202fg per liter** as the fungicide, and apply copper sulfate, potassium bicarbonate and keep the high\u2011tunnel exhaust ventilating to lower humidity and improve airflow\u30101\u3011.",
+      "generated_answer": "The recommended chemical fungicide options are Difenoconazole\u202f25\u202f%\u202fEC (applied at 0.5\u202fml per litre of spray) or Chlorothalonil\u202f75\u202f%\u202fWP (applied at 2.0\u202fg per litre)\u202f[1].  \n\nFor organic management you should use copper sulfate and potassium bicarbonate, and provide active exhaust ventilation in the tunnel to keep relative humidity below\u202f85\u202f% and improve airflow\u202f[1][5].",
       "retrieved_chunk_snippets": [
         "Agricultural Treatment & Dosage Reference: Tomato - Leaf Mold Crop: tomato | Disease: leaf mold | Pathogen Type: Fungal | Organic Remedy: Copper sulfa...",
         "Agricultural Treatment & Dosage Reference: Tomato - Leaf Mold Crop: tomato | Disease: leaf mold | Pathogen Type: Fungal | Organic Remedy: Copper sulfa...",
@@ -169,10 +169,10 @@
       "retrieved_chunks_count": 5,
       "context_recall": 1.0,
       "context_precision": 1.0,
-      "faithfulness": 0.7142857142857143,
-      "answer_relevance": 0.9217768784447355,
-      "composite_score": 0.8966462168558771,
-      "latency_sec": 10.697690399945714,
+      "faithfulness": 0.6666666666666666,
+      "answer_relevance": 0.9230505861025057,
+      "composite_score": 0.8810744798208534,
+      "latency_sec": 20.08235969999805,
       "matched_ingredients": [
         "Thiamethoxam",
         "Acetamiprid",
@@ -183,7 +183,7 @@
         "Encarsia formosa"
       ],
       "missing_ingredients": [],
-      "generated_answer": "Manage Tomato Yellow Leaf Curl Virus by focusing on the vector and preventing spread, since the virus itself has no chemical cure.\u202fRemove and isolate infected plants in sealed bags to trap the whiteflies that spread the disease\u202f[3].\u202fControl the silverleaf whitefly (*Bemisia tabaci*) with a combination of cultural, biological, and chemical tactics:\n\n* **Cultural/physical controls** \u2013 Deploy yellow sticky card traps, use insecticidal soap, and install silver\u2011reflective mulch to reduce whitefly landing and feeding\u202f[3][4].\n* **Biological control** \u2013 Release the parasitoid\u202f*Encarsia formosa*\u202fto attack whitefly larvae\u202f[3][4].\n* **Chemical vector control** \u2013 Apply systemic insecticides such as Thiamethoxam\u202f25\u202f%\u202fWG (0.3\u202fg\u202f/\u202fL) or Acetamiprid\u202f20\u202f%\u202fSP (0.4\u202fg\u202f/\u202fL); Spirotetramat\u202f150\u202fOD is also listed for vector management\u202f[3][4].  \n  Spray at 7\u201110\u2011day intervals and observe a 7\u2011day pre\u2011harvest interval\u202f[3][4].\n\nThese integrated measures suppress the whitefly population, limit virus transmission, and help protect healthy tomato plants.",
+      "generated_answer": "Manage Tomato Yellow Leaf Curl Virus by focusing on the whitefly vector,\u202f*Bemisia tabaci*. The virus is acquired by the whitefly within 15\u201130\u202fminutes of feeding and is transmitted persistently for the insect\u2019s life\u202f[1][2]. Control strategies therefore combine cultural, biological, and chemical tactics:\n\n* **Cultural/physical controls** \u2013 use yellow sticky\u2011card traps, insecticidal soap, silver reflective mulch, and isolate any infected plants in sealed bags to trap and reduce whitefly movement\u202f[3][4][7][8].  \n* **Biological control** \u2013 release\u202f*Encarsia formosa*\u202fparasitoids to suppress whitefly populations\u202f[3][4][7][8].  \n* **Chemical vector control** \u2013 apply systemic insecticides that target the whitefly, such as Thiamethoxam\u202f25\u202f%\u202fWG (0.3\u202fg\u202fL\u207b\u00b9) or Acetamiprid\u202f20\u202f%\u202fSP (0.4\u202fg\u202fL\u207b\u00b9) or Spirotetramat\u202f150\u202fOD, at 7\u201110\u2011day spray intervals with a 7\u2011day pre\u2011harvest interval\u202f[3][4][7][8].  \n\nThere is no cure for the viral infection itself, so eliminating sources of inoculum and maintaining strict sanitation are essential\u202f[3][4].",
       "retrieved_chunk_snippets": [
         "# Comprehensive Diagnostic & Management Guide: Tomato Yellow Leaf Curl Virus (TYLCV)  ## 1. Pathogen Overview & Vector Dynamics - **Crop**: Tomato (*S...",
         "# Comprehensive Diagnostic & Management Guide: Tomato Yellow Leaf Curl Virus (TYLCV)  ## 1. Pathogen Overview & Vector Dynamics - **Crop**: Tomato (*S...",
@@ -200,9 +200,9 @@
       "context_recall": 1.0,
       "context_precision": 1.0,
       "faithfulness": 1.0,
-      "answer_relevance": 0.9197411853714776,
-      "composite_score": 0.9823888555152072,
-      "latency_sec": 17.880787300062366,
+      "answer_relevance": 0.9206597292785244,
+      "composite_score": 0.9825953917868228,
+      "latency_sec": 21.767861900036223,
       "matched_ingredients": [
         "Abamectin",
         "Spiromesifen",
@@ -212,7 +212,7 @@
         "Phytoseiulus persimilis"
       ],
       "missing_ingredients": [],
-      "generated_answer": "The recommended miticides for two\u2011spotted spider mite on tomato are **Abamectin\u202f1.8\u202f% EC**, **Spiromesifen\u202f22.9\u202f% SC**, and **Bifenazate\u202f43.2\u202f% SC**\u202f[1][3].  \n\nOrganic or biological options include **insecticidal soap**, **Neem oil\u202f(0.5\u202f%)**, and the release of **predatory mites\u202f(Phytoseiulus persimilis)**\u202f[1][3].",
+      "generated_answer": "The recommended miticides for two\u2011spotted spider mite on tomato are\u202fAbamectin\u202f(1.8\u202f%\u202fEC),\u202fSpiromesifen\u202f(22.9\u202f%\u202fSC) and\u202fBifenazate\u202f(43.2\u202f%\u202fSC)\u202f[1][3].  \n\nOrganic and biological options include using insecticidal soap, neem oil at\u202f0.5\u202f%\u202fand releasing predatory mites\u202f*Phytoseiulus persimilis*\u202fto suppress the pest\u202f[1].",
       "retrieved_chunk_snippets": [
         "Agricultural Treatment & Dosage Reference: Tomato - Two-Spotted Spider Mite Crop: tomato | Disease: two-spotted spider mite | Pathogen Type: Pest / Ar...",
         "Agricultural Treatment & Dosage Reference: Tomato - Two-Spotted Spider Mite Crop: tomato | Disease: two-spotted spider mite | Pathogen Type: Pest / Ar...",
@@ -228,10 +228,10 @@
       "retrieved_chunks_count": 5,
       "context_recall": 0.0,
       "context_precision": 1.0,
-      "faithfulness": 0.0,
-      "answer_relevance": 0.9489887499715992,
-      "composite_score": 0.3079184188360296,
-      "latency_sec": 10.25686730002053,
+      "faithfulness": 0.2222222222222222,
+      "answer_relevance": 0.8941298930163613,
+      "composite_score": 0.3469647723475717,
+      "latency_sec": 16.07606869994197,
       "matched_ingredients": [],
       "missing_ingredients": [
         "Azoxystrobin",
@@ -240,7 +240,7 @@
         "Bacillus subtilis",
         "Potassium phosphite"
       ],
-      "generated_answer": "Effective chemical controls for potato early blight caused by *Alternaria solani* include fungicides containing chlorothalonil or mancozeb; these are the most commonly recommended products when chemical treatment is needed and should be applied according to current label directions\u202f[4].  \n\nI couldn't find information on bio\u2011treatments for this disease in the uploaded documents.",
+      "generated_answer": "Effective management of potato early blight caused by\u202f*Alternaria solani* relies on a combination of conventional fungicides and organic bio\u2011treatments.  \n\n**Fungicides**  \n- Chlorothalonil (often formulated as a 75\u202f% WP) is routinely used for chemical control\u202f[4][5].  \n- Mancozeb is another commonly applied fungicide for this disease\u202f[4].  \n- Azoxystrobin (a strobilurin, 23\u202f% SC) is listed as an active ingredient for early\u2011blight sprays\u202f[5][6].  \n\n**Bio\u2011treatments / Organic options**  \n- Copper oxychloride (50\u202f% WP) can be applied as an organic fungicide\u202f[5][6].  \n- Bacillus\u202f*subtilis* is recommended as a biological control agent\u202f[5][6].  \n- Potassium phosphite is also cited as an organic remedy for early blight\u202f[5][6].  \n\nUsing these products according to label directions\u2014rotating FRAC groups for resistance management and observing pre\u2011harvest intervals\u2014provides effective control of *A.\u202fsolani* on potato crops.",
       "retrieved_chunk_snippets": [
         "# Comprehensive Diagnostic & Management Guide: Potato Early Blight  ## 1. Pathogen Overview & Etiology - **Crop**: Potato (*Solanum tuberosum*) - **Di...",
         "# Comprehensive Diagnostic & Management Guide: Potato Early Blight  ## 1. Pathogen Overview & Etiology - **Crop**: Potato (*Solanum tuberosum*) - **Di...",
@@ -257,9 +257,9 @@
       "context_recall": 0.125,
       "context_precision": 1.0,
       "faithfulness": 0.0,
-      "answer_relevance": 0.835822971432646,
-      "composite_score": 0.31401009384759054,
-      "latency_sec": 13.80793440004345,
+      "answer_relevance": 0.8190489836092866,
+      "composite_score": 0.311661735258959,
+      "latency_sec": 18.50629160006065,
       "matched_ingredients": [
         "Mancozeb"
       ],
@@ -272,7 +272,7 @@
         "Copper hydroxide",
         "Trichoderma harzianum"
       ],
-      "generated_answer": "Potato growers can keep late blight in check by treating fields as soon as regional forecasts signal a risk, using both chemical and organic products, and following a strict spray schedule. The recommended chemicals are\u202fMetalaxyl\u2011M\u202f+\u202fMancozeb\u202f(Ridomil\u202fGold)\u202for\u202fMandipropamid\u202f23.4\u202f%\u202fSC\u202for\u202fCymoxanil\u202f60\u202f%\u202fWG, applied at\u202f2.5\u202fg\u202fper\u202fL\u202fof spray water for Ridomil\u202fGold or\u202f0.8\u202fml\u202fper\u202fL for Mandipropamid, with sprays every\u202f5\u20137\u202fdays and a\u202f14\u2011day pre\u2011harvest interval\u202f[1]. Organic options such as copper sulfate (Bordeaux mixture\u202f1\u202f%), copper hydroxide, or the biocontrol agent\u202fTrichoderma\u202fharzianum can also be used\u202f[1].  \n\nIn addition to fungicide applications, growers should manage canopy moisture, use resistant varieties when available, and source clean transplants to limit inoculum, destroying any volunteer potatoes and cull piles after treatment\u202f[3].",
+      "generated_answer": "Potato growers should treat a field as soon as regional late\u2011blight forecasts appear and eliminate any volunteer potatoes or cull piles to remove inoculum\u202f[1].  \nBoth organic and chemical options are listed: copper\u2011based products such as copper sulfate (Bordeaux mixture\u202f1\u202f%) or copper hydroxide, and the biocontrol agent\u202fTrichoderma\u202fharzianum are the recommended organic remedies\u202f[1].  \nFor chemical protection the recommended active ingredients are Metalaxyl\u2011M\u202f+\u202fMancozeb (commercially \u201cRidomil\u202fGold\u201d), Mandipropamid\u202f23.4\u202f%\u202fSC, or Cymoxanil\u202f60\u202f%\u202fWG\u202f[1].  \nThe standard dosage is 2.5\u202fg\u202fper\u202fL of water for Ridomil\u202fGold or 0.8\u202fmL\u202fper\u202fL for Mandipropamid, applied at 5\u20137\u2011day intervals, with a pre\u2011harvest interval of 14\u202fdays\u202f[1].  \nIn addition, using the same spray program and moisture\u2011management practices that work for early blight, planting resistant varieties, and sourcing transplants from reputable local growers can further suppress late blight\u202f[3].",
       "retrieved_chunk_snippets": [
         "stems, starting small and enlarging until spots merge. Early blight typically infects the oldest, lowest leaves first and progresses upward as those l...",
         "Source: University of Minnesota Extension, 'Early blight in tomato and potato'; UC Statewide IPM Program, 'Early Blight / Potato' Pest Management Guid...",
@@ -288,17 +288,17 @@
       "retrieved_chunks_count": 5,
       "context_recall": 1.0,
       "context_precision": 1.0,
-      "faithfulness": 0.5,
-      "answer_relevance": 0.7728852235341105,
-      "composite_score": 0.7899147810363061,
-      "latency_sec": 10.408811099943705,
+      "faithfulness": 0.75,
+      "answer_relevance": 0.9083924223896251,
+      "composite_score": 0.9053304518529027,
+      "latency_sec": 14.915805500000715,
       "matched_ingredients": [
         "Certified disease-free seed tubers",
         "Bio-fertilizer",
         "Proper hilling"
       ],
       "missing_ingredients": [],
-      "generated_answer": "Use certified disease\u2011free seed tubers and inoculate with a bio\u2011fertilizer, then manage the field with proper hilling and irrigation so the tubers stay covered. Forming adequate hills keeps tubers out of direct light (preventing greening) and shields them from down\u2011washed blight spores\u202f[1].",
+      "generated_answer": "Using cultural and organic methods helps keep potato tubers healthy and prevents greening.  \n- Plant certified disease\u2011free seed tubers and apply a bio\u2011fertilizer inoculation to give the crop a clean start\u202f[1].  \n- Form proper hills\u2014build wide, high soil mounds that cover tubers by at least 10\u201315\u202fcm\u2014to physically block wash\u2011down spores and keep tubers out of direct light, which reduces greening\u202f[1][4].  \n- When disease pressure exists (e.g., early blight), employ organic\u2011approved protectants such as copper oxychloride, Bacillus\u202fsubtilis or potassium phosphite as part of an integrated program\u202f[6].",
       "retrieved_chunk_snippets": [
         "Agricultural Treatment & Dosage Reference: Potato - Healthy Crop: potato | Disease: healthy | Pathogen Type: None | Organic Remedy: Certified disease-...",
         "Agricultural Treatment & Dosage Reference: Potato - Healthy Crop: potato | Disease: healthy | Pathogen Type: None | Organic Remedy: Certified disease-...",
@@ -312,25 +312,25 @@
       "query": "What chemical and organic fungicides treat apple scab caused by Venturia inaequalis?",
       "ground_truth_answer": "Apple scab (Venturia inaequalis) is treated chemically using Captan 50% WP or Difenoconazole 25% EC. Organic remedies include Sulfur 80% WDG, Potassium bicarbonate, and Bacillus subtilis. Avoid sulfur applications during bloom to protect honeybees and pollinators.",
       "retrieved_chunks_count": 5,
-      "context_recall": 1.0,
+      "context_recall": 0.0,
       "context_precision": 1.0,
-      "faithfulness": 1.0,
-      "answer_relevance": 0.7756774539244227,
-      "composite_score": 0.9483979880700224,
-      "latency_sec": 12.998228100012057,
-      "matched_ingredients": [
+      "faithfulness": 0.3333333333333333,
+      "answer_relevance": 0.9252302674126592,
+      "composite_score": 0.37465217651237454,
+      "latency_sec": 21.62686920003034,
+      "matched_ingredients": [],
+      "missing_ingredients": [
         "Captan",
         "Difenoconazole",
         "Sulfur",
         "Potassium bicarbonate",
         "Bacillus subtilis"
       ],
-      "missing_ingredients": [],
-      "generated_answer": "Chemical fungicides: Captan\u202f50\u202f%\u202fWP and Difenoconazole\u202f25\u202f%\u202fEC\u202f[3][4].  \nOrganic fungicides: Sulfur\u202f80\u202f%\u202fWDG, potassium bicarbonate and\u202fBacillus\u202fsubtilis\u202f[3][4].",
+      "generated_answer": "Chemical fungicides used for apple scab include Captan\u202f50\u202f% WP and Difenoconazole\u202f25\u202f% EC\u30106\u2020L1-L3\u3011.  \nOrganic options are sulfur\u202f80\u202f% WDG, potassium\u202fbicarbonate, and the biocontrol agent\u202fBacillus\u202fsubtilis\u30106\u2020L1-L3\u3011. These treatments target apple scab caused by *Venturia inaequalis*\u30108\u2020L3-L5\u3011.",
       "retrieved_chunk_snippets": [
         "Apple & Crabapple Disease Management Covers: Apple Scab, Cedar-Apple Rust, Black Rot (Frogeye Leaf Spot), Fire Blight, Powdery Mildew Compiled from pu...",
         "Apple & Crabapple Disease Management Covers: Apple Scab, Cedar-Apple Rust, Black Rot (Frogeye Leaf Spot), Fire Blight, Powdery Mildew Compiled from pu...",
-        "# Comprehensive Diagnostic & Management Guide: Apple Scab  ## 1. Pathogen Overview & Etiology - **Crop**: Apple (*Malus domestica*) & Crabapple (*Malu..."
+        "Apple & Crabapple Disease Management Covers: Apple Scab, Cedar-Apple Rust, Black Rot (Frogeye Leaf Spot), Fire Blight, Powdery Mildew Compiled from pu..."
       ]
     },
     {
@@ -342,10 +342,10 @@
       "retrieved_chunks_count": 5,
       "context_recall": 1.0,
       "context_precision": 1.0,
-      "faithfulness": 0.8,
-      "answer_relevance": 0.8856004536875379,
-      "composite_score": 0.9160384020400084,
-      "latency_sec": 12.692142099956982,
+      "faithfulness": 0.75,
+      "answer_relevance": 0.8767809176788324,
+      "composite_score": 0.8985039850357439,
+      "latency_sec": 19.68593699997291,
       "matched_ingredients": [
         "Thiophanate-methyl",
         "Captan",
@@ -354,7 +354,7 @@
         "Trichoderma harzianum"
       ],
       "missing_ingredients": [],
-      "generated_answer": "Apple black rot is controlled by a combination of cultural and chemical measures.\u202fIn winter, prune and remove any mummified fruit and dead wood to reduce inoculum\u202f[1].\u202fDuring the growing season, apply a fungicide spray at 2\u202fg per liter of spray solution, repeating every\u202f10\u201314\u202fdays and observing a 14\u2011day pre\u2011harvest interval\u202f[1].\u202fBoth organic and conventional options are available: organic programs can use copper octanoate, a 1\u202f% Bordeaux mixture, or the biocontrol fungus\u202fTrichoderma\u202fharzianum, while the chemical products contain either thiophanate\u2011methyl\u202f(70\u202f% WP) or captan\u202f(50\u202f% WP) as the active ingredient\u202f[1].\u202fTake care to avoid drift into ponds or other aquatic habitats when applying these sprays\u202f[1].",
+      "generated_answer": "Apple black rot is controlled with a combination of cultural sanitation and spray applications.\u202fIn winter, prune away mummified fruit and dead wood, then apply a fungicide spray during the growing season\u202f[1].\u202fThe recommended sprays include organic options such as copper octanoate, a 1\u202f% Bordeaux mixture, or the biocontrol agent *Trichoderma harzianum*\u202f[1].\u202fChemical programs use either thiophanate\u2011methyl (70\u202f% WP) or captan (50\u202f% WP) applied at 2\u202fg per litre of spray water, with repeat applications every 10\u201314\u202fdays and a 14\u2011day pre\u2011harvest interval\u202f[1].",
       "retrieved_chunk_snippets": [
         "Agricultural Treatment & Dosage Reference: Apple - Black Rot Crop: apple | Disease: black rot | Pathogen Type: Fungal | Organic Remedy: Copper octanoa...",
         "Agricultural Treatment & Dosage Reference: Apple - Black Rot Crop: apple | Disease: black rot | Pathogen Type: Fungal | Organic Remedy: Copper octanoa...",
@@ -370,10 +370,10 @@
       "retrieved_chunks_count": 5,
       "context_recall": 1.0,
       "context_precision": 1.0,
-      "faithfulness": 0.6666666666666666,
-      "answer_relevance": 0.9056477756671979,
-      "composite_score": 0.8774542629439228,
-      "latency_sec": 16.58026019996032,
+      "faithfulness": 1.0,
+      "answer_relevance": 0.9173252421343525,
+      "composite_score": 0.9818450797729354,
+      "latency_sec": 25.33266650000587,
       "matched_ingredients": [
         "Myclobutanil",
         "Mancozeb",
@@ -381,7 +381,7 @@
         "Elemental sulfur"
       ],
       "missing_ingredients": [],
-      "generated_answer": "For cedar\u2011apple rust on apples the recommended controls are:\n\n* **Organic options** \u2013 a liquid copper fungicide or an elemental sulfur spray.  \n* **Chemical options** \u2013 apply either Myclobutanil\u202f20\u202f% WP (\u22481.5\u202fg per\u202fL of spray) or Mancozeb\u202f75\u202f% WP (\u22482.5\u202fg per\u202fL of spray).  \n\nBoth the copper/sulfur sprays and the Myclobutanil\u2011/Mancozeb\u2011based products can be used as part of a spray program (7\u201310\u202fday intervals, with a 14\u2011day pre\u2011harvest wait) and should be combined with cultural measures such as removing or pruning nearby Eastern red cedars\u202f[1][2][3][5].",
+      "generated_answer": "For cedar\u2011apple rust on apples, the recommended options are:\n\n* **Organic sprays** \u2013 a liquid copper fungicide or an elemental\u2011sulfur spray\u202f[1][2].  \n* **Chemical fungicides** \u2013 Myclobutanil 20\u202f% WP (applied at\u202f1.5\u202fg per litre) or Mancozeb 75\u202f% WP (applied at\u202f2.5\u202fg per litre)\u202f[1][2].  \n\nThese products should be applied every\u202f7\u201310\u202fdays, with a 14\u2011day pre\u2011harvest interval, and it\u2019s advisable to eradicate or prune nearby eastern red cedar and juniper hosts within 1\u20132\u202fmiles\u202f[1][2].",
       "retrieved_chunk_snippets": [
         "Agricultural Treatment & Dosage Reference: Apple - Cedar Apple Rust Crop: apple | Disease: cedar apple rust | Pathogen Type: Fungal | Organic Remedy: ...",
         "Agricultural Treatment & Dosage Reference: Apple - Cedar Apple Rust Crop: apple | Disease: cedar apple rust | Pathogen Type: Fungal | Organic Remedy: ...",
@@ -398,9 +398,9 @@
       "context_recall": 1.0,
       "context_precision": 1.0,
       "faithfulness": 1.0,
-      "answer_relevance": 0.7601354754470053,
-      "composite_score": 0.9445133373453771,
-      "latency_sec": 10.398777700029314,
+      "answer_relevance": 0.9135731153138779,
+      "composite_score": 0.9809989795293934,
+      "latency_sec": 11.098680000053719,
       "matched_ingredients": [
         "Propiconazole",
         "Azoxystrobin",
@@ -408,7 +408,7 @@
         "Bacillus subtilis"
       ],
       "missing_ingredients": [],
-      "generated_answer": "The recommended controls include the chemical fungicides Propiconazole (25\u202f% EC) and Azoxystrobin (23\u202f% SC) applied at 1\u202fml per liter of spray solution\u30101\u3011.  For a biological approach, a seed treatment with\u202fTrichoderma\u202fviride and a foliar spray of\u202fBacillus\u202fsubtilis are listed as effective options\u30101\u3011.",
+      "generated_answer": "Fungicide options for Northern Corn Leaf Blight include a propiconazole\u2010based product (25\u202f% EC) or an azoxystrobin\u2010based product (23\u202f% SC) applied at 1\u202fml per liter of spray solution\u202f[1][2].  \n\nBiological alternatives are seed\u2011treated\u202f*Trichoderma viride* and a foliar spray of\u202f*Bacillus subtilis*\u202f[1][2].",
       "retrieved_chunk_snippets": [
         "Northern Corn Leaf Blight (NCLB) \u2014 Exserohilum turcicum Can cause 30-50% yield loss in dent corn if established before tasseling, plus quality loss in...",
         "for disease. Source: University of Delaware Cooperative Extension Fact Sheet, 'Northern Corn Leaf Blight' (Oct 2025) Healthy No signs of disease detec...",
@@ -424,10 +424,10 @@
       "retrieved_chunks_count": 5,
       "context_recall": 0.8333333333333334,
       "context_precision": 1.0,
-      "faithfulness": 0.3,
-      "answer_relevance": 0.830681663820615,
-      "composite_score": 0.6782849131412771,
-      "latency_sec": 17.232063199975528,
+      "faithfulness": 0.25,
+      "answer_relevance": 0.8808185307772194,
+      "composite_score": 0.6602842446973813,
+      "latency_sec": 21.619499700027518,
       "matched_ingredients": [
         "Azoxystrobin",
         "Propiconazole",
@@ -438,7 +438,7 @@
       "missing_ingredients": [
         "Crop rotation"
       ],
-      "generated_answer": "Control of gray leaf spot in corn relies on a mix of cultural practices and fungicide applications.  \n\n**Cultural management**  \n- Remove and deep\u2011till crop residues after harvest; burning alone is not enough\u202f[4].  \n- Rotate corn out of the field for at least one to three\u202fyears, with a 3\u2011year rotation being most effective\u202f[4][1].  \n- Plant hybrids that carry partial resistance to GLS\u202f[4].  \n- Minimize drought and nutrient stress and scout the lower leaves before tasseling (VT) so treatments can be timed\u202f[4].\n\n**Fungicide options**  \n- A bio\u2011fungicide based on *Bacillus amyloliquefaciens* applied as a foliar spray\u202f[1][2].  \n- Chemical products containing **azoxystrobin\u202f+\u202fpropiconazole** (marketed as Quilt\u202fXcel) or **pyraclostrobin 250\u202fEC**\u202f[1][2].  \n  - Recommended rate:\u202f1\u202fml per liter of spray solution\u202f[1][2].  \n  - Apply at 14\u201321\u2011day intervals, observing a 30\u2011day pre\u2011harvest interval\u202f[1][2].\n\nUsing these cultural steps together with timely fungicide sprays (especially between VT and R2 growth stages when disease pressure is high) provides effective control of gray leaf spot in corn fields\u202f[4].",
+      "generated_answer": "Control of gray leaf spot in corn relies on a mix of cultural practices and fungicide applications.  \n\n**Cultural management** \u2013 destroy and deeply till crop residue after harvest, rotate corn out of the field for at least 1\u20132\u202fyears (a 3\u2011year rotation is most effective), plant hybrids with partial resistance, and minimize drought or nutrient stress; scouting should begin on the lower leaves before tasseling and fungicides applied between VT and R2 can protect yield when pressure is high\u202f[4].  \n\n**Organic option** \u2013 a foliar spray of *Bacillus amyloliquefaciens* (bio\u2011fungicide) can be used as an organic remedy\u202f[1][2].  \n\n**Chemical options** \u2013 effective active ingredients include:  \n\n* **Azoxystrobin\u202f+\u202fPropiconazole** (trade name Quilt\u202fXcel) \u2013 applied at 1\u202fml per liter of spray water, with 14\u201321\u202fday intervals and a 30\u2011day pre\u2011harvest interval\u202f[1][2].  \n* **Pyraclostrobin** (250\u202fEC) \u2013 also used at 1\u202fml/L under the same interval and PHI guidelines\u202f[1][2].  \n* **Pyraclostrobin\u202f+\u202fMetconazole** (Headline\u202fAMP) \u2013 rate 0.7\u20131.0\u202fL/ha, PHI\u202f20\u202fdays, applied at first pustule detection from V8 to R1\u202f[7][8].  \n* **Propiconazole\u202f41.8\u202f%\u202fEC** (Tilt/Bumper) \u2013 rate 0.3\u20130.4\u202fL/ha, PHI\u202f30\u202fdays\u202f[7][8].\n\nCombining these practices\u2014crop rotation, residue management, resistant varieties, timely scouting, and appropriate fungicide sprays\u2014provides an integrated approach to managing gray leaf spot in corn fields.",
       "retrieved_chunk_snippets": [
         "Corn Foliar Disease Management Covers: Gray Leaf Spot, Common Rust, Northern Corn Leaf Blight Compiled from public university cooperative extension pu...",
         "# Comprehensive Diagnostic & Management Guide: Corn Gray Leaf Spot  ## 1. Pathogen Overview & Etiology - **Crop**: Field Corn & Seed Corn (*Zea mays*)...",
@@ -454,10 +454,10 @@
       "retrieved_chunks_count": 5,
       "context_recall": 0.25,
       "context_precision": 1.0,
-      "faithfulness": 1.0,
-      "answer_relevance": 0.8942259957281042,
-      "composite_score": 0.7225671452670135,
-      "latency_sec": 14.465786899905652,
+      "faithfulness": 0.5,
+      "answer_relevance": 0.91125442154231,
+      "composite_score": 0.5995621841977385,
+      "latency_sec": 22.14163309999276,
       "matched_ingredients": [
         "Pyraclostrobin"
       ],
@@ -466,7 +466,7 @@
         "Copper octanoate",
         "Compost extract"
       ],
-      "generated_answer": "Effective treatments for common rust in corn include both organic and chemical options.  \n\n**Organic remedies**  \n- Liquid copper octanoate  \n- Compost\u2011extract bio\u2011spray\u30101\u3011  \n\n**Chemical fungicides**  \n- Mancozeb 75\u202f% WP (applied at 2\u202fg\u202f/\u202fL)\u30101\u3011  \n- Pyraclostrobin 20\u202f% WG (applied at 0.8\u202fg\u202f/\u202fL)\u30101\u3011  \n- Pyraclostrobin\u202f+\u202fMetconazole (Headline\u202fAMP), rate 0.7\u20111.0\u202fL\u202f/\u202fha, PHI\u202f20\u202fdays\u30103\u3011\u30104\u3011  \n- Azoxystrobin\u202f+\u202fPropiconazole (Quilt\u202fXcel), rate 0.75\u20111.0\u202fL\u202f/\u202fha, PHI\u202f30\u202fdays\u30103\u3011\u30104\u3011  \n- Propiconazole 41.8\u202f% EC (Tilt / Bumper), rate 0.3\u20110.4\u202fL\u202f/\u202fha\u30103\u3011\u30104\u3011",
+      "generated_answer": "Effective options for managing common rust in corn include chemical fungicides such as Mancozeb\u202f75\u202f%\u202fWP or Pyraclostrobin\u202f20\u202f%\u202fWG, and broader\u2011spectrum products like Pyraclostrobin\u202f+\u202fMetconazole (Headline\u202fAMP) or Azoxystrobin\u202f+\u202fPropiconazole (Quilt\u202fXcel) that are recommended when rust pustules appear on upper leaves [1][3].  Organic alternatives that have been shown to work are a liquid copper octanoate spray and a compost\u2011extract bio\u2011spray [1].",
       "retrieved_chunk_snippets": [
         "Begins as fleck-like lesions developing into small, tan, circular-to-elongate spots on both leaf surfaces, erupting into jagged brick-red to cinnamon-...",
         "# Comprehensive Diagnostic & Management Guide: Corn Common Rust  ## 1. Pathogen Overview & Etiology - **Crop**: Field Corn, Sweet Corn, and Seed Corn ...",
@@ -483,9 +483,9 @@
       "context_recall": 1.0,
       "context_precision": 1.0,
       "faithfulness": 1.0,
-      "answer_relevance": 0.9223961016047706,
-      "composite_score": 0.9829855068015992,
-      "latency_sec": 14.905072800000198,
+      "answer_relevance": 0.9304968889294262,
+      "composite_score": 0.9848001921720242,
+      "latency_sec": 18.92030120000709,
       "matched_ingredients": [
         "Mancozeb",
         "Myclobutanil",
@@ -493,7 +493,7 @@
         "Lime sulfur"
       ],
       "missing_ingredients": [],
-      "generated_answer": "The chemical fungicides used to control grape black rot are Mancozeb\u202f75\u202f%\u202fWP and Myclobutanil\u202f20\u202f%\u202fWP\u30101\u3011\u30102\u3011.  \nFor organic management, copper hydroxide\u202f53.8\u202f%\u202fWG and a lime\u2011sulfur dormant spray are recommended\u30101\u3011\u30102\u3011.",
+      "generated_answer": "The chemical fungicides used for grape black rot are Mancozeb\u202f75\u202f%\u202fWP and Myclobutanil\u202f20\u202f%\u202fWP\u30101\u3011.  \nFor organic control, a copper\u2011based spray (Copper\u202fhydroxide\u202f53.8\u202f%\u202fWG) or a lime\u2011sulfur dormant spray is recommended\u30101\u3011.",
       "retrieved_chunk_snippets": [
         "Agricultural Treatment & Dosage Reference: Grape - Black Rot Crop: grape | Disease: black rot | Pathogen Type: Fungal | Organic Remedy: Copper hydroxi...",
         "Agricultural Treatment & Dosage Reference: Grape - Black Rot Crop: grape | Disease: black rot | Pathogen Type: Fungal | Organic Remedy: Copper hydroxi...",
@@ -509,10 +509,10 @@
       "retrieved_chunks_count": 5,
       "context_recall": 1.0,
       "context_precision": 1.0,
-      "faithfulness": 1.0,
-      "answer_relevance": 0.8320940717139998,
-      "composite_score": 0.9621161371544729,
-      "latency_sec": 11.673861899995245,
+      "faithfulness": 0.875,
+      "answer_relevance": 0.8473974146511725,
+      "composite_score": 0.9300046095530227,
+      "latency_sec": 13.242918400093913,
       "matched_ingredients": [
         "Thiophanate-methyl",
         "Fosetyl-Aluminium",
@@ -520,7 +520,7 @@
         "Pruning wound sealants"
       ],
       "missing_ingredients": [],
-      "generated_answer": "Treat grape\u202fesca (black measles) by applying a fungicidal paste to pruning wounds \u2013 either thiophanate\u2011methyl or fosetyl\u2011aluminium (80\u202f%\u202fWP) at a rate of 2.5\u202fg per litre of spray solution\u202f[1]. Re\u2011apply every 21\u201128\u202fdays and observe a 28\u2011day pre\u2011harvest interval\u202f[1]. An organic alternative is to use pruning\u2011wound sealants that contain the beneficial fungus\u202fTrichoderma\u202fatroviride together with vine\u2011rejuvenation practices\u202f[1].  \n\nPrevention focuses on protecting pruning wounds, because esca is a trunk disease that enters through these sites\u202f[3]. Prune only in dry weather, disinfect pruning shears between vines with 70\u202f% isopropyl alcohol, and seal wounds promptly with the Trichoderma\u2011based sealant or fungicidal paste\u202f[1].",
+      "generated_answer": "Grape esca (black measles) is managed by treating the pruning wounds and keeping the vineyard clean.  \n- **Chemical control** \u2013 Apply a paste of thiophanate\u2011methyl (or fosetyl\u2011aluminium\u202f80\u202f% WP) at\u202f2.5\u202fg\u202fper\u202fL of spray solution directly to fresh pruning cuts. Re\u2011apply every\u202f21\u201328\u202fdays and observe a 28\u2011day pre\u2011harvest interval\u202f[1][2][7][8].  \n- **Organic/biological control** \u2013 Use pruning\u2011wound sealants that contain the beneficial fungus *Trichoderma atroviride* together with vine\u2011rejuvenation practices\u202f[1][2][7][8].  \n\n**Prevention**  \n- Prune only when the weather is dry to reduce wound infection\u202f[1][2][7][8].  \n- Disinfect pruning shears between vines with 70\u202f% isopropyl alcohol\u202f[1][2].  \n- Seal all pruning wounds promptly with the Trichoderma\u2011based sealant to block entry of the trunk\u2011disease complex (*Phaeomoniella chlamydospora*, *Phaeoacremonium minimum*, *Fomitiporia mediterranea*)\u202f[3][4].  \n\nTogether, timely wound sealing, appropriate chemical or biological sprays, dry\u2011weather pruning, and tool sanitation form the core treatment and prevention strategy for esca in vineyards.",
       "retrieved_chunk_snippets": [
         "# Comprehensive Diagnostic & Management Guide: Grape Esca (Black Measles)  ## 1. Pathogen Overview & Grapevine Trunk Disease Complex - **Crop**: Grape...",
         "# Comprehensive Diagnostic & Management Guide: Grape Esca (Black Measles)  ## 1. Pathogen Overview & Grapevine Trunk Disease Complex - **Crop**: Grape...",
@@ -536,10 +536,10 @@
       "retrieved_chunks_count": 5,
       "context_recall": 1.0,
       "context_precision": 1.0,
-      "faithfulness": 0.0,
-      "answer_relevance": 0.522451738373809,
-      "composite_score": 0.42326319642887106,
-      "latency_sec": 9.240909100044519,
+      "faithfulness": 0.8888888888888888,
+      "answer_relevance": 0.8507324696986859,
+      "composite_score": 0.9348394354572644,
+      "latency_sec": 23.637050800025463,
       "matched_ingredients": [
         "Imidacloprid",
         "Thiamethoxam",
@@ -548,7 +548,7 @@
         "Tamarixia radiata"
       ],
       "missing_ingredients": [],
-      "generated_answer": "I'm having trouble generating an answer right now \u2014 please try again in a moment.",
+      "generated_answer": "Citrus greening in oranges is managed by targeting the Asian citrus psyllid and by supporting the trees with foliar nutrition.  \n\n**Vector\u2011control measures**  \n* **Systemic neonicotinoids** \u2013 Imidacloprid (17.8\u202f% SL) or Thiamethoxam (25\u202f% WG) are applied as soil drenches around the root zone to give 60\u201390\u202fdays of protection against psyllids\u202f[5][6][1].  \n* **Foliar insecticide rotations** \u2013 Sprays that rotate IRAC modes of action, such as dimethoate, chlorpyrifos, zeta\u2011cypermethrin or bifenthrin, and spirotetramat, are used to knock down nymphs during flush cycles\u202f[5][6].  \n* **Physical deterrents** \u2013 Horticultural mineral oil (1\u202f%\u20132\u202f%) is applied as a spray to deter oviposition, and kaolin clay can be used as a barrier\u202f[1][5].  \n* **Biological control** \u2013 Releases of the parasitoid\u202f*Tamarixia radiata* provide additional psyllid suppression\u202f[1].\n\n**Foliar treatments**  \n* **Micronutrient nutrition** \u2013 Foliar sprays of zinc, manganese, iron (and other micronutrients such as boron) are applied regularly to improve tree health\u202f[5][6].  \n* **Potassium phosphite** \u2013 Soluble potassium phosphite is included in the nutrition program\u202f[5].  \n* **Combined spray mix** \u2013 The recommended mixture pairs the neonicotinoid (for vector control) with Zn/Mn/Fe foliar nutrition in the same application\u202f[1].\n\nTogether, these chemical, biological, and nutritional strategies constitute the current management approach for citrus greening in orange orchards.",
       "retrieved_chunk_snippets": [
         "Agricultural Treatment & Dosage Reference: Orange - Citrus Greening (Huanglongbing) Crop: orange | Disease: citrus greening (huanglongbing) | Pathogen...",
         "Agricultural Treatment & Dosage Reference: Orange - Citrus Greening (Huanglongbing) Crop: orange | Disease: citrus greening (huanglongbing) | Pathogen...",
@@ -564,10 +564,10 @@
       "retrieved_chunks_count": 5,
       "context_recall": 1.0,
       "context_precision": 1.0,
-      "faithfulness": 0.0,
-      "answer_relevance": 0.5651643850396764,
-      "composite_score": 0.4292429686959892,
-      "latency_sec": 9.131218899972737,
+      "faithfulness": 1.0,
+      "answer_relevance": 0.8846551714394941,
+      "composite_score": 0.9744117055325467,
+      "latency_sec": 60.402236399939284,
       "matched_ingredients": [
         "Fixed Copper",
         "Mancozeb",
@@ -575,7 +575,7 @@
         "Bacillus amyloliquefaciens"
       ],
       "missing_ingredients": [],
-      "generated_answer": "I'm having trouble generating an answer right now \u2014 please try again in a moment.",
+      "generated_answer": "The recommended chemical tank mix for bacterial spot on bell pepper is a synergistic blend of Fixed\u202fCopper and Mancozeb\u202f75\u202f%\u202fWP\u202f[1].  \nThe bio\u2011fungicidal component used in the organic remedy is Bacillus\u202famyloliquefaciens (combined with copper hydroxide)\u202f[1].",
       "retrieved_chunk_snippets": [
         "# Comprehensive Diagnostic & Management Guide: Bell Pepper Bacterial Spot  ## 1. Pathogen Overview & Etiology - **Crop**: Bell Pepper, Chili Pepper (*...",
         "# Comprehensive Diagnostic & Management Guide: Bell Pepper Bacterial Spot  ## 1. Pathogen Overview & Etiology - **Crop**: Bell Pepper, Chili Pepper (*...",

@@ -434,3 +434,101 @@ async def test_confirm_web_search_fast_path_still_bypasses_approval_queue(monkey
 
     assert fake.augment_calls == [True]
     assert result.approval_status == "not_required"  # human_approval_node never ran
+
+
+# ---------------------------------------------------------------------------
+# MODULE 10 FAITHFULNESS ROOT-CAUSE FIX (P2, 2026-09-20): FallbackLLMClient
+# (app/services/fallback_llm_client.py) already implements and unit-tests a
+# second-provider fallback when the primary provider's own internal retries
+# are exhausted -- it was simply never wired in (Settings.fallback_llm_provider
+# was unset). These tests reproduce the exact regression at the
+# generator_node/ChatService integration level (not just FallbackLLMClient in
+# isolation, which was already covered by tests/test_fallback_llm_client.py)
+# and confirm the real fix: a real, grounded fallback answer, never a
+# fabricated one, and never a silent GENERATION_ERROR_REPLY when a second
+# provider was actually available and capable of answering.
+# ---------------------------------------------------------------------------
+
+
+class _RaisingPrimaryLLM:
+    """Simulates the exact production failure: a Groq call that has
+    already exhausted its own internal tenacity retries and raises
+    LLMAPIError -- the trigger FallbackLLMClient watches for."""
+
+    def generate(self, prompt: str) -> str:
+        from app.core.exceptions import LLMAPIError
+
+        raise LLMAPIError("simulated Groq 429 after 3 retries (reproduces eval-orange-01/pepper-01)")
+
+
+class _GroundedFallbackLLM:
+    """Simulates the secondary provider succeeding with a real,
+    context-grounded answer -- not fabricated content, just a different
+    provider answering the same evidence-bearing prompt."""
+
+    def generate(self, prompt: str) -> str:
+        assert "Apple scab" in prompt or "scab" in prompt.lower(), "fallback must see the same grounded prompt, not a stripped-down retry"
+        return "Apple scab is treated with sulfur or captan fungicide, applied per label [1]."
+
+
+def test_generator_node_recovers_via_fallback_provider_instead_of_generation_error_reply():
+    """Reproduces the exact regression (a provider failure surviving
+    retries) and proves the fix: with FallbackLLMClient wired in (as
+    .env now configures via FALLBACK_LLM_PROVIDER), the final answer is
+    the fallback provider's real, grounded text -- never
+    GENERATION_ERROR_REPLY, and never a fabricated answer with no
+    supporting evidence."""
+    from app.services.fallback_llm_client import FallbackLLMClient
+    from app.services.rag_service import ChatService
+
+    fallback_client = FallbackLLMClient(
+        primary=_RaisingPrimaryLLM(),
+        primary_name="groq",
+        fallback=_GroundedFallbackLLM(),
+        fallback_name="gemini",
+    )
+    chat_service = ChatService.__new__(ChatService)
+    chat_service._llm_client = fallback_client
+
+    chunks = [RetrievedChunk(chunk_id="c1", document_id="d1", text="Apple scab treatment: Sulfur 80% WDG or Captan 50% WP.", score=0.9)]
+    ctx = GraphContext(chat_service=chat_service)
+    state = AgentState(query="What's the treatment for apple scab?", retrieved_chunks=chunks)
+
+    result = generator_node(state, ctx)
+
+    assert result.draft_answer == "Apple scab is treated with sulfur or captan fungicide, applied per label [1]."
+    assert result.draft_answer != GENERATION_ERROR_REPLY
+    assert result.draft_answer != FALLBACK_REPLY
+    assert result.error_type is None  # recovered successfully -- not a failure state
+
+
+def test_generator_node_still_returns_generation_error_reply_when_both_providers_fail():
+    """The fix must not paper over a genuine total outage: when BOTH
+    providers fail, the honest GENERATION_ERROR_REPLY (not a fabricated
+    answer) is still exactly what's returned -- proving the fallback
+    fix doesn't weaken the existing, correct no-fabrication guarantee."""
+    from app.core.exceptions import LLMAPIError
+    from app.services.fallback_llm_client import FallbackLLMClient
+    from app.services.rag_service import ChatService
+
+    class _AlsoRaisingFallback:
+        def generate(self, prompt: str) -> str:
+            raise LLMAPIError("simulated total outage: fallback provider also down")
+
+    fallback_client = FallbackLLMClient(
+        primary=_RaisingPrimaryLLM(),
+        primary_name="groq",
+        fallback=_AlsoRaisingFallback(),
+        fallback_name="gemini",
+    )
+    chat_service = ChatService.__new__(ChatService)
+    chat_service._llm_client = fallback_client
+
+    chunks = [RetrievedChunk(chunk_id="c1", document_id="d1", text="Apple scab treatment: Sulfur.", score=0.9)]
+    ctx = GraphContext(chat_service=chat_service)
+    state = AgentState(query="What's the treatment for apple scab?", retrieved_chunks=chunks)
+
+    result = generator_node(state, ctx)
+
+    assert result.draft_answer == GENERATION_ERROR_REPLY  # honest, not fabricated
+    assert result.error_type is not None
