@@ -1,6 +1,6 @@
 # Module 10 — Final Technical Audit
 
-**Branch**: `module10-final-pdf-compliance` (not merged to `main`) · **Commit**: `7159169` (verify: `git rev-parse HEAD`) · **Regression**: 982 passed, 1 skipped, 0 failed (983 collected) · **Date**: 2026-09-21 (P9 consolidation)
+**Branch**: `module10-final-pdf-compliance` (not merged to `main`) · **Commit**: verify with `git rev-parse HEAD` · **Regression**: 1001 passed, 1 skipped, 0 failed (1002 collected) · **Date**: 2026-09-21 (P9 consolidation, updated same day for real parallel execution)
 
 This is the detailed technical companion to `docs/MODULE10_FINAL_SUBMISSION.md` (the evaluator-facing overview). It gives checklist coverage, evidence locations, reproduction commands, measured metrics, and limitations per Module 10 section, without duplicating raw JSON results — those are linked, not pasted. The literal Module 10 PDF checklist (14 sections + 10-question design review) was provided directly in this pass and is mapped row-by-row in `docs/MODULE10_PDF_TRACEABILITY_MATRIX.md`; this document organizes evidence by the same section numbers.
 
@@ -26,7 +26,7 @@ Metrics: Tool Selection Accuracy 1.0, Task Success Rate 1.0 (`agent_eval_2026091
 
 ## §2 LangChain, LangGraph and CrewAI
 
-Not used as third-party frameworks. Equivalent concepts implemented natively: nodes/edges/state/conditional-routing → `app/services/agent_graph/{engine,graph,state,nodes,routing}.py` (dependency-free `StateGraph`, confirmed via `requirements.txt` — no `langgraph`/`langchain-core`/`crewai` dependency). Workflow Completion Rate 1.0, Node Success Rate 1.0, Agent Handoff Accuracy N/A (single-agent design — no multi-agent handoffs occur), Average Node Latency measured per `agent_node_trace` events. Parallel execution: **not implemented** in the main chat path — the corrective loop and tool calls execute sequentially, disclosed honestly.
+Not used as third-party frameworks. Equivalent concepts implemented natively: nodes/edges/state/conditional-routing → `app/services/agent_graph/{engine,graph,state,nodes,routing}.py` (dependency-free `StateGraph`, confirmed via `requirements.txt` — no `langgraph`/`langchain-core`/`crewai` dependency). Workflow Completion Rate 1.0, Node Success Rate 1.0, Agent Handoff Accuracy N/A (single-agent design — no multi-agent handoffs occur), Average Node Latency measured per `agent_node_trace` events. Parallel execution: **implemented** for one real workflow — non-streaming `handle_diagnose` runs vision classification and the weather/microclimate lookup as genuinely concurrent `asyncio` branches via a new reusable primitive, `run_concurrent_branches`/`BranchResult` (`agent_graph/engine.py`). The main `/chat` corrective loop and tool calls remain sequential by design (each step depends on the previous one's output — no independent work exists there to parallelize), and the streaming diagnose path (`stream_diagnose`) was not converted (disclosed limitation, not hidden). Proven via mutual-wait tests (not wall-clock thresholds): `pytest tests/test_agent_graph_parallel_execution.py tests/test_handle_diagnose_parallel.py -q` (19 tests). Measured evidence (real serial-vs-parallel comparison, identical mocked I/O): `backend/eval/module10/reports/parallel_execution_final_20260921T180758Z.json` — serial mean 0.6598s vs parallel mean 0.3544s, 46.3% measured reduction, reproduce via `python eval/module10/runners/run_parallel_execution_final.py`.
 
 ## §3 Practical Agent Integration
 
@@ -85,7 +85,7 @@ Architecture diagram: `docs/ARCHITECTURE.md`. AI: agent/planner/tools/memory/RAG
 ```
 cd backend && pytest -q
 ```
-**982 passed, 1 skipped, 0 failed** (983 collected) — verified at commit `7159169`.
+**1001 passed, 1 skipped, 0 failed** (1002 collected) — includes the 19 new parallel-execution tests added same day; verify with `git rev-parse HEAD` and `cd backend && pytest -q`. (Historical: 982 passed, 1 skipped at commit `7159169`, before the parallel-execution addition below.)
 
 ## Reproduction Index
 
@@ -113,3 +113,7 @@ All under `backend/eval/module10/reports/` (35 artifacts as of this pass, never 
 8. Secret management documented, not code-enforced.
 9. No formal GDPR/DPDP/HIPAA compliance assessment.
 10. Provider A/B is a single run (n=20 cases); no statistical significance claimed.
+
+## Same-Day Addition After P9: Real Parallel Execution
+
+Closed the "Parallel execution" gap in §2 above (previously ❌, disclosed as a real gap rather than skipped). See §2 and `docs/MODULE10_PDF_TRACEABILITY_MATRIX.md` §2 for the full disclosure of scope: implemented for the non-streaming diagnose workflow only; the streaming diagnose path was not converted. This did not touch any of the 10 items listed above.

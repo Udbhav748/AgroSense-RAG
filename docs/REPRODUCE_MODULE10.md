@@ -19,7 +19,7 @@ Everything in this document assumes `backend/.env` exists with at least `GEMINI_
 pytest -q
 ```
 
-Expected: `982 passed, 1 skipped (983 collected)`.
+Expected: `1001 passed, 1 skipped (1002 collected)`.
 
 ## Targeted test subsets
 
@@ -32,7 +32,19 @@ pytest tests/test_groq_client.py -q                   # LLM client error mapping
 pytest tests/test_module10_telemetry_capture.py -q    # telemetry capture utility (6)
 pytest tests/test_human_approval_structured_output.py -q  # structured output + web-search approval (11)
 pytest tests/test_human_approval_node.py -q           # human_approval_node in isolation (6)
+pytest tests/test_agent_graph_parallel_execution.py -q  # generic concurrency primitive (13)
+pytest tests/test_handle_diagnose_parallel.py -q        # real diagnose-workflow concurrency (6)
 ```
+
+## Parallel execution performance evidence
+
+**Requires**: nothing external — all I/O (vision, weather) mocked with real sleeps standing in for real latency.
+
+```
+python eval/module10/runners/run_parallel_execution_final.py
+```
+
+Reproduces a real serial-vs-parallel timing comparison over the identical `ChatService.handle_diagnose` call and identical mocked I/O, isolating concurrency as the only variable. Expect a parallel mean close to the max single-branch duration and well below the serial mean; exact numbers may vary slightly run-to-run but the direction and rough magnitude should reproduce. Saves a timestamped JSON artifact under `backend/eval/module10/reports/parallel_execution_final_<timestamp>.json`.
 
 ## RAG evaluation (Module 10 package, 30-case ablation)
 

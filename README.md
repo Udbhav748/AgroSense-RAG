@@ -251,7 +251,7 @@ Chat history is server-side per `session_id` (`session_store.py`; `postgres_sess
 
 ## Evaluation & benchmarks
 
-The full backend test suite: **983 tests collected** via `pytest --collect-only` on the current tree (982 passed, 1 skipped, 0 failed — `module10-final-pdf-compliance` branch, `cd backend && pytest`). Coverage spans the API end-to-end, RAG orchestration, LLM/Groq/Gemini clients and fallback, hybrid search/reranking, vision/diagnose, document/table/image extraction, agent-graph state machine, sessions, permissions, tenant isolation, security, encryption at rest, structured output, provider A/B evaluation, observability/alerting, load/concurrency, and human-evaluation infrastructure (`backend/eval/module10/` — see `docs/MODULE10_FINAL_SUBMISSION.md` for the full evidence-backed breakdown).
+The full backend test suite: **1002 tests collected** via `pytest --collect-only` on the current tree (1001 passed, 1 skipped, 0 failed — `module10-final-pdf-compliance` branch, `cd backend && pytest`). Coverage spans the API end-to-end, RAG orchestration, LLM/Groq/Gemini clients and fallback, hybrid search/reranking, vision/diagnose, document/table/image extraction, agent-graph state machine, real concurrent branch execution, sessions, permissions, tenant isolation, security, encryption at rest, structured output, provider A/B evaluation, observability/alerting, load/concurrency, and human-evaluation infrastructure (`backend/eval/module10/` — see `docs/MODULE10_FINAL_SUBMISSION.md` for the full evidence-backed breakdown).
 
 `backend/eval/` — three independent, code-verified tools (see `backend/eval/README.md`):
 
@@ -275,7 +275,8 @@ Module 10 results, as reported in `docs/MODULE10_FINAL_SUBMISSION.md`/`docs/MODU
 | Observability | real 35-request sample: error rate 0.1429, P50/P95/P99 0.1/0.2/163.3ms; bounded-local availability 1.0 (15/15 probes) | measured, local only |
 | Load/concurrency (real HTTP boundary) | `/health` 63.75–94.61 RPS, 0 errors; `/chat` 11.66→1.99 RPS across concurrency 1→20, full timeout saturation at concurrency=20, clean recovery | measured, local only |
 | Human evaluation | 24 cases, 7 rubric dimensions, **1 real reviewer**; two-reviewer/IAA infrastructure built and tested | IAA not yet measured — pending an independent second reviewer, disclosed, not fabricated |
-| Full test suite | 982 passed, 1 skipped, 0 failed (983 collected) | measured |
+| Parallel execution (diagnose workflow: vision + weather) | real concurrent `asyncio` branches, serial mean 0.6598s vs parallel mean 0.3544s, 46.3% measured reduction | measured, one workflow only (non-streaming diagnose); streaming diagnose and the main chat corrective loop remain sequential |
+| Full test suite | 1001 passed, 1 skipped, 0 failed (1002 collected) | measured |
 
 Every figure above is cited to a specific `backend/eval/module10/reports/*.json` artifact and reproduction command in `docs/MODULE10_RESULTS.md` and `docs/MODULE10_FINAL_SUBMISSION.md` — nothing here is a marketing estimate. None of these numbers should be read as production-scale, cloud-validated, or clinical-grade claims; see [Current limitations](#current-limitations) and `docs/MODULE10_FINAL_SUBMISSION.md`'s Limitations section for the full, explicit list.
 

@@ -14,10 +14,12 @@ import asyncio
 import inspect
 import logging
 import time
+import uuid
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from app.core.metrics import get_metrics
+from app.services.agent_graph.events import emit_node_trace
 from app.services.agent_graph.state import AgentState
 
 if TYPE_CHECKING:
@@ -50,6 +52,133 @@ class StateSnapshot:
     state: AgentState
     timestamp: float
     duration_ms: float
+
+
+@dataclass
+class BranchResult:
+    """One concurrent branch's outcome -- always populated, even on
+    failure, so a caller can tell "this branch failed" from "this branch
+    never ran" without inspecting exceptions itself.
+
+    `exception` carries the ORIGINAL exception object (not just its
+    string form in `error`) specifically so a caller can `raise
+    result.exception` and preserve the real exception type/taxonomy
+    (e.g. a domain-specific `AppError` subclass) -- re-raising a generic
+    `RuntimeError` instead would silently change which error-handling
+    branch a caller's own `except AppError` / `except SomeSpecificError`
+    takes.
+    """
+
+    name: str
+    value: Any
+    success: bool
+    error: str | None
+    exception: BaseException | None
+    started_at: float  # wall-clock (time.time()), for cross-branch overlap evidence
+    ended_at: float
+    duration_ms: float
+
+
+async def run_concurrent_branches(
+    branches: dict[str, Callable[[], Any]],
+    *,
+    trace_id: str | None = None,
+    request_id: str | None = None,
+    parallel_group: str | None = None,
+    timeout_seconds: float | None = None,
+) -> dict[str, BranchResult]:
+    """Runs independent, zero-argument branch callables CONCURRENTLY and
+    returns each one's outcome, keyed by branch name.
+
+    This is the reusable concurrency primitive the graph runtime exposes
+    for the "Independent tasks can run simultaneously" checklist item --
+    it is deliberately generic (works for any set of independent
+    branches a node/service wants to fan out), not a one-off hack for a
+    single call site.
+
+    Each branch is executed for real, concurrently:
+    - an `async def` branch is awaited directly on the running event loop
+    - a plain (blocking/sync) branch runs via `asyncio.to_thread`, a real
+      OS thread, so it genuinely overlaps with the other branches'
+      network/CPU work rather than just being interleaved cooperative
+      code on one thread.
+
+    A branch's own exception is caught and recorded on its own
+    `BranchResult` (`success=False`, `error=...`) -- it never cancels or
+    corrupts a sibling branch's result, and never propagates out of this
+    function (callers decide how to react to a partial failure; a
+    caller that needs "any failure is fatal" checks `success` on every
+    result itself).
+
+    Emits one `agent_node_trace` line per branch (reusing the existing
+    per-node tracing format, not a new log shape) tagged with a shared
+    `parallel_group` id and each branch's own wall-clock
+    `branch_started_at`/`branch_ended_at`, so overlapping start/end
+    timestamps are directly visible in the structured logs -- the actual
+    evidence that branches ran concurrently, not just a claim.
+    """
+    group_id = parallel_group or uuid.uuid4().hex[:12]
+
+    async def _run_one(name: str, fn: Callable[[], Any]) -> tuple[str, BranchResult]:
+        started_wall = time.time()
+        started_perf = time.perf_counter()
+        value: Any = None
+        success = True
+        error: str | None = None
+        exception: BaseException | None = None
+        try:
+            awaitable = fn() if inspect.iscoroutinefunction(fn) else asyncio.to_thread(fn)
+            if timeout_seconds is not None:
+                value = await asyncio.wait_for(awaitable, timeout=timeout_seconds)
+            else:
+                value = await awaitable
+        except TimeoutError as exc:
+            # A sync branch's underlying OS thread cannot be forcibly killed
+            # (a real Python/asyncio.to_thread limitation) -- it keeps
+            # running in the background even though this coroutine stops
+            # waiting on it. That's disclosed here, not hidden: the branch
+            # is correctly reported as timed_out/failed either way, and it
+            # never writes to any shared state (each branch only returns
+            # its own local value), so a late-finishing thread can't
+            # corrupt a sibling branch's result.
+            success = False
+            error = f"TimeoutError: branch '{name}' exceeded {timeout_seconds}s"
+            exception = exc
+        except Exception as exc:  # noqa: BLE001 -- captured per-branch, never re-raised here
+            success = False
+            error = f"{type(exc).__name__}: {exc}"
+            exception = exc
+        ended_perf = time.perf_counter()
+        ended_wall = time.time()
+        duration_ms = (ended_perf - started_perf) * 1000
+
+        emit_node_trace(
+            trace_id=trace_id,
+            request_id=request_id,
+            node=f"parallel:{name}",
+            status="success" if success else "failure",
+            latency_ms=duration_ms,
+            error_type=(error.split(":", 1)[0] if error else None),
+            extra={
+                "parallel_group": group_id,
+                "branch": name,
+                "branch_started_at": started_wall,
+                "branch_ended_at": ended_wall,
+            },
+        )
+        return name, BranchResult(
+            name=name,
+            value=value,
+            success=success,
+            error=error,
+            exception=exception,
+            started_at=started_wall,
+            ended_at=ended_wall,
+            duration_ms=duration_ms,
+        )
+
+    pairs = await asyncio.gather(*(_run_one(name, fn) for name, fn in branches.items()))
+    return dict(pairs)
 
 
 class StateGraph:

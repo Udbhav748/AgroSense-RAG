@@ -87,7 +87,7 @@ not just conceptually mapped.
 | Retry | ✅ — LLM/embedding only (§1) |
 | Conditional routing | ✅ — planner + retrieval grading, now explicit `routing.py` functions (see §2 table above) |
 | Human node | ✅ — `human_approval_node`, standardizing the same two gates behind `approval_service.ApprovalStore`; see §1's Human approval row |
-| Parallel execution | ⚠️ — none in chat path; ingestion embeds in batch (`embedding_service.py:126`) |
+| Parallel execution | ✅ — real concurrent `asyncio` branches (`run_concurrent_branches`, `agent_graph/engine.py`) wired into the non-streaming diagnose workflow (vision + weather run concurrently); chat corrective loop remains sequential by design (dependent steps), streaming diagnose not converted; ingestion also embeds in batch (`embedding_service.py:126`) — see `docs/MODULE10_PDF_TRACEABILITY_MATRIX.md` §2 for full disclosure and measured evidence |
 | Multi-agent design | ❌ — single agent, N/A |
 
 ### Metrics

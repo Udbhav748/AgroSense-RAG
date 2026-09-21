@@ -2,7 +2,7 @@
 
 **This document does not claim 100% completion.** Every item across this project is marked ✅ (implementation + reproducible test + real measurement), ⚠️ (partial/limited/local-only measurement), ❌ (missing), or N/A (genuinely not applicable, with rationale) — matching the underlying evidence exactly, never upgraded because code merely exists. See `docs/MODULE10_PDF_TRACEABILITY_MATRIX.md` for the row-by-row mapping against the literal Module 10 PDF checklist.
 
-**Branch**: `module10-final-pdf-compliance` (pushed to `origin`, **not merged to `main`**) · **Commit at last edit**: `7159169` (verify with `git rev-parse HEAD`) · **Full regression**: 982 passed, 1 skipped, 0 failed (983 collected) · **Date**: 2026-09-19 through 2026-09-21, across 9 sequential evaluation/hardening passes (P0–P8)
+**Branch**: `module10-final-pdf-compliance` (pushed to `origin`, **not merged to `main`**) · **Commit at last edit**: verify with `git rev-parse HEAD` · **Full regression**: 1001 passed, 1 skipped, 0 failed (1002 collected) · **Date**: 2026-09-19 through 2026-09-21, across 9 sequential evaluation/hardening passes (P0–P8) plus a same-day P9 follow-up implementing real parallel execution (13 + 6 new tests)
 
 ---
 
@@ -105,7 +105,7 @@ Groundedness/citation figures use a lexical-overlap/claim-decomposition **proxy*
 | Loop Rate | 0.0 | same |
 | Cost per Successful Task | $0.001124 (real per-request telemetry) | same |
 
-**Disclosed limitation**: tool-argument accuracy is measured only on the subset of tool calls where a ground-truth argument value exists in the dataset — not the full tool-call universe. Parallel execution of independent tasks is not implemented in the main chat path (the corrective loop and tool calls are sequential).
+**Disclosed limitation**: tool-argument accuracy is measured only on the subset of tool calls where a ground-truth argument value exists in the dataset — not the full tool-call universe. Parallel execution of independent tasks is now implemented for the non-streaming diagnose workflow (vision + weather run as real concurrent `asyncio` branches, see `docs/MODULE10_PDF_TRACEABILITY_MATRIX.md` §2); the main `/chat` corrective loop and tool calls remain sequential by design (each step depends on the previous one's output) and the streaming diagnose path was not converted.
 
 ## 8. Structured Output Evaluation
 
@@ -206,7 +206,7 @@ Docker + docker-compose exist and are documented; an optional Caddy HTTPS overla
 ## 17. Limitations (explicit, current as of this pass)
 
 - Custom `StateGraph`-like runtime — **not** third-party LangGraph.
-- Parallel execution is not implemented in the main chat path.
+- Parallel execution is implemented for one real workflow only (non-streaming diagnose: vision + weather run concurrently); the main `/chat` corrective loop and the streaming diagnose path remain sequential.
 - Not all tools share one universal abstraction/envelope or identical retry/timeout behavior.
 - Tool-argument accuracy is measured only on a subset with ground-truth values.
 - Faithfulness = 0.7093; `eval-potato-02` remains unresolved.
@@ -249,7 +249,7 @@ See `docs/MODULE10_PDF_TRACEABILITY_MATRIX.md` for the complete, section-by-sect
 
 ```
 cd backend
-pytest -q                                                          # full regression: 982 passed, 1 skipped
+pytest -q                                                          # full regression: 1001 passed, 1 skipped
 python scripts/run_rag_eval.py                                     # RAG + Faithfulness
 python eval/module10/runners/run_agent_eval.py                     # agent/planner
 python eval/unauthorized_access_check.py                           # RBAC
@@ -259,6 +259,7 @@ python eval/module10/runners/run_observability_final_eval.py       # observabili
 python eval/module10/runners/run_availability_eval.py              # bounded local availability
 python eval/module10/runners/run_load_concurrency_final_eval.py    # load/concurrency (real HTTP)
 python eval/module10/runners/run_human_eval_final.py                # human eval / IAA (prints SECOND REVIEWER DATA REQUIRED)
+python eval/module10/runners/run_parallel_execution_final.py       # real parallel execution (diagnose workflow)
 ```
 
 ---
