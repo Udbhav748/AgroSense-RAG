@@ -133,6 +133,32 @@ this audit), consistent with what that section already claims.
 was not separately saved to `eval/module10/evidence/` in this pass — see
 Remaining Gaps.
 
+**Module 10 gap-closure (2026-09-21)**: a single authoritative
+observability report now exists —
+`eval/module10/reports/observability_final_*.json`, produced by
+`eval/module10/runners/run_observability_final_eval.py` from a real,
+controlled 35-request traffic sample (30 successful `POST /chat` + 5
+error-path `DELETE /documents/{missing}`). Measured: aggregate error
+rate 0.1429 (5/35, alongside the unchanged per-taxonomy breakdown), P50
+0.1ms / P95 0.2ms / P99 163.3ms (one cold-model-load outlier),
+availability 1.0 (15/15 real `GET /health` probes against a genuinely
+spawned local `uvicorn` process, labeled "bounded local service
+availability measurement," not production). `AlertEngine`'s threshold-
+to-payload path and `monitoring/dashboard.py`'s required views were both
+validated against this same captured telemetry. A real, previously-
+undocumented finding surfaced while building this report: a
+`cache_lookup_node` cache hit short-circuits straight to `END` and never
+reaches `finalizer_node`, so cache-hit responses never emit the
+`chat_query_handled` log line `monitoring/log_aggregate.py` counts
+toward `requests` — meaning log-based aggregation undercounts traffic
+whenever the response cache serves an answer (the live `GET /metrics`
+Prometheus registry, which instruments at the HTTP layer, is
+unaffected). Disclosed and regression-pinned
+(`tests/test_observability_cache_gap.py`), not silently patched into the
+graph, per this pass's own instruction not to rewrite working
+instrumentation unnecessarily. See `docs/MODULE10_RESULTS.md`'s
+Observability section for full detail.
+
 ## 16. LLMOps
 
 Unchanged from `docs/CHECKLIST.md` §11, plus this audit's own dataset

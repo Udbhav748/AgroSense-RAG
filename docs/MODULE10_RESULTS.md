@@ -767,3 +767,222 @@ failed. Command: `cd backend && pytest`.
   pass -- this evaluation is a measurement, not a recommendation, and no
   independent project requirement to change the default exists at this
   time.
+
+
+## Observability + Alerting + Availability Evidence (2026-09-21)
+
+Single authoritative observability report, produced from a real,
+controlled traffic sample -- not fabricated sample sizes, not a live
+production deployment (none exists for this project).
+
+### Current observability architecture (audit)
+
+**Real runtime instrumentation** (always on): structured JSON logging
+(`app/core/logging.py`), request_id/trace_id propagation, `agent_node_trace`
+per-node tracing (`agent_graph/events.py`), `tool_invocation` logging
+(`tool_registry.py`'s `@track_tool`), LLM token/cost logging
+(`llm_generation_completed`), the live Prometheus-style `GET /metrics`
+registry (`app/core/metrics.py`).
+
+**Offline aggregation** (pull-on-demand over a log file):
+`monitoring/log_aggregate.py::aggregate()`, `monitoring/dashboard.py`
+(shares `aggregate()` so the two can't drift), `eval/metrics_report.py`.
+
+**Automated alerting**: `app/core/alerting.py::AlertEngine` is real,
+tested, and debounced -- this pass proves it runs end to end (see
+below) -- but is NOT continuously invoked against a live target (no
+scheduled job calls `.evaluate()` periodically). It is a SEPARATE code
+path from `monitoring/log_aggregate.py`'s own simpler `_breaches()` +
+`send_alert()` webhook mechanism -- both exist, they are not unified,
+and this is now documented explicitly rather than implied to be one
+system.
+
+**Currently inert without a deployment**: `.github/workflows/health-monitor.yml`
+(unchanged, pre-existing, inert by design -- no persistent deployment to
+poll); `AlertEngine` outside of tests/this report.
+
+**Manual only**: `monitoring/uptime_check.py` and this pass's
+`run_availability_eval.py` are invoked on demand, not on a schedule
+against a live target.
+
+### Metrics measured
+
+Traffic source: 30 successful `POST /chat` + 5 error-path `DELETE
+/documents/{missing_id}` through the real FastAPI app via `TestClient`
+(LLM/embedding calls mocked -- no API quota consumed, mirrors
+`tests/test_main.py`'s own fixture pattern). Every structured log line
+emitted during this traffic was captured in-process and fed through the
+SAME `monitoring/log_aggregate.py::aggregate()` that parses a real
+captured `app.log` file -- not a separate "eval-mode" parser.
+
+**A real methodological finding surfaced while building this report**:
+the first attempt used one constant fake query embedding for every
+request; the real `SemanticQueryCache` (cosine-similarity threshold
+0.96) correctly treated 29 of 30 "different" queries as cache hits
+against the first request's real answer. Cache hits route straight to
+`END` via `cache_lookup_node` and never reach `finalizer_node` --
+meaning they never emit the `chat_query_handled` log line
+`aggregate()` counts toward `requests`. This is a genuine,
+previously-undocumented **observability gap**: log-based aggregation
+undercounts traffic whenever the response cache serves an answer (the
+live `GET /metrics` Prometheus registry, instrumented at the HTTP
+layer, is unaffected). Disclosed and regression-pinned
+(`tests/test_observability_cache_gap.py`), not silently patched into
+the graph -- `cache_lookup_node` is working-as-designed instrumentation
+this pass was told not to rewrite unnecessarily. The report's own
+traffic generator clears the response cache before each of the 30
+requests so ITS OWN numbers reflect the real, uncollapsed sample.
+
+| Metric | Value |
+|---|---|
+| Total requests | 35 |
+| Successful requests | 30 |
+| Failed requests | 5 |
+| Aggregate error rate | 0.1429 (5/35) |
+| Error rate by taxonomy category | `{"input": 5}` |
+| Total LLM calls | 30 (mocked -- see token/cost note) |
+| Total tokens | 0 (mocked LLM makes no real call) |
+| Estimated total cost | $0.00 (mocked -- real figures in the Provider A-B evaluation) |
+| Tool invocation counts | `{"retrieval": 30}` |
+| Tool success/failure counts | 30/0 (100% success) |
+| Retry counts | 0 (no provider retries triggered against a mocked, always-succeeding client) |
+| Loop-cap events | 0 |
+
+### P50/P95/P99
+
+P50 = 0.1ms, P95 = 0.2ms, P99 = 163.3ms. The P99 reflects one real
+cold-model-load outlier (the cross-encoder reranker/sentence-transformers
+import cost on the first request of the process) -- P50/P95 show the
+application's own steady-state overhead once warm. This measures
+application overhead (routing, retrieval, graph execution), NOT live
+LLM provider round-trip latency (mocked here; see the Provider A-B
+evaluation's real, live-call latency figures for that).
+
+### Aggregate error rate (explicit, per TASK 3)
+
+`error_rate = failed_requests / total_requests` is now a formalized,
+tested aggregate metric (`monitoring/log_aggregate.py::aggregate()`,
+pinned by `tests/test_log_aggregate.py`'s new deterministic tests) --
+reported ALONGSIDE, never instead of, the existing per-taxonomy-category
+breakdown (`error_rate_by_category`). Measured: 0.1429 aggregate, 100%
+of failures in the `input` category (the deliberate 404s from the 5
+error-path requests).
+
+### Availability measurement
+
+**Label: "bounded local service availability measurement."** A real
+`uvicorn app.main:app` subprocess was started on localhost; `GET
+/health` was probed 15 times over a 15-second bounded window using the
+same `monitoring.uptime_check._probe()` function the real uptime
+checker uses.
+
+| | Value |
+|---|---|
+| Total probes | 15 |
+| Successful probes | 15 |
+| Failed probes | 0 |
+| Availability | 1.0 |
+| Endpoint tested | `http://127.0.0.1:8813/health` |
+| Test duration | 15s |
+
+This is explicitly NOT production availability -- there is no
+persistent production deployment for this project -- and this short
+window is a smoke/validation measurement, not an SLO. Reproduce: `cd
+backend && python eval/module10/runners/run_availability_eval.py`.
+
+### Alerting validation
+
+`app/core/alerting.py::AlertEngine` was exercised end to end (metric
+input -> threshold evaluation -> alert triggered -> payload produced)
+against both synthetic breach values and this report's own real
+measured error rate, using `MockNotificationSink` and a fake webhook
+`post_fn` (no real Slack account) -- proving the path actually runs,
+not just imports cleanly.
+
+| Scenario | Threshold | Input value | Expected alert | Actual result |
+|---|---|---|---|---|
+| Error rate above threshold | 0.05 | 0.50 (synthetic) | Yes | Alert triggered, payload produced |
+| P95 latency above threshold | 3.0s | 10.0s (synthetic) | Yes | Alert triggered, payload produced |
+| Metric below minimum (health check) | 0.5 | 0.0 (synthetic) | Yes | Alert triggered, payload produced |
+| Real measured error rate | 0.05 | 0.1429 (this run's own real, measured aggregate) | Yes -- this controlled sample's deliberate error-path requests push its own error rate above the default 5% alert threshold by design, not a production incident | Alert triggered, payload produced |
+
+All 4 scenarios behaved as expected. Alert payloads contain exactly
+`{rule, metric, value, threshold, kind, timestamp}` -- no request
+content, API key, or Authorization header is structurally reachable,
+since `AlertEvent`'s only inputs are `(metric: str, value: float)`.
+Tested in `tests/test_alert_engine_integration.py` (8 tests, including
+an adversarial rule-name test and a direct check that this project's
+real Gemini/Groq key prefixes never appear in a payload).
+
+### Dashboard validation
+
+`monitoring/dashboard.py` was run against the SAME captured telemetry
+this report's other metrics come from (not a separate/hypothetical log
+file). All 8 required views were confirmed present: availability,
+latency, error rate, tool success, retry activity, requests
+(throughput), token usage, cost. `tests/test_dashboard.py` (7 tests,
+previously untested) pins `_retry_activity`, `_endpoint_breakdown`, and
+`_requests_per_minute` against synthetic-but-realistic records.
+
+### Prompt logging / security boundary
+
+`Settings.log_prompt_content` defaults to `False` and remains off by
+default after this pass -- exact prompt content is never logged during
+normal operation. When explicitly enabled (a controlled/debug
+mechanism), `_capture_prompt` logs a length-capped excerpt via
+`Settings.log_prompt_max_chars`, never unbounded. `prompt_version` is
+recorded on every generation (`generation_requested`) regardless of the
+flag. `tests/test_prompt_capture_boundary.py` (5 tests) pins this
+boundary; the flag was NOT flipped on globally by this pass.
+
+### Reproducibility artifact
+
+`backend/eval/module10/reports/observability_final_20260921T062441Z.json`
+(this report's own composite artifact -- traffic source, time window,
+request counts, error rate, P50/P95/P99, tool/retry/token/cost counts,
+availability result, alerting validation, dashboard validation, prompt
+logging status, limitations) plus
+`backend/eval/module10/reports/availability_bounded_local_*.json`
+(the availability sub-measurement's own artifact). Reproduce: `cd
+backend && python eval/module10/runners/run_observability_final_eval.py`.
+
+### New regression tests
+
+`tests/test_log_aggregate.py` (13), `tests/test_dashboard.py` (7),
+`tests/test_alert_engine_integration.py` (8), `tests/test_prompt_capture_boundary.py`
+(5), `tests/test_availability_eval.py` (4), `tests/test_observability_cache_gap.py`
+(3) -- 40 new tests total, all offline/deterministic (the availability
+and full-report scripts themselves exercise a real subprocess/HTTP path
+when run directly, but the test suite mocks that path for speed and
+determinism).
+
+### Full backend regression
+
+932 passed (892 + 40 new), 1 skipped, 0 failed. Command: `cd backend &&
+pytest`. Dedicated observability command: `cd backend && python
+eval/module10/runners/run_observability_final_eval.py`.
+
+### Remaining observability limitations
+
+- Traffic is a controlled local `TestClient` sample with a mocked LLM
+  -- live LLM provider round-trip latency/token/cost is not included
+  here (see the Provider A-B evaluation for real, live-call figures).
+- 35 requests on a single local process is not a production-scale
+  sample.
+- Availability is a bounded local measurement, not production
+  availability -- no SLO is claimed, no continuous monitoring exists.
+- `AlertEngine`'s automated path is validated here to prove it runs
+  correctly -- it is not continuously/automatically invoked against a
+  live target on a schedule; no such deployment exists for this
+  project.
+- No hosted dashboard/durable monitoring service exists --
+  `monitoring/dashboard.py` is a dependency-free, on-demand terminal
+  view over a log file, validated here against real captured records,
+  not a Grafana-style live service.
+- No long-lived SLO measurement exists or is claimed.
+- No centralized logging service exists -- logs are process-local
+  stdout JSON lines.
+- Cache-hit responses are invisible to log-based aggregation (see the
+  disclosed finding above) -- a real, disclosed gap, not fixed in this
+  pass since it is existing, working instrumentation this pass was told
+  not to rewrite unnecessarily.
