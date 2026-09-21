@@ -22,7 +22,6 @@ the exact boundary and the backward-compatibility strategy for rows
 written before this change.
 """
 
-import base64
 import logging
 import uuid
 from datetime import UTC, datetime
@@ -32,19 +31,10 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import SessionLocal
-from app.core.encryption import decrypt_bytes, encrypt_bytes
+from app.core.encryption import decrypt_text_field, encrypt_text_field
 from app.models.db_models import ChatSession, ChatTurn
 
 logger = logging.getLogger(__name__)
-
-# Versioned prefix marking a `content` value as ciphertext produced by
-# _encrypt_content, distinct from a legacy plaintext row written before
-# encryption was wired in here. Using an explicit marker (rather than
-# "try to decrypt, fall back to plaintext on failure") avoids ever
-# ambiguously treating a wrong-key/tampered ciphertext as if it were
-# plaintext -- a marked row that fails to decrypt is a real failure and
-# must raise, not silently degrade.
-_ENC_PREFIX = "enc1:"
 
 
 def _encrypt_content(plaintext: str, *, session_id: str) -> str:
@@ -58,15 +48,12 @@ def _encrypt_content(plaintext: str, *, session_id: str) -> str:
     Raises EncryptionKeyMissingError (fails closed, never falls back to
     storing plaintext) if Settings.encryption_key_b64 isn't configured.
     """
-    ciphertext = encrypt_bytes(
-        plaintext.encode("utf-8"), key_b64=settings.encryption_key_b64, associated_data=session_id.encode("utf-8")
-    )
-    return _ENC_PREFIX + base64.b64encode(ciphertext).decode("ascii")
+    return encrypt_text_field(plaintext, associated_data=session_id, key_b64=settings.encryption_key_b64)
 
 
 def _decrypt_content(stored: str, *, session_id: str) -> str:
     """Decrypt a chat turn's content read from storage. A value without
-    the _ENC_PREFIX marker is a legacy plaintext row (written before
+    the encryption marker is a legacy plaintext row (written before
     this change) and is returned as-is -- no migration is required for
     existing rows to remain readable, and no plaintext row is ever
     mistaken for ciphertext. A value WITH the marker that fails to
@@ -74,11 +61,7 @@ def _decrypt_content(stored: str, *, session_id: str) -> str:
     than returning anything -- fails closed, per
     app.core.encryption's own contract.
     """
-    if not stored.startswith(_ENC_PREFIX):
-        return stored  # legacy plaintext row, pre-dates this change
-    ciphertext = base64.b64decode(stored[len(_ENC_PREFIX):])
-    plaintext = decrypt_bytes(ciphertext, key_b64=settings.encryption_key_b64, associated_data=session_id.encode("utf-8"))
-    return plaintext.decode("utf-8")
+    return decrypt_text_field(stored, associated_data=session_id, key_b64=settings.encryption_key_b64)
 
 
 def _utcnow() -> datetime:

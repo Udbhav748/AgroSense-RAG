@@ -19,7 +19,7 @@ Everything in this document assumes `backend/.env` exists with at least `GEMINI_
 pytest -q
 ```
 
-Expected: `1001 passed, 1 skipped (1002 collected)`.
+Expected: `1013 passed, 1 skipped (1014 collected)`.
 
 ## Targeted test subsets
 
@@ -34,7 +34,18 @@ pytest tests/test_human_approval_structured_output.py -q  # structured output + 
 pytest tests/test_human_approval_node.py -q           # human_approval_node in isolation (6)
 pytest tests/test_agent_graph_parallel_execution.py -q  # generic concurrency primitive (13)
 pytest tests/test_handle_diagnose_parallel.py -q        # real diagnose-workflow concurrency (6)
+pytest tests/test_encryption.py tests/test_postgres_session_store_encryption.py tests/test_session_repository_encryption.py -q  # encryption at rest, both fields (33)
 ```
+
+## Encryption-at-rest evidence
+
+**Requires**: nothing external — runs against a real in-memory SQLite-backed SQLAlchemy session.
+
+```
+python eval/module10/runners/run_encryption_at_rest_eval.py
+```
+
+Runs real encrypt/decrypt/tamper/wrong-key/missing-key/plaintext-leakage checks against the actual `PostgresSessionStore`/`session_repository` code (not a description of intended behavior) and reruns the encryption test files, reporting the real pass count. Saves a timestamped JSON artifact under `backend/eval/module10/reports/encryption_at_rest_final_<timestamp>.json` with an 11-category coverage matrix distinguishing protected vs. disclosed-unprotected data.
 
 ## Parallel execution performance evidence
 

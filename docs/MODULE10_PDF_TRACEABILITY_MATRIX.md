@@ -215,7 +215,8 @@ Applied where a genuine classification task exists — planner intent classifica
 | Authentication | ✅ | API key/JWT, `core/auth.py` |
 | Authorization | ✅ | tenant-scoped RBAC, `core/permissions.py` |
 | PII detection | ✅ | `pii_service.py` |
-| Encryption | ⚠️ | `ChatTurn.content` AES-256-GCM at rest — **does not cover** the FAISS index, uploaded PDFs, or any other storage surface; no key rotation |
+| Encryption (at rest) | ⚠️ (expanded 2026-09-21) | `ChatTurn.content` **and** `ChatSession.title` AES-256-GCM at rest via shared `encrypt_text_field`/`decrypt_text_field` helpers (`app/core/encryption.py`) — **does not cover** the FAISS index/metadata, uploaded PDF files on disk, or feedback records (each disclosed with a specific technical reason, not omitted silently); no key rotation |
+| Encryption (in transit) | ⚠️ | HTTPS/TLS documented, not independently validated against a live production endpoint — see §14; out of scope for this pass, tracked separately from at-rest |
 | Secret management | ⚠️ | `.env`/SSM documented, not code-enforced |
 | RBAC | ✅ | member/admin permission map |
 | Human approval | ✅ | see §1 |
@@ -232,7 +233,11 @@ Applied where a genuine classification task exists — planner intent classifica
 | False Refusal Rate | 0.0 |
 | Data Leak Rate | 0.0 |
 
-**Encryption evidence** (`encryption_at_rest_integration_20260920T185450Z.json`): 12/12 encrypted writes, 2/2 round-trip decrypts, 1/1 tamper detection, 2/2 wrong-key rejections, 2/2 missing-key fail-closed, **0** plaintext leakage.
+**Encryption evidence (historical, pre-expansion)** (`encryption_at_rest_integration_20260920T185450Z.json`): 12/12 encrypted writes, 2/2 round-trip decrypts, 1/1 tamper detection, 2/2 wrong-key rejections, 2/2 missing-key fail-closed, **0** plaintext leakage — `ChatTurn.content` only.
+
+**Encryption evidence (current, expanded scope)** (`backend/eval/module10/reports/encryption_at_rest_final_20260921T193344Z.json`): real, executed checks (not asserted) — `ChatTurn.content` **and** `ChatSession.title` both encrypted on disk (`enc1:` prefix, marker never appears in raw storage), both round-trip correctly through the application, wrong key rejected, tampered ciphertext rejected, missing key fails closed on write, cross-session AAD isolation holds, legacy plaintext rows remain readable — **all checks passed**. Full coverage matrix (11 data categories, each with an explicit protected/unprotected-and-why classification) is in the artifact itself. Test count: 33 passed (`pytest tests/test_encryption.py tests/test_postgres_session_store_encryption.py tests/test_session_repository_encryption.py -q`) — 21 pre-existing + 12 new for `ChatSession.title`.
+
+**Precise scope statement**: sensitive persisted chat content (`ChatTurn.content`, `ChatSession.title`) is encrypted at rest using AES-256-GCM. Derived/searchable data (FAISS metadata/vectors) and the raw uploaded PDF files are not, because transparent field encryption at those layers would require decrypting on every retrieval call or a decrypt-to-tempfile step before every PyMuPDF extraction — both real, disclosed, unsolved limitations, not silently omitted. **Not all persisted data is encrypted.**
 
 **No GDPR/DPDP/HIPAA compliance certification is claimed** — having these security controls is not the same as a formal compliance assessment.
 

@@ -1,6 +1,6 @@
 # Module 10 — Final Technical Audit
 
-**Branch**: `module10-final-pdf-compliance` (not merged to `main`) · **Commit**: verify with `git rev-parse HEAD` · **Regression**: 1001 passed, 1 skipped, 0 failed (1002 collected) · **Date**: 2026-09-21 (P9 consolidation, updated same day for real parallel execution)
+**Branch**: `module10-final-pdf-compliance` (not merged to `main`) · **Commit**: verify with `git rev-parse HEAD` · **Regression**: 1013 passed, 1 skipped, 0 failed (1014 collected) · **Date**: 2026-09-21 (P9 consolidation, updated same day for real parallel execution and again for expanded encryption at rest)
 
 This is the detailed technical companion to `docs/MODULE10_FINAL_SUBMISSION.md` (the evaluator-facing overview). It gives checklist coverage, evidence locations, reproduction commands, measured metrics, and limitations per Module 10 section, without duplicating raw JSON results — those are linked, not pasted. The literal Module 10 PDF checklist (14 sections + 10-question design review) was provided directly in this pass and is mapped row-by-row in `docs/MODULE10_PDF_TRACEABILITY_MATRIX.md`; this document organizes evidence by the same section numbers.
 
@@ -70,7 +70,7 @@ Docker + docker-compose exist. HTTPS is a documented Caddy-overlay path, not ind
 
 ## §13 Privacy, Security and Responsible AI
 
-See `docs/MODULE10_FINAL_SUBMISSION.md` §10 for the full metrics table. Authentication (API key/JWT), authorization (RBAC, `core/permissions.py`), PII detection, encryption (`ChatTurn.content` only, AES-256-GCM), secret management (documented, not code-enforced), RBAC, human approval, audit logs (`core/logging.py`'s `audit_event` lines) all present. **No GDPR/DPDP/HIPAA compliance certification is claimed** — having these controls is not the same as a compliance assessment.
+See `docs/MODULE10_FINAL_SUBMISSION.md` §10 for the full metrics table. Authentication (API key/JWT), authorization (RBAC, `core/permissions.py`), PII detection, encryption at rest (`ChatTurn.content` **and** `ChatSession.title`, AES-256-GCM, expanded 2026-09-21 — see below), secret management (documented, not code-enforced), RBAC, human approval, audit logs (`core/logging.py`'s `audit_event` lines) all present. **No GDPR/DPDP/HIPAA compliance certification is claimed** — having these controls is not the same as a compliance assessment.
 
 ## §14 Production Readiness
 
@@ -85,7 +85,7 @@ Architecture diagram: `docs/ARCHITECTURE.md`. AI: agent/planner/tools/memory/RAG
 ```
 cd backend && pytest -q
 ```
-**1001 passed, 1 skipped, 0 failed** (1002 collected) — includes the 19 new parallel-execution tests added same day; verify with `git rev-parse HEAD` and `cd backend && pytest -q`. (Historical: 982 passed, 1 skipped at commit `7159169`, before the parallel-execution addition below.)
+**1013 passed, 1 skipped, 0 failed** (1014 collected) — includes the 19 new parallel-execution tests and the 12 new encryption-at-rest tests, both added same day; verify with `git rev-parse HEAD` and `cd backend && pytest -q`. (Historical: 982 passed, 1 skipped at commit `7159169`, before either addition below.)
 
 ## Reproduction Index
 
@@ -108,7 +108,7 @@ All under `backend/eval/module10/reports/` (35 artifacts as of this pass, never 
 3. No cloud-validated RPS/autoscaling/load-balancer/cost-per-hour.
 4. `AlertEngine` not continuously scheduled; no hosted dashboard/centralized logging.
 5. Cache-hit responses invisible to log-based aggregation (disclosed, not patched).
-6. Encryption at rest covers `ChatTurn.content` only; no key rotation.
+6. Encryption at rest now covers `ChatTurn.content` and `ChatSession.title` (expanded 2026-09-21, see below); FAISS metadata/vectors, uploaded PDF files, and feedback records remain unencrypted for disclosed technical reasons. No key rotation.
 7. HTTPS path documented, not independently tested against a live TLS endpoint.
 8. Secret management documented, not code-enforced.
 9. No formal GDPR/DPDP/HIPAA compliance assessment.
@@ -117,3 +117,11 @@ All under `backend/eval/module10/reports/` (35 artifacts as of this pass, never 
 ## Same-Day Addition After P9: Real Parallel Execution
 
 Closed the "Parallel execution" gap in §2 above (previously ❌, disclosed as a real gap rather than skipped). See §2 and `docs/MODULE10_PDF_TRACEABILITY_MATRIX.md` §2 for the full disclosure of scope: implemented for the non-streaming diagnose workflow only; the streaming diagnose path was not converted. This did not touch any of the 10 items listed above.
+
+## Same-Day Addition After Parallel Execution: Expanded Encryption at Rest
+
+Extended encryption-at-rest coverage (item 6 above) from `ChatTurn.content` only to also cover `ChatSession.title` — real, sensitive user-authored content (populated verbatim from a user's first message) that was sitting in plaintext in the same table as the already-encrypted content column. Implementation: a new shared `encrypt_text_field`/`decrypt_text_field` helper pair in `app/core/encryption.py` (factored out to avoid duplicating the AES-256-GCM/marker/backward-compatibility logic across two call sites), used by both `postgres_session_store.py` (refactored, behavior-preserving) and `session_repository.py` (new). Same `session_id`-bound AAD, same `enc1:` on-disk marker, same legacy-plaintext-passthrough backward compatibility, same fail-closed behavior on a missing/wrong key.
+
+**Explicitly NOT encrypted, with reasons** (see `docs/MODULE10_PDF_TRACEABILITY_MATRIX.md` §13 for the full coverage matrix): FAISS metadata.json chunk text and the FAISS vector index (would require decrypting on every retrieval call across many call sites, or make similarity search itself impossible), uploaded raw PDF files on disk (PyMuPDF reads them directly by path; would require a decrypt-to-tempfile step plus a migration story for already-uploaded files), feedback.jsonl (an evaluation artifact read in bulk by `metrics_report.py`, not primary user-content storage), Tenant/User/ApiKey metadata (not free-text content; email is looked up by an equality index that transparent encryption would break without a blind-index scheme). Encryption in transit (HTTPS/TLS) was explicitly out of scope for this pass and is tracked separately.
+
+Evidence: `backend/eval/module10/reports/encryption_at_rest_final_20260921T193344Z.json` — real executed checks (encrypted-on-disk, round-trip, wrong-key, tamper, missing-key fail-closed, cross-session AAD isolation, legacy backward compatibility), all passed. Tests: 33 passed (21 pre-existing + 12 new, `tests/test_session_repository_encryption.py`).
