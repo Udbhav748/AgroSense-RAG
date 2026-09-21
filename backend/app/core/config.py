@@ -735,7 +735,8 @@ class Settings(BaseSettings):
     hybrid_clip_weight: float = 0.2
 
     # --- Answer-quality / agentic / vector-store-hygiene flags ----------
-    # (docs/FEATURE_PROMPTS.md's 13-feature plan). Every one defaults False,
+    # (originally planned in _recycle_bin/docs-planning-history/FEATURE_PROMPTS.md's
+    # 13-feature plan, archived during repo cleanup). Every one defaults False,
     # per this codebase's convention: a new capability is off until
     # explicitly enabled. Two exceptions ship without a flag — 1.1
     # (retrieval_confidence banner: pure info-surfacing of a grade the app

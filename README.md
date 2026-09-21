@@ -21,9 +21,9 @@
 
 A ~2:20 walkthrough recorded straight from the running app (signup → PDF upload/ingestion → grounded chat with streamed citations → multimodal leaf diagnosis → session history) — real screen capture, not a mockup.
 
-https://github.com/user-attachments/assets/PASTE_UPLOADED_VIDEO_ID_HERE
+[Watch the demo video](docs/assets/demo.mp4)
 
-> The clip lives at `docs/assets/demo.mp4` (poster: `docs/assets/demo-poster.jpg`). GitHub doesn't render a local repo-relative `<video>` tag in README previews, so upload `docs/assets/demo.mp4` via a comment/PR attachment on GitHub.com (drag the file into any comment box) and replace the placeholder link above with the `user-attachments` URL GitHub generates — then it plays inline for anyone viewing the README.
+> GitHub doesn't render a local repo-relative `<video>` tag inline in README previews, so the link above opens/downloads the file (poster image: `docs/assets/demo-poster.jpg`) rather than playing inline. No hosted/external video URL is used here.
 
 ## Table of contents
 
@@ -511,8 +511,7 @@ Every link below was checked against the actual `docs/` directory contents at wr
 
 | Document | Covers |
 |---|---|
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Architecture detail, framework-choice rationale |
-| [`docs/ARCHITECTURE_OVERVIEW.md`](docs/ARCHITECTURE_OVERVIEW.md) | High-level architecture blueprint |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Architecture detail, framework-choice rationale, nodes/edges topology diagram, data models |
 | [`docs/API_REFERENCE.md`](docs/API_REFERENCE.md) | Full typed API spec, SSE wire formats, code snippets |
 | [`docs/OPERATIONS.md`](docs/OPERATIONS.md) | Deployment (Render, EC2), retrieval ablation study |
 | [`docs/DESIGN_REVIEW.md`](docs/DESIGN_REVIEW.md) | Design rationale Q&A |
