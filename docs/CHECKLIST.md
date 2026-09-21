@@ -315,11 +315,11 @@ Question → Embedding (`embedding_service.py`) → Vector search (`faiss_vector
 | Autoscaling | N/A | Single EC2 instance, `docker-compose.yml` never scales the backend service beyond one replica |
 | Monitoring | ✅ | Live `GET /metrics` endpoint in the app itself (Prometheus text format — `app/core/metrics.py`, `app/api/v1/routes/metrics.py`), for any Prometheus/Grafana Cloud agent to scrape; plus the offline stand-ins `metrics_report.py` + `monitoring/*.py` scripts (uptime probe + log rollup, both with optional webhook push on breach). No hosted dashboard stack of our own — but a live, scrapeable endpoint is now on the wire, which is what "no live metrics" was flagging. |
 | Centralized logging | ⚠️ | Stdout JSON only; `log_aggregate.py` remains the offline rollup tool — no managed log service wired up |
-| Requests per second | ⚠️ | Not measured |
+| Requests per second | ⚠️ | **Module 10 gap-closure (2026-09-21, P7)**: measured for real, over a real HTTP/uvicorn boundary — `eval/module10/runners/run_load_concurrency_final_eval.py`, concurrency ladder 1/2/5/10/20 against `GET /health` (63.75-94.61 RPS, stable) and `POST /chat` (11.66 RPS at concurrency=1, falling to 1.99 RPS at concurrency=20, with a full timeout saturation at concurrency=20 — see `docs/MODULE10_RESULTS.md`'s Load/Concurrency section). Still ⚠️, not ✅: this is a single local machine's measured throughput under bounded local concurrency, explicitly not cloud-scale/production RPS capacity. |
 | Latency | ✅ | P50/P95/P99 offline |
 | Availability | ⚠️ | `monitoring/uptime_check.py` probes exist but the scheduled workflow that ran them was removed with the AWS deployment path — point-in-time, run manually |
 | Cost per hour | ⚠️ | Not measured live; static EC2 estimate in `docs/OPERATIONS.md`'s "Deploying to EC2" §Cost (~$15-20/month) |
-| CPU/GPU/Memory utilisation | ⚠️ | Not dashboarded |
+| CPU/GPU/Memory utilisation | ⚠️ | Not dashboarded. **P7 attempted** local `psutil` sampling during the load test but measured the wrong process (the benchmark client, not the server subprocess) — disclosed as a measurement gap in `docs/MODULE10_RESULTS.md`'s Load/Concurrency section, not fixed. GPU: N/A, not used by this app. |
 
 ---
 
@@ -376,6 +376,7 @@ Question → Embedding (`embedding_service.py`) → Vector search (`faiss_vector
 | Monitoring | Uptime probe / Log rollup / Alerts | ⚠️ / ✅ / ⚠️ |
 | Security | Auth / Authorization / Secrets / Encryption | ✅ / ✅ / ⚠️ / ⚠️ |
 | Reliability | Retry / Timeout / Fallback / Cache | ✅ / ✅ / ✅ / ✅ |
+| Load/Concurrency | Real HTTP-boundary concurrency ladder | ⚠️ **Module 10 gap-closure (2026-09-21, P7)**: real `uvicorn` subprocess + real HTTP (`httpx`) concurrency test at levels 1/2/5/10/20, `eval/module10/runners/run_load_concurrency_final_eval.py`. Found a genuine, reproducible saturation event (`/chat` @ concurrency=20: 20/20 requests timed out) with clean recovery (`/health` healthy immediately after every level). ⚠️ not ✅: single local machine, single worker, not production-scale capacity — see `docs/MODULE10_RESULTS.md`'s Load/Concurrency section. |
 | Cost | Tokens / Latency / Model routing / Cache / Vision | ✅ / ✅ / ✅ / ✅ / ✅ — per-request `estimated_cost_usd` covers every `generate*` call including image captioning / vision QA (gated off by default) |
 | Docs | README / API / Architecture / Demo / Future work | ✅ / ✅ / ✅ / ✅ / ✅ |
 

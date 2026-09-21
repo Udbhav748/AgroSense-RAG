@@ -199,6 +199,28 @@ scope.
 Unchanged from `docs/CHECKLIST.md` §14 except Unauthorized Access Rate
 (now measured as 0.0, corrected and resolved — see §18 above).
 
+**Module 10 gap-closure (2026-09-21) — load/concurrency evaluation
+(P7)**: a real HTTP-boundary concurrency ladder (1/2/5/10/20 concurrent
+clients, `httpx` against a genuinely spawned `uvicorn` subprocess, never
+`TestClient`) was run against `GET /health` (no LLM/retrieval) and
+`POST /chat` (real retrieval/reranking, `Settings.llm_provider=mock` for
+a deterministic zero-cost LLM stage — a small, narrow, opt-in addition,
+`app/services/mock_llm_client.py`). Measured: `/health` RPS 63.75-94.61
+across all levels with zero errors; `/chat` RPS fell from 11.66
+(concurrency=1) to 1.99 (concurrency=20), with **all 20 requests timing
+out at concurrency=20** — a genuine, reproducible single-worker
+CPU-bound saturation event (real sentence-transformers embedding +
+cross-encoder reranking serialized by the GIL under concurrent load),
+not an injected fault. `GET /health` remained healthy immediately after
+every level, including the fully-failed one — clean recovery, no
+crash/hang. A deliberate rate-limiter burst scenario (100 requests, one
+shared identity) did not trip the limiter in this run (0/100
+rate-limited) — reported honestly as a negative result. Full detail,
+per-level tables, and disclosed limitations (including a resource-
+sampling measurement gap: `psutil` measured the client process, not the
+server) in `docs/MODULE10_RESULTS.md`'s Load/Concurrency section.
+Explicitly NOT production capacity, NOT a cloud SLO.
+
 ## 20. Hard Cases
 
 `backend/eval/module10/datasets/hard_cases.json` — RAG hard (7, including

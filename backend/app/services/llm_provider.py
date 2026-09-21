@@ -12,11 +12,18 @@ from app.services.fallback_llm_client import FallbackLLMClient
 from app.services.gemini_client import GeminiClient
 from app.services.groq_client import GroqClient
 from app.services.llm_client import LLMClient
+from app.services.mock_llm_client import MockLLMClient
 from app.services.routing_llm_client import RoutingLLMClient
 
 _PROVIDERS = {
     "gemini": GeminiClient,
     "groq": GroqClient,
+    # Deterministic, zero-cost, zero-network stand-in -- reachable only
+    # via an explicit LLM_PROVIDER=mock, never a default. Added for
+    # Module 10's load/concurrency evaluation (P7) so POST /chat can be
+    # benchmarked over a real HTTP/uvicorn process without live provider
+    # cost/rate limits. See app/services/mock_llm_client.py.
+    "mock": MockLLMClient,
 }
 
 
