@@ -24,6 +24,6 @@ Flat index: every major claim in this project's Module 10 submission, with its e
 | Multimodal (LeafSense, synthetic images) | `backend/eval/module10/reports/multimodal_eval_20260919T110330Z.json` | `run_multimodal_eval.py` | `python eval/module10/runners/run_multimodal_eval.py` (requires LeafSense running) | measured on 4 synthetic images — pipeline robustness only, not diagnostic accuracy |
 | Telemetry-capture instrumentation | `backend/eval/module10/metrics/telemetry_capture.py` | `tests/test_module10_telemetry_capture.py` (6 tests) | `pytest tests/test_module10_telemetry_capture.py -q` | node-sequence/cost extraction confirmed correct, no sensitive-content leak |
 | Secrets hygiene | `backend/.env` (untracked) | `git log --all --full-history -- backend/.env`; `git grep` for key patterns | see `docs/REPRODUCE_MODULE10.md` | `.env` never tracked; no key patterns found in tracked files |
-| Full regression suite | all of the above combined | `pytest -q` | `cd backend && pytest -q` | 819 passed, 1 skipped |
+| Full regression suite | all of the above combined | `pytest -q` | `cd backend && pytest -q` | 982 passed, 1 skipped (983 collected) |
 
 For the narrative version of each of these (why it matters, what was found, what was fixed), see the phase reports in order: `docs/MODULE10_GAP_CLOSURE_REPORT.md` → `docs/PHASE3_PRODUCTION_HARDENING_REPORT.md` → `docs/PHASE4_FINAL_PRODUCTION_READINESS_REPORT.md` → `docs/PHASE5_FINAL_GAP_CLOSURE_REPORT.md` → `docs/MODULE10_FINAL_AUDIT.md` (terminal consolidation).

@@ -9,7 +9,7 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
 ![FAISS](https://img.shields.io/badge/FAISS-vector%20search-4B8BBE)
-![Tests](https://img.shields.io/badge/tests-820%20collected-brightgreen)
+![Tests](https://img.shields.io/badge/tests-983%20collected-brightgreen)
 
 </div>
 
@@ -224,12 +224,14 @@ Chat history is server-side per `session_id` (`session_store.py`; `postgres_sess
 - Structured audit logging of feedback and admin-relevant events (`core/logging.py`).
 - API keys are SHA-256-hashed at startup; only hashes are kept in memory (`.env.example`'s `API_KEYS` documentation, `core/auth.py`).
 
+**Encryption at rest (partial, application-level)**: chat session content (`ChatTurn.content` — the actual text of every stored user query and assistant answer) is encrypted with AES-256-GCM before it's written to the database and decrypted on read (`app/core/encryption.py`, wired into `postgres_session_store.py`), with the session ID bound as authenticated associated data. Measured: 12/12 encrypted writes, 0 plaintext leakage in raw storage (`eval/module10/reports/encryption_at_rest_integration_*.json`). This does **not** cover the FAISS index, uploaded PDFs, or any other storage surface, and there is no key-rotation procedure — disclosed, not fixed.
+
 **Explicitly NOT implemented:**
 - No encryption at rest for the local/file-based FAISS index or uploaded PDFs in a self-hosted deployment. (`docs/CHECKLIST.md` credits S3 default SSE + Lambda KMS-encrypted env vars for the AWS Lambda deployment path specifically — that is infrastructure-level, not an application-level encryption feature, and doesn't apply to a plain Docker/local run.)
 - No password reset or refresh-token flow for JWT auth; a token is simply valid for `JWT_EXPIRY_MINUTES` and then the user logs in again.
 - No API key rotation, expiration, or revocation endpoint — only a `.env` edit + restart.
-- No GDPR/HIPAA or other compliance certification of any kind.
-- No field-level or application-level encryption of stored chat/document content.
+- No GDPR/HIPAA/DPDP or other compliance certification of any kind — having these security controls is not the same as a formal compliance assessment.
+- No key-rotation procedure for the encryption key above.
 
 ## Observability
 
@@ -242,12 +244,14 @@ Chat history is server-side per `session_id` (`session_store.py`; `postgres_sess
 | `GET /metrics` — Prometheus exposition format (latency percentiles, tool/LLM call counts, tokens/cost, loop-cap rate) | **IMPLEMENTED** |
 | `backend/eval/metrics_report.py` — parses JSON logs into latency percentiles, error-rate-by-category, token/cost totals, feedback acceptance rate | **IMPLEMENTED** (offline tool, not a live dashboard) |
 | Prometheus/Grafana monitoring stack (`docker-compose.monitoring.yml`, `monitoring/`) | **OPTIONAL** — separate compose file, not part of the default `docker-compose.yml` stack |
-| Automated alerting (error-rate/latency thresholds, on-call paging) | **NOT DEPLOYED** — `/health`/`/metrics` are queryable but nothing currently watches them automatically |
-| Live production dashboard | **NOT DEPLOYED** — no current cloud deployment (see [Current limitations](#current-limitations)) |
+| Automated alerting engine (`app/core/alerting.py::AlertEngine` — threshold rules, debounce, recovery events) | **IMPLEMENTED, tested, run on demand** — validated end-to-end (metric → threshold → alert → payload) with real and synthetic inputs; **not continuously scheduled** against a live target, since no persistent deployment exists to poll |
+| Text dashboard (`monitoring/dashboard.py` — availability, latency, error rate, tool success, retry activity, requests, tokens, cost) | **IMPLEMENTED**, dependency-free, on-demand over a captured log file — not a hosted Grafana-style live service |
+| Bounded local availability measurement (`eval/module10/runners/run_availability_eval.py`) | **IMPLEMENTED** — real `GET /health` probes against a genuinely spawned local process; explicitly not a production SLO |
+| Live production dashboard / continuous production monitoring | **NOT DEPLOYED** — no current cloud deployment (see [Current limitations](#current-limitations)) |
 
 ## Evaluation & benchmarks
 
-The full backend test suite: **820 tests collected** via `pytest --collect-only` on the current tree (measured directly in this repo, matching the 819-passed/1-skipped figure the Module 10 audit docs report). Coverage spans the API end-to-end, RAG orchestration, LLM/Groq/Gemini clients and fallback, hybrid search/reranking, vision/diagnose, document/table/image extraction, agent-graph state machine, sessions, permissions, tenant isolation, and security (`test_security.py`, `test_prompt_injection_service.py`).
+The full backend test suite: **983 tests collected** via `pytest --collect-only` on the current tree (982 passed, 1 skipped, 0 failed — `module10-final-pdf-compliance` branch, `cd backend && pytest`). Coverage spans the API end-to-end, RAG orchestration, LLM/Groq/Gemini clients and fallback, hybrid search/reranking, vision/diagnose, document/table/image extraction, agent-graph state machine, sessions, permissions, tenant isolation, security, encryption at rest, structured output, provider A/B evaluation, observability/alerting, load/concurrency, and human-evaluation infrastructure (`backend/eval/module10/` — see `docs/MODULE10_FINAL_SUBMISSION.md` for the full evidence-backed breakdown).
 
 `backend/eval/` — three independent, code-verified tools (see `backend/eval/README.md`):
 
@@ -257,19 +261,23 @@ The full backend test suite: **820 tests collected** via `pytest --collect-only`
 | `metrics_report.py` | Latency percentiles, error rate by taxonomy, token/cost usage, feedback Acceptance Rate | parses backend's own JSON logs + `backend/feedback/feedback.jsonl` |
 | `docs/HUMAN_EVAL.md` rubric | 1–5 scores across correctness, helpfulness, completeness, safety, tone, groundedness, citation quality | manual, human-rated |
 
-Module 10 results, as reported in `docs/MODULE10_FINAL_AUDIT.md`/`docs/MODULE10_EVIDENCE_INDEX.md` (repo-internal audit documents — figures below are **as-documented in-repo**, not independently re-run for this README pass):
+Module 10 results, as reported in `docs/MODULE10_FINAL_SUBMISSION.md`/`docs/MODULE10_RESULTS.md` (repo-internal audit documents, updated through a 9-phase evaluation arc — figures below are **as-measured in-repo**, each with a cited artifact, not independently re-run for this README pass):
 
 | Area | Result | Label |
 |---|---|---|
-| RAG retrieval (hybrid + rerank) | P@5 0.64, Recall@5 0.81, MRR 0.88 | measured |
-| Agent planner | Accuracy 0.9333, Planning Success 1.0 | measured |
-| Security (PII / unauthorized access / injection / jailbreak) | 1.0 / 0.0 / 0.0 / 0.0 (unauthorized-access, injection, jailbreak rates are 0 = none succeeded) | measured |
-| Human evaluation | 24 cases, 7 rubric dimensions, **1 reviewer** | human-rated, no inter-annotator agreement (single reviewer, disclosed) |
-| Full test suite | 819 passed, 1 skipped | measured (confirmed by this pass: 820 collected) |
+| RAG retrieval (hybrid + rerank) | P@5 0.6435, Recall@5 0.8080, Hit@5 0.9130, MRR 0.8783 | measured |
+| Faithfulness (20-case golden set, post root-cause fix) | 0.7093 (up from a pre-fix 0.6485; historical unverified baseline 0.9420) | measured, one case (`eval-potato-02`) still unresolved |
+| Agent planner | Accuracy 0.9333, Macro F1 0.9475, Planning Success 1.0, Loop Rate 0.0 | measured |
+| Security (PII recall / unauthorized access / injection / jailbreak / false refusal / data leak) | 1.0 / 0.0 / 0.0 / 0.0 / 0.0 / 0.0 | measured |
+| Structured output (production path) | enabled by default on `POST /chat`; 17-case parser dataset, Field Accuracy 1.0, Parser Correctness 1.0 | measured |
+| Encryption at rest | `ChatTurn.content` AES-256-GCM, 12/12 encrypted writes, 0 plaintext leakage | measured |
+| Provider A/B (groq `openai/gpt-oss-120b` vs. gemini `gemini-3.5-flash`) | Faithfulness 0.6824 vs. 0.5158, no provider declared superior | measured, single run, no significance claimed |
+| Observability | real 35-request sample: error rate 0.1429, P50/P95/P99 0.1/0.2/163.3ms; bounded-local availability 1.0 (15/15 probes) | measured, local only |
+| Load/concurrency (real HTTP boundary) | `/health` 63.75–94.61 RPS, 0 errors; `/chat` 11.66→1.99 RPS across concurrency 1→20, full timeout saturation at concurrency=20, clean recovery | measured, local only |
+| Human evaluation | 24 cases, 7 rubric dimensions, **1 real reviewer**; two-reviewer/IAA infrastructure built and tested | IAA not yet measured — pending an independent second reviewer, disclosed, not fabricated |
+| Full test suite | 982 passed, 1 skipped, 0 failed (983 collected) | measured |
 
-The RAG benchmark report (`docs/RAG_BENCHMARK_REPORT.md`) itself states that its original numbers (Faithfulness 0.942, Context Recall 0.968, Context Precision 0.924) could not be reproduced against a surviving artifact and are marked **historical/unverified** in that document; the report's own "REFRESH" section gives Context Recall 0.86 and Context Precision 0.97 as the current, reproducible figures. This README defers to that document's own caveat rather than restating the unverified numbers as current.
-
-Faithfulness after the corrective-loop fix (see below) was first spot-verified live on 2 targeted cases (a quota-conservation choice), then confirmed on the **full 20-case golden benchmark**: Mean Faithfulness recovered from **0.0000** (pre-fix, the regression) to **0.6485** (post-fix, measured 2026-09-19) — a large, real improvement, still below the 0.80 target, with 4/20 cases still at 0.000 despite correct retrieval (a distinct, disclosed, unresolved generation-quality gap, not the same bug). See `docs/RAG_BENCHMARK_REPORT.md`'s "POST-FIX FULL RE-RUN" section and `eval/module10/reports/faithfulness_full_postfix_20260919T180541Z.json`.
+Every figure above is cited to a specific `backend/eval/module10/reports/*.json` artifact and reproduction command in `docs/MODULE10_RESULTS.md` and `docs/MODULE10_FINAL_SUBMISSION.md` — nothing here is a marketing estimate. None of these numbers should be read as production-scale, cloud-validated, or clinical-grade claims; see [Current limitations](#current-limitations) and `docs/MODULE10_FINAL_SUBMISSION.md`'s Limitations section for the full, explicit list.
 
 ## Hard cases & failure recovery
 
@@ -349,7 +357,7 @@ InsightAI-RAG/
 │   │                            # image/table extraction, session stores, tenant/user services
 │   ├── alembic/                 # DB migrations
 │   ├── eval/                    # run_eval.py, metrics_report.py, module10/
-│   └── tests/                   # ~65 test files, 820 tests collected
+│   └── tests/                   # 84 test files, 983 tests collected
 ├── docs/                        # architecture, API reference, operations, Module 10 audit trail
 ├── monitoring/                  # optional Prometheus/Grafana stack
 └── frontend/
@@ -490,7 +498,7 @@ Full interactive OpenAPI docs are available at `/docs` while the backend is runn
 
 ```bash
 cd backend
-pytest                                   # full suite (820 tests collected on this tree)
+pytest                                   # full suite (983 tests collected on this tree)
 python -m eval.run_eval --dataset dataset_v1.json     # planner/groundedness/injection metrics (needs GEMINI_API_KEY + indexed docs)
 python -m eval.metrics_report                          # latency/cost/acceptance from real logs
 ```

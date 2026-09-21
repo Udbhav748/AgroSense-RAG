@@ -19,7 +19,7 @@ Everything in this document assumes `backend/.env` exists with at least `GEMINI_
 pytest -q
 ```
 
-Expected: `819 passed, 1 skipped`.
+Expected: `982 passed, 1 skipped (983 collected)`.
 
 ## Targeted test subsets
 
