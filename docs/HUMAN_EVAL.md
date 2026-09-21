@@ -45,19 +45,40 @@ behavior — worth keeping in mind when a low score shows up here but
 Correctness/Groundedness are high: it likely means retrieval got lucky
 despite pulling from a not-quite-right source, or vice versa.
 
-## Inter-Annotator Agreement: not computed
+## Inter-Annotator Agreement: infrastructure implemented (2026-09-21), still N/A pending a real second reviewer
 
-This rubric is designed to be scored by more than one rater so agreement
-metrics (e.g. Cohen's kappa per dimension, or Krippendorff's alpha across
-raters) can catch rubric ambiguity or rater bias. **This evaluation has
-exactly one reviewer available**, so no Inter-Annotator Agreement figure
-can be computed or reported here — there is nothing to compare a single
-rater's scores against. Any scores filled into the table below should be
-read as one person's judgment, not a validated consensus. This remains
-true after the 2026-09-19 expansion to 24 rows — no second reviewer was
-added or fabricated; IAA is still N/A. Adding a second independent rater
-over the same 24 answers is the natural next step before treating these
-scores as reliable.
+**Module 10 gap-closure (P8)**: Reviewer 1's scores above are now also
+available as structured data
+(`backend/eval/module10/human_eval/reviewer_1_ratings.json`, a verbatim
+transcription of this table) and a complete, tested pipeline exists to
+compute real Inter-Annotator Agreement the moment a second reviewer's
+data exists:
+
+- `backend/eval/module10/human_eval/generate_reviewer2_packet.py` — produces a
+  blinded, self-contained, deterministically-shuffled JSON packet
+  (`reviewer_2_packet_<timestamp>.json`) with the 24 cases, their
+  queries/system outputs/evidence, and blank rating fields. It never
+  reads or includes Reviewer 1's scores.
+- `backend/eval/module10/runners/run_human_eval_final.py` — loads Reviewer
+  1 (always present) and Reviewer 2 (if a filled-in file is supplied),
+  validates both against a strict schema, and computes per-dimension
+  means, disagreement statistics, and **weighted Cohen's kappa per
+  dimension** (the standard chance-corrected ordinal agreement
+  statistic for 1-5 Likert data — quadratic weights, since a 1-vs-5
+  disagreement should count far more than a 4-vs-5 one).
+
+**This evaluation still has exactly one reviewer's real ratings.** No
+second reviewer has been fabricated, and no LLM judge has been
+substituted for one — running `run_human_eval_final.py` today prints
+`SECOND REVIEWER DATA REQUIRED` and reports only what a single
+reviewer supports. IAA remains **N/A** until an independent human
+reviewer fills in the blinded packet (`docs/human_eval/reviewer2_form.md`
+is superseded by the JSON packet above, which is self-contained and
+schema-validated). Once that happens: `cd backend && python
+eval/module10/runners/run_human_eval_final.py --reviewer2-file <path>`
+computes and saves the real figure — see
+`docs/MODULE10_RESULTS.md`'s Human Evaluation section for the exact
+distinction between "infrastructure implemented" and "IAA measured."
 
 ## Evaluation set
 
@@ -266,6 +287,10 @@ Mapped by `app/core/error_handlers.py`'s global `AppError` handler to an HTTP 50
    anchors above.
 4. Add freeform notes for anything the rubric doesn't capture —
    surprising failures, good edge-case handling, etc.
-5. If a second reviewer becomes available, have them score the same 24
-   answers independently (not after seeing the first reviewer's scores),
-   then compute agreement before treating either set as ground truth.
+5. If a second reviewer becomes available: generate a blinded packet
+   (`cd backend && python eval/module10/human_eval/generate_reviewer2_packet.py`),
+   have them fill it in independently (not after seeing this table's
+   scores), save it as a `reviewer_2_ratings.json`-shaped file, then run
+   `cd backend && python eval/module10/runners/run_human_eval_final.py
+   --reviewer2-file <path>` to compute real weighted Cohen's kappa per
+   dimension before treating either reviewer's set as ground truth.

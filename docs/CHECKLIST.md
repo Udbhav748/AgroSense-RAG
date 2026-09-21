@@ -237,7 +237,7 @@ Question → Embedding (`embedding_service.py`) → Vector search (`faiss_vector
 | Correctness / Helpfulness / Completeness / Safety / Tone / Groundedness / Citation Quality | ✅ | 7-dimension 1–5 rubric, `docs/HUMAN_EVAL.md:15-39` |
 | 1–5 rating scale | ✅ | Anchored per score |
 | Likert scale | ✅ | 1–5 Likert-style |
-| Inter-Annotator Agreement | ❌ | Not computed — one reviewer available (documented, `HUMAN_EVAL.md:41-51`) |
+| Inter-Annotator Agreement | ⚠️ | **Module 10 gap-closure (2026-09-21, P8)**: full two-reviewer/IAA infrastructure implemented and tested — `backend/eval/module10/human_eval/` (reviewer-1 ratings transcribed to structured JSON, blinded reviewer-2 packet generator, schema validation) + `backend/eval/module10/runners/run_human_eval_final.py` (weighted Cohen's kappa per dimension, disagreement stats, hard-case identification). Still ⚠️ not ✅: **only one reviewer's real ratings exist** — no second reviewer has been fabricated or substituted with an LLM judge, so IAA is not yet a measured figure. Running the command today prints `SECOND REVIEWER DATA REQUIRED`. See `docs/HUMAN_EVAL.md`'s Inter-Annotator Agreement section and `docs/MODULE10_RESULTS.md`'s Human Evaluation section. |
 
 ---
 

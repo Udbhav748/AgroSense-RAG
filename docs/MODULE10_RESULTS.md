@@ -1161,3 +1161,164 @@ eval/module10/runners/run_load_concurrency_final_eval.py`.
   throughput/latency under tested concurrency on this machine --
   explicitly not a claim about maximum production capacity, cloud-scale
   throughput, or production reliability.
+
+
+## Human Evaluation + Second Reviewer / IAA (2026-09-21)
+
+**Status before this pass**: 24 cases, 7 dimensions (Correctness,
+Helpfulness, Completeness, Safety, Tone, Groundedness, Citation
+Quality), one reviewer, IAA = N/A (`docs/HUMAN_EVAL.md`).
+
+**What this pass built**: a complete, tested, reproducible two-reviewer
+evaluation pipeline -- not fabricated ratings.
+
+- `backend/eval/module10/human_eval/reviewer_1_ratings.json` --
+  Reviewer 1's existing scores (from `docs/HUMAN_EVAL.md`'s table)
+  transcribed verbatim into structured JSON. No re-scoring, no new
+  judgment.
+- `backend/eval/module10/human_eval/cases.py` -- the single canonical
+  24-case list (case_id, query, system_output, evidence) both reviewer
+  files are validated against.
+- `backend/eval/module10/human_eval/schema.py` -- strict validation
+  (required `reviewer_id`, required `case_id` per row, all 7
+  dimensions present, integer 1-5 or `null` only, no duplicate case
+  IDs, no missing cases) with specific, actionable error messages.
+- `backend/eval/module10/human_eval/generate_reviewer2_packet.py` --
+  produces a blinded, self-contained JSON packet
+  (`reviewer_2_packet_<timestamp>.json`) with all 24 cases in a
+  deterministically-shuffled order (seeded, reproducible), each case's
+  query/system_output/evidence embedded directly (so Reviewer 2 never
+  needs to open `docs/HUMAN_EVAL.md`, which contains Reviewer 1's
+  scores), and blank rating fields. Structurally verified to never read
+  or embed Reviewer 1's data (`tests/test_human_eval_p8.py`).
+- `backend/eval/module10/metrics/human.py` -- extended (additive only)
+  with `weighted_cohens_kappa()` and `kappa_by_dimension()`: quadratic-
+  weighted Cohen's kappa, the standard chance-corrected agreement
+  statistic for ordinal 1-5 Likert data (a 1-vs-5 disagreement counts
+  far more than a 4-vs-5 one). The pre-existing
+  `inter_annotator_agreement()` (a simpler mean-absolute-pairwise-
+  difference figure) is kept unchanged alongside it, not replaced.
+- `backend/eval/module10/runners/run_human_eval_final.py` -- loads
+  Reviewer 1 (always present) and Reviewer 2 (if supplied via
+  `--reviewer2-file`), validates both, computes per-reviewer and
+  combined per-dimension means, weighted Cohen's kappa per dimension,
+  disagreement statistics, and identifies the lowest-scoring/highest-
+  disagreement cases as hard examples. **If Reviewer 2 data is absent,
+  it prints `SECOND REVIEWER DATA REQUIRED` and computes only what one
+  reviewer supports -- it never fabricates a second reviewer's scores.**
+
+### Why weighted Cohen's kappa (not the existing simple agreement figure alone)
+
+The ratings are ordinal 1-5 Likert scores, not nominal categories --
+kappa with quadratic weights is the standard choice because it
+penalizes a 1-vs-5 disagreement quadratically more than a 4-vs-5 one,
+and it corrects for the agreement two reviewers would reach by chance
+alone (unlike a raw mean-absolute-difference figure). Validated against
+3 independently hand-derived fixtures (not copied from this
+implementation's own output): perfect agreement -> kappa=1.0 exactly;
+a balanced 2x2 confusion matrix -> kappa=0.0 exactly (cross-checked
+against the standard unweighted-kappa formula, since quadratic weights
+reduce to 0/1 for 2 categories); an intermediate 3-category case ->
+kappa=0.6364, hand-computed via the same formula this implementation
+uses. See `tests/test_human_eval_p8.py::TestWeightedCohensKappa`.
+
+### CASE B: second reviewer data does not exist
+
+Running `cd backend && python eval/module10/runners/run_human_eval_final.py`
+today:
+
+```
+Loaded Reviewer 1: 24 case ratings.
+
+============================================================
+SECOND REVIEWER DATA REQUIRED
+============================================================
+No valid Reviewer 2 ratings file was found. IAA cannot be computed or
+claimed with only one reviewer. Generate the blinded packet and have an
+independent human reviewer fill it in: ...
+
+Case count: 24  Reviewer count: 1
+IAA: not available (one reviewer)
+```
+
+**IAA cannot yet be claimed because independent second-human ratings
+are not present.** No second reviewer was fabricated. No LLM judge
+(Gemini/Groq/Claude/GPT) was substituted for the required independent
+human reviewer -- per this task's explicit prohibition, LLM-as-judge is
+never treated as satisfying the two-human-reviewer IAA requirement.
+
+**To complete P8 to full closure** (a real second reviewer's ratings),
+run:
+```
+cd backend && python eval/module10/human_eval/generate_reviewer2_packet.py
+```
+have an independent human reviewer fill in the resulting JSON packet
+(scoring each of the 24 cases 1-5 per dimension, blind to Reviewer 1's
+scores), then:
+```
+cd backend && python eval/module10/runners/run_human_eval_final.py --reviewer2-file <path>
+```
+which will compute and save the real per-dimension weighted Cohen's
+kappa, disagreement statistics, and hard-disagreement cases.
+
+### Blinding / independence (disclosed limitation)
+
+The packet is self-contained and never includes Reviewer 1's scores,
+and case order is shuffled to reduce anchoring. Complete independence
+ultimately depends on the human reviewer actually following the
+protocol (not opening `docs/HUMAN_EVAL.md` before scoring) -- software
+cannot fully enforce this, and is disclosed as such rather than
+overclaimed.
+
+### Privacy
+
+The 24 cases (queries + system outputs) contain no names, email
+addresses, phone numbers, or other personal data -- they are PMP-course
+and plant-pathology domain questions plus canned conversational
+replies. Case IDs (`case_001`..`case_024`) are used throughout rather
+than exposing any reviewer-identifying information beyond a
+self-chosen `reviewer_id` string. No redaction was necessary because no
+PII was present to begin with -- documented explicitly rather than
+assumed.
+
+### Reproducibility artifact
+
+`backend/eval/module10/reports/human_eval_final_20260921T152012Z.json`
+(the Case-B, one-reviewer report). Reproduce: `cd backend && python
+eval/module10/runners/run_human_eval_final.py`.
+
+### New tests
+
+`tests/test_human_eval_p8.py` (29 tests): schema validation (11),
+real-reviewer-1-file validity (1), blinding packet (6), weighted
+Cohen's kappa against hand-derived fixtures (5), kappa-by-dimension
+aggregation (3), exact case-ID alignment (1), deterministic runner
+output (2).
+
+### Full backend regression
+
+982 passed (953 + 29 new), 1 skipped, 0 failed. Command: `cd backend &&
+pytest`. Dedicated command: `cd backend && python
+eval/module10/runners/run_human_eval_final.py`.
+
+### Module 10 checklist mapping
+
+| Requirement | Location | Command | Result | Limitation |
+|---|---|---|---|---|
+| Correctness/Helpfulness/Completeness/Safety/Tone/Groundedness/Citation Quality | `docs/HUMAN_EVAL.md`, `reviewer_1_ratings.json` | manual scoring | 24/24 scored (reviewer 1) | Single reviewer only |
+| 1-5 Likert scale | `docs/HUMAN_EVAL.md` rubric | — | Anchored per score | Unchanged |
+| Inter-Annotator Agreement | `run_human_eval_final.py`, `metrics/human.py` | `python eval/module10/runners/run_human_eval_final.py` | Infrastructure implemented; `SECOND REVIEWER DATA REQUIRED` | **IAA not measured -- pending real reviewer 2** |
+
+### Remaining limitations
+
+- **IAA is not measured** -- this is infrastructure-complete, not
+  evaluation-complete. Only Reviewer 1's real ratings exist.
+- Reviewer 1's ratings were transcribed from the existing markdown
+  table, not re-scored.
+- Blinding depends on the human reviewer's own discipline; not
+  software-enforceable end to end.
+- Weighted Cohen's kappa on N=24 (or fewer per dimension where N/A
+  entries reduce the paired sample) would be a small-sample estimate
+  once computed -- no significance test would be reported.
+- No LLM-as-judge score is presented anywhere as a substitute for the
+  required second human reviewer.

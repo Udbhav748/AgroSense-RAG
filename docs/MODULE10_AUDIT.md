@@ -115,8 +115,29 @@ re-measured in this pass.
 malicious-retrieved-content injection, jailbreak, and failure-recovery
 case types). Live capture artifact:
 `eval/module10/reports/human_eval_new_rows_capture_20260919T115041Z.json`.
-IAA = not available (one reviewer), honestly, unchanged by the
-expansion — not fabricated.
+
+**Module 10 gap-closure (2026-09-21, P8) — second reviewer / IAA
+infrastructure**: Reviewer 1's existing 24 scored cases were transcribed
+verbatim into structured JSON
+(`backend/eval/module10/human_eval/reviewer_1_ratings.json`) and a
+complete, tested pipeline was built for a real second reviewer: a
+blinded, self-contained, deterministically-shuffled JSON packet
+generator (`generate_reviewer2_packet.py`, never reads Reviewer 1's
+scores), a strict schema validator, and a runner
+(`run_human_eval_final.py`) computing weighted Cohen's kappa per
+dimension (quadratic weights, the standard chance-corrected ordinal
+agreement statistic — hand-verified against 3 independently-derived
+fixtures in `tests/test_human_eval_p8.py`), disagreement statistics, and
+hard/disagreement-case identification.
+
+**IAA = still not available.** Only one reviewer's real ratings exist —
+running `python eval/module10/runners/run_human_eval_final.py` today
+correctly prints `SECOND REVIEWER DATA REQUIRED` and computes only
+single-reviewer summaries. No second reviewer was fabricated and no
+LLM judge was substituted for the required independent human reviewer.
+This is disclosed as **infrastructure implemented**, distinct from
+**IAA measured** — see `docs/HUMAN_EVAL.md`'s Inter-Annotator Agreement
+section for the exact distinction and reproduction steps.
 
 ## 14. Debugging
 
