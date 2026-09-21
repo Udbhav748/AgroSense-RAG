@@ -186,6 +186,18 @@ deliberate, manually-triggered gate, not a merge-blocking check, because
 of the live-API-cost/pre-indexed-document constraints in the paragraph
 below.
 
+**Module 10 gap-closure (2026-09-21)**: a controlled, reproducible
+provider/model A-B evaluation now exists specifically for the
+groq/gemini provider choice itself (as opposed to a prompt/config
+before-after pair) — `eval/module10/runners/run_provider_ab_eval.py`,
+results in `docs/MODULE10_RESULTS.md`'s "Provider/Model A-B Evaluation"
+section. It measures Faithfulness, task success, tool selection, latency,
+and cost per successful task under the same frozen 20-case dataset for
+both providers with fallback/routing deliberately disabled to isolate
+each provider's own reliability. It reports differences neutrally and
+does not change the production default — see that section for the
+measured deltas and disclosed limitations.
+
 **A concrete before/after pair exists today**, and it's a useful
 illustration of the harness catching an *infrastructure* failure rather
 than a *reasoning* one:

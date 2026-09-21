@@ -292,7 +292,7 @@ Question → Embedding (`embedding_service.py`) → Vector search (`faiss_vector
 | Dataset version | ✅ | `dataset_vN.json` files + `dataset_version` recorded per run, `run_eval.py` |
 | Model version | ✅ | `llm_model_name` + `reranking_model_name` + `embedding_model_name` recorded per run, `run_eval.py` |
 | Evaluation pipeline | ✅ | Harness + manual `eval.yml`; now includes regression gate |
-| A/B testing | ⚠️ | Manual offline before/after runs, `OPERATIONS.md:8-54` |
+| A/B testing | ✅ | Manual offline before/after runs, `OPERATIONS.md:8-54`, **plus** a controlled provider/model A-B evaluation (Module 10 gap-closure, 2026-09-21): `eval/module10/runners/run_provider_ab_eval.py` runs the same frozen 20-case golden dataset under groq (`openai/gpt-oss-120b`) and gemini (`gemini-3.5-flash`) with fallback/routing disabled to isolate each provider's own reliability, measuring Faithfulness/task success/tool selection/latency/cost neutrally without declaring a winner. See `docs/MODULE10_RESULTS.md`'s "Provider/Model A-B Evaluation" section. |
 | Rollback | ✅ | Documented procedure, exercised on `v0.1.0`, `OPERATIONS.md` |
 | Monitoring | ⚠️ | Stand-in `metrics_report.py` + `monitoring/log_aggregate.py` (windowed thresholds, now with optional webhook push — `alert_webhook.py`); no hosted dashboard/live-metrics stack |
 | Regression Rate | ✅ | `regression_check.py` gate wired into `eval.yml` (compares vs `baselines/v2_groq.json`) |

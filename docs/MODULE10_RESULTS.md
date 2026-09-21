@@ -586,3 +586,184 @@ straight to free text rather than asking the provider to reformat.
 bare-Pydantic-schema level (mitigated in practice by
 `parse_structured_answer`'s own stricter empty-answer rejection, per the
 `so_010` case) -- a disclosed schema looseness, not fixed in this pass.
+
+
+## Provider/Model A-B Evaluation (2026-09-21)
+
+Controlled, reproducible comparison of this project's two supported LLM
+providers under the SAME frozen evaluation workload. This is a
+measurement, not a recommendation -- no production default is changed as
+a result (see Limitations).
+
+**Configuration A** (current primary): provider `groq`, model
+`openai/gpt-oss-120b` (`backend/.env`'s `GROQ_MODEL_NAME` at evaluation
+time), commit `387b09e`.
+
+**Configuration B** (alternate supported): provider `gemini`, model
+`gemini-3.5-flash` (`Settings.gemini_model_name` default).
+
+Both configurations ran with `fallback_llm_provider` and
+`model_routing_enabled` forced off for the duration of this evaluation
+only (restored immediately after) -- deliberately, to isolate each
+provider's own reliability from the other's rather than let one silently
+paper over the other's failures via automatic fallback.
+
+**Frozen protocol**: the existing 20-case golden RAG dataset
+(`scripts/run_rag_eval.py::GOLDEN_DATASET` -- the same dataset the
+Faithfulness root-cause pass used), identical retrieval settings (hybrid
+BM25+FAISS, cross-encoder reranking, `Settings.retrieval_top_k=8`),
+identical scoring functions (`compute_faithfulness`,
+`compute_context_recall/precision`, `compute_answer_relevance`,
+`compute_harmonic_composite`) for both configurations -- only
+`Settings.llm_provider` differs. Also includes `eval/module10/datasets/agent_eval.json`'s
+existing 15 planner-classification cases (deterministic, LLM-free) and 3
+live planning cases, unchanged and reused as-is.
+
+**A real methodological bug found and fixed during this pass**: the
+first run of this evaluation returned identical Faithfulness for both
+configurations, near-zero latency, and $0 cost for configuration B --
+the tell that `ChatService`'s response cache
+(`app.services.cache_service.cache_service`, a process-wide singleton
+keyed by query/crop/disease/tenant/document-scope, not by provider) had
+served configuration B every answer straight out of configuration A's
+run instead of ever calling Gemini. Fixed by calling `cache_service.clear()`
+at the start of each configuration's run
+(`run_provider_ab_eval.py::run_configuration`), confirmed by regression
+test `tests/test_provider_ab_eval.py::TestResponseCacheIsolation`. The
+numbers below are from the corrected run.
+
+### Faithfulness (A vs B)
+
+| Metric | A (groq) | B (gemini) | Delta (B - A) |
+|---|---|---|---|
+| Mean Faithfulness (raw) | 0.6824 | 0.5158 | -0.1666 |
+| Mean Context Recall | 0.8104 | 0.8104 | 0.0 (retrieval is provider-independent, as expected) |
+| Mean Context Precision | 0.9662 | 0.9662 | 0.0 |
+| Mean Answer Relevance | 0.8783 | 0.8070 | -0.0713 |
+| Mean Composite Score | 0.7993 | 0.6951 | -0.1042 |
+| Zero-Faithfulness case count | 1 (`eval-potato-01`) | 8 (`eval-potato-01`, `eval-potato-02`, `eval-apple-01`, `eval-corn-03`, `eval-grape-01`, `eval-grape-02`, `eval-orange-01`, `eval-pepper-01`) | +7 |
+
+Provider/API failures are NOT silently excluded from B's Faithfulness
+mean above -- 5 of B's 8 zero-Faithfulness cases are provider-generation
+errors (the answer text is the `GENERATION_ERROR_REPLY` sentinel, which
+scores 0.0 against retrieved context by construction, correctly). The
+other 3 zero-Faithfulness cases under B (`eval-potato-02`, `eval-apple-01`
+... — see raw per-case data in the report artifact) are real generated
+answers that scored 0.0 on the lexical-overlap heuristic, not provider
+failures.
+
+### Reliability -- model quality vs provider reliability (kept separate per TASK 6)
+
+| | A (groq) | B (gemini) |
+|---|---|---|
+| Real generated answers | 20/20 | 15/20 |
+| Provider generation errors | 0 | 5 (`eval-corn-03`, `eval-grape-01`, `eval-grape-02`, `eval-orange-01`, `eval-pepper-01`) |
+| Unrecovered exceptions | 0 | 0 |
+| Not-in-documents fallback (retrieval-confidence outcome, not a provider failure) | 0 | 0 |
+| Provider failure rate | 0.0 | 0.25 |
+
+Fallback-to-the-other-provider could not occur in either direction by
+construction (deliberately disabled for this run, see above) -- these 5
+gemini failures are 5 requests that would, in production (where
+`FALLBACK_LLM_PROVIDER=gemini` is actually groq's *fallback*, not the
+reverse), have different real-world behavior than shown here; this
+evaluation intentionally does not exercise that production fallback path
+so it can isolate gemini's own reliability. Retry attempts inside each
+provider's own `tenacity` retry decorator (`llm_generation_retrying` log
+lines were observed for both configurations during this run) are not
+separately counted per case by this harness -- disclosed as not measured,
+not fabricated as zero.
+
+### Task/tool metrics (A vs B)
+
+| Metric | A | B | Delta (B - A) |
+|---|---|---|---|
+| Task success rate (real answers / 20) | 1.0000 | 0.7500 | -0.2500 |
+| Tool selection accuracy | 1.0 | 1.0 | 0.0 |
+| Planning success rate | 1.0 | 1.0 | 0.0 |
+| Average steps | 9.5 | 9.5 | 0.0 |
+| Loop rate | 0.0 | 0.0 | 0.0 |
+
+Tool selection / planning success / average steps / loop rate are
+identical between A and B because `ChatService._plan` is a deterministic
+keyword-based function, not an LLM call -- this was expected and is now
+empirically confirmed rather than assumed. These four metrics are
+included per this task's instruction to measure where supported, not
+presented as a provider-quality signal.
+
+### Latency and cost (A vs B)
+
+| Metric | A (groq) | B (gemini) | Delta (B - A) |
+|---|---|---|---|
+| Successful tasks | 20 | 15 | -5 |
+| Mean latency | 16.3266s | 12.3239s | -4.0027s |
+| Min / Max latency | 2.2486s / 28.587s | 8.0497s / 24.546s | -- |
+| Total tokens | 52,384 | 34,930 | -- |
+| Total estimated cost (USD) | 0.031431 | 0.008733 | -- |
+| Cost per successful task (USD) | 0.001572 | 0.000582 | -0.000990 |
+
+P50/P95/P99 are NOT computed for this 20-sample run (too small for a
+stable P95 -- one outlier would swing it by 5 percentage points of rank);
+only mean/min/max are reported here, per this task's own instruction.
+The project's real, larger-sample P50/P95/P99 latency measurement is a
+separate, already-closed Module 10 pass (see this document's latency
+section above) and is not re-derived here.
+
+**Pricing assumptions**: `Settings.cost_per_1k_tokens=0.00025` (gemini),
+`Settings.groq_cost_per_1k_tokens=0.0006` (groq) -- operator-entered
+published-pricing estimates already configured in
+`backend/.env.example`, not fetched live from either provider's current
+pricing page at evaluation time. Recorded as-configured, not
+re-verified against current provider pricing as part of this pass.
+
+### Neutral summary (no winner declared)
+
+Under this one frozen 20-case run, with fallback disabled on both sides:
+configuration B (gemini) produced a lower Faithfulness score, a higher
+provider-failure rate, and lower cost/latency per successful task than
+configuration A (groq). Tool selection, planning success, and step count
+were identical (provider-independent by design). n=20 with a single
+observation per case per configuration does not justify a statistical
+significance claim, and none is made -- these are descriptive
+differences under this one run, not a claim that either configuration is
+statistically distinguishable from the other, and not a recommendation
+to change the production default.
+
+**Reproduce**: `cd backend && python eval/module10/runners/run_provider_ab_eval.py`
+Artifact: `backend/eval/module10/reports/provider_ab_eval_20260920T203231Z.json`
+(includes full per-case results for both configurations).
+
+**New regression tests**: `backend/tests/test_provider_ab_eval.py` (8
+tests) -- configuration/provider selection, fallback+routing forced off
+and restored afterward, response-cache isolation between legs (the bug
+above), frozen-dataset contract, answer classification. These test the
+harness's own control logic offline (mocked LLM client); they do not
+re-run the live evaluation as part of the test suite.
+
+**Full backend regression**: 892 passed (884 + 8 new), 1 skipped, 0
+failed. Command: `cd backend && pytest`.
+
+**Limitations**:
+- Single run per configuration -- no repeated sampling to estimate
+  variance; gemini's 5 failures in this run could reflect a transient
+  rate-limit/capacity event rather than a stable failure rate, and this
+  evaluation cannot distinguish the two from one run.
+- Fallback and model routing are disabled for this evaluation only, to
+  isolate provider reliability -- production's actual configured
+  fallback behavior (groq primary, gemini fallback) is not exercised by
+  this specific run; it remains covered separately by
+  `test_agent_graph_production.py`'s fallback-provider tests from the
+  Faithfulness gap-closure pass.
+- `compute_faithfulness`/`compute_answer_relevance` are lexical-overlap/
+  embedding-similarity heuristics (see `scripts/run_rag_eval.py`), not an
+  LLM-judge -- both configurations are scored by the identical heuristic,
+  so the comparison between them is apples-to-apples even though neither
+  score is an absolute faithfulness ground truth.
+- Cost figures depend on the pricing constants configured in `Settings`
+  at evaluation time, not live-fetched provider pricing.
+- Per-call retry counts (inside each client's own `tenacity` decorator)
+  are not separately measured per case by this harness.
+- The production default (`Settings.llm_provider`) is unchanged by this
+  pass -- this evaluation is a measurement, not a recommendation, and no
+  independent project requirement to change the default exists at this
+  time.

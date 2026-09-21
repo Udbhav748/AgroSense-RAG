@@ -139,6 +139,19 @@ Unchanged from `docs/CHECKLIST.md` §11, plus this audit's own dataset
 versioning (`module10_v1`) and regression-relevant metadata (model/
 provider/config recorded in every result JSON — see `config.py::run_metadata`).
 
+**Module 10 gap-closure (2026-09-21) — provider/model A-B evaluation**:
+`eval/module10/runners/run_provider_ab_eval.py` runs the same frozen
+20-case golden RAG dataset under both supported providers (groq
+`openai/gpt-oss-120b`, gemini `gemini-3.5-flash`), fallback/routing
+disabled for isolation. Measured (single run, n=20, no significance
+claimed): Faithfulness groq=0.6824 vs gemini=0.5158 (delta -0.1666);
+task success groq=1.00 vs gemini=0.75 (5 provider-generation-error cases
+under gemini during this run, 0 under groq); mean latency groq=16.33s vs
+gemini=12.32s; cost/successful-task groq=$0.001572 vs gemini=$0.000582.
+Full per-case detail, pricing assumptions, and disclosed limitations in
+`docs/MODULE10_RESULTS.md`. No production default changed as a result
+(TASK 11 of that pass) — this is a measurement, not a recommendation.
+
 ## 17. Cloud Deployment
 
 Unchanged from `docs/CHECKLIST.md` §12 — out of this evaluation phase's
