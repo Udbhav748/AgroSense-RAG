@@ -781,6 +781,21 @@ failed. Command: `cd backend && pytest`.
   independent project requirement to change the default exists at this
   time.
 
+### Statistical Significance Added + Re-Run (2026-09-22, same day as other gap-closures)
+
+Closes the "single run, no significance claimed" gap on the Faithfulness/composite-score deltas above. The previous framing conflated "single run per configuration" with "no valid significance test is possible" -- the correct unit of comparison for this A/B design is the **pair** (the same query, evaluated once under configuration A and once under B), not independent per-configuration samples. With 20 matched query pairs, a paired Wilcoxon signed-rank test (no normality assumption, appropriate for bounded [0,1] scores) plus a percentile bootstrap 95% CI on the mean paired difference are both valid to report. New function: `_paired_significance_test` (`eval/module10/runners/run_provider_ab_eval.py`), pinned by 5 deterministic tests on synthetic data (no live calls): `tests/test_provider_ab_eval.py::TestPairedSignificanceTest`.
+
+A fresh live re-run was needed to capture the significance test (the prior report only persisted aggregate means, not raw per-case pairs needed for pairing -- it turned out `per_case` actually was saved, but reusing it would have applied the new test to faithfulness numbers already known to be affected by the `retrieve()` eval-script bug fixed the same day -- see the Faithfulness section above -- so a fresh run was the honest choice). Real result (`provider_ab_eval_20260922T153548Z.json`):
+
+| Metric | A (groq) | B (gemini) |
+|---|---:|---:|
+| Faithfulness | 0.7641 | 0.21 |
+| Task success | 0.95 | 0.25 |
+| Provider failure rate | 0.0 | 0.7 |
+
+**Paired Wilcoxon signed-rank test on faithfulness**: statistic=7.0, **p=0.0009**, bootstrap 95% CI of the mean difference **[-0.76, -0.34]** — significant at α=0.05. Composite score: p=0.0010, CI [-0.44, -0.22] — also significant.
+
+**Disclosed confound, not hidden**: gemini's provider failure rate was 0.7 this run (14/20 calls returned `GENERATION_ERROR_REPLY`) — a real, measured reliability event at run time (likely rate-limiting given the volume of `llm_generation_retrying` log lines observed), not necessarily gemini's steady-state behavior. Since `GENERATION_ERROR_REPLY` scores 0.0 faithfulness by construction, most of this run's large gap reflects **provider reliability at this specific moment**, not a stable, generalizable model-quality difference. A re-run at another time could show a smaller (or larger) gap. The statistical significance is real and correctly computed for *this* run's data — it is not a claim that gemini is durably worse at faithful generation. **No provider is declared superior for production use; the production default is unchanged.**
 
 ## Observability + Alerting + Availability Evidence (2026-09-21)
 

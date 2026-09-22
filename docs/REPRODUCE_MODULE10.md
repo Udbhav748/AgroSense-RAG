@@ -19,7 +19,7 @@ Everything in this document assumes `backend/.env` exists with at least `GEMINI_
 pytest -q
 ```
 
-Expected: `1031 passed, 1 skipped (1032 collected)`.
+Expected: `1035 passed, 1 skipped (1036 collected)`.
 
 ## Targeted test subsets
 
@@ -37,7 +37,18 @@ pytest tests/test_handle_diagnose_parallel.py -q        # real diagnose-workflow
 pytest tests/test_encryption.py tests/test_postgres_session_store_encryption.py tests/test_session_repository_encryption.py -q  # encryption at rest, both fields (33)
 pytest tests/test_settings_secret_validation.py -q       # production-mode weak-secret rejection (14)
 pytest tests/test_run_rag_eval_retrieval_signature.py -q # eval-script retrieve() signature regression (3)
+pytest tests/test_provider_ab_eval.py -q                 # provider A/B harness + paired significance test (12)
 ```
+
+## Provider A/B evidence (with paired significance test)
+
+**Requires**: real `GROQ_API_KEY` and `GEMINI_API_KEY` (live LLM calls to both providers, 20 cases each — real API cost).
+
+```
+python eval/module10/runners/run_provider_ab_eval.py
+```
+
+Runs the frozen 20-case dataset under both providers and computes a paired Wilcoxon signed-rank test + bootstrap 95% CI on the matched per-case faithfulness/composite-score differences. Exact p-value/CI/failure-rate numbers vary run-to-run (live provider behavior isn't deterministic) — the math itself is pinned offline by `tests/test_provider_ab_eval.py::TestPairedSignificanceTest` on synthetic data, no live calls needed to verify correctness.
 
 ## Faithfulness eval-script fix evidence
 

@@ -177,16 +177,17 @@ Applied where a genuine classification task exists — planner intent classifica
 | Rollback | ✅ | documented procedure, `docs/OPERATIONS.md`, exercised historically |
 | Monitoring | ⚠️ | real but local/on-demand — see §10 |
 
-**A/B testing** (`provider_ab_eval_20260920T203231Z.json`): groq `openai/gpt-oss-120b` (A) vs. gemini `gemini-3.5-flash` (B), same frozen 20-case dataset, fallback disabled for isolation.
+**A/B testing** (historical: `provider_ab_eval_20260920T203231Z.json`; current, with significance testing: `provider_ab_eval_20260922T153548Z.json`): groq `openai/gpt-oss-120b` (A) vs. gemini `gemini-3.5-flash` (B), same frozen 20-case dataset, fallback disabled for isolation.
 
-| Metric | A | B |
-|---|---:|---:|
-| Faithfulness | 0.6824 | 0.5158 |
-| Task success | 1.00 | 0.75 |
-| Latency | 16.33s | 12.32s |
-| Configured cost/successful task | $0.001572 | $0.000582 |
+| Metric | A (2026-09-20) | B (2026-09-20) | A (2026-09-22) | B (2026-09-22) |
+|---|---:|---:|---:|---:|
+| Faithfulness | 0.6824 | 0.5158 | 0.7641 | 0.21 |
+| Task success | 1.00 | 0.75 | 0.95 | 0.25 |
+| Provider failure rate | — | — | 0.0 | 0.7 |
+| Latency | 16.33s | 12.32s | 15.89s | 21.88s |
+| Configured cost/successful task | $0.001572 | $0.000582 | $0.001744 | $0.000812 |
 
-**No provider is declared superior** — n=20, single run, deltas reported neutrally, no significance claimed.
+**Statistical significance (added 2026-09-22)**: the previous claim ("no significance claimed" with n=20, single run) conflated "single run per configuration" with "no valid test possible" — the correct unit of comparison is the *pair* (the same query, run once under each configuration), and 20 matched pairs is a valid sample for a paired test. A paired Wilcoxon signed-rank test + bootstrap 95% CI is now computed on the matched per-case faithfulness/composite-score differences: **p = 0.0009, 95% CI of the mean difference [-0.76, -0.34]** — statistically significant at α=0.05 for this run. **Important confound, disclosed not hidden**: gemini's `provider_failure_rate` was 0.7 in this specific run (14/20 calls returned `GENERATION_ERROR_REPLY`, likely a rate-limit/transient-reliability issue at run time, not necessarily gemini's steady-state behavior) — most of the faithfulness gap in this run reflects **provider reliability at this moment**, not a stable model-quality difference. Re-running at a different time could show a smaller gap. **Still no provider is declared superior for production use** — this measures one frozen run's reliability + quality jointly, not a generalizable ranking. Regression test for the significance-test math itself (deterministic, no live calls): `tests/test_provider_ab_eval.py::TestPairedSignificanceTest`.
 
 **Regression Rate**: gated in `eval.yml` (`regression_check.py` vs. a fixed baseline). Deployment Frequency: not tracked (no CD pipeline to a live target).
 

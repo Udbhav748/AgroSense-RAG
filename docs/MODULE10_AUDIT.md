@@ -186,15 +186,19 @@ Unchanged from `docs/CHECKLIST.md` §11, plus this audit's own dataset
 versioning (`module10_v1`) and regression-relevant metadata (model/
 provider/config recorded in every result JSON — see `config.py::run_metadata`).
 
-**Module 10 gap-closure (2026-09-21) — provider/model A-B evaluation**:
+**Module 10 gap-closure (2026-09-21, re-run + significance test added 2026-09-22) — provider/model A-B evaluation**:
 `eval/module10/runners/run_provider_ab_eval.py` runs the same frozen
 20-case golden RAG dataset under both supported providers (groq
 `openai/gpt-oss-120b`, gemini `gemini-3.5-flash`), fallback/routing
-disabled for isolation. Measured (single run, n=20, no significance
-claimed): Faithfulness groq=0.6824 vs gemini=0.5158 (delta -0.1666);
-task success groq=1.00 vs gemini=0.75 (5 provider-generation-error cases
-under gemini during this run, 0 under groq); mean latency groq=16.33s vs
-gemini=12.32s; cost/successful-task groq=$0.001572 vs gemini=$0.000582.
+disabled for isolation. Current run (2026-09-22): Faithfulness
+groq=0.7641 vs gemini=0.21; task success groq=0.95 vs gemini=0.25 (14
+provider-generation-error cases under gemini this run — a 0.7 failure
+rate, likely rate-limiting, disclosed as a real reliability event at run
+time, not a stable model-quality claim). A paired Wilcoxon signed-rank
+test across the 20 matched query pairs (the correct unit of comparison
+for this design) gives **p=0.0009**, bootstrap 95% CI of the mean
+difference [-0.76, -0.34] — statistically significant for this run, but
+substantially confounded by gemini's elevated failure rate this run.
 Full per-case detail, pricing assumptions, and disclosed limitations in
 `docs/MODULE10_RESULTS.md`. No production default changed as a result
 (TASK 11 of that pass) — this is a measurement, not a recommendation.

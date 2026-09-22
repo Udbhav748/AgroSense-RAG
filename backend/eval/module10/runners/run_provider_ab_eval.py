@@ -290,6 +290,81 @@ def _delta(b_val, a_val):
     return round(b_val - a_val, 4)
 
 
+def _paired_significance_test(
+    cases_a: list[dict], cases_b: list[dict], metric_key: str, *, n_bootstrap: int = 10000, seed: int = 1234
+) -> dict:
+    """Module 10 gap-closure: this A/B evaluation previously reported
+    descriptive deltas only ("no significance test is reported... a
+    significance claim would not be justified"). That disclaimer
+    conflated "single run per configuration" with "no valid test is
+    possible" -- but the correct unit of comparison for an A/B design
+    like this one is the PAIR (the same query, evaluated once under each
+    configuration), not independent per-configuration samples. With 20
+    matched pairs, a paired Wilcoxon signed-rank test (no normality
+    assumption, appropriate for bounded [0,1] scores) plus a percentile
+    bootstrap 95% CI on the mean paired difference are both valid and
+    honest to report -- still a modest sample (n=20, one domain/corpus),
+    not a claim that generalizes beyond this specific evaluation set.
+    """
+    a_by_id = {c["id"]: c[metric_key] for c in cases_a}
+    b_by_id = {c["id"]: c[metric_key] for c in cases_b}
+    common_ids = sorted(set(a_by_id) & set(b_by_id))
+    diffs = [b_by_id[cid] - a_by_id[cid] for cid in common_ids]
+    n = len(diffs)
+
+    wilcoxon_result: dict | None = None
+    if n >= 1 and any(d != 0 for d in diffs):
+        from scipy.stats import wilcoxon
+
+        try:
+            stat, p_value = wilcoxon(diffs)
+            wilcoxon_result = {"statistic": float(stat), "p_value": float(p_value)}
+        except ValueError as exc:  # e.g. all-zero differences after ties removed
+            wilcoxon_result = {"error": str(exc)}
+    else:
+        # All paired differences are exactly zero -- a signed-rank test is
+        # undefined here, but the natural, honest reading is "definitely
+        # not a significant difference" (there is no difference at all),
+        # not an ambiguous/undefined result.
+        wilcoxon_result = {
+            "error": "all paired differences are zero -- no signed-rank test is defined",
+            "p_value": 1.0,
+        }
+
+    import random
+
+    rng = random.Random(seed)
+    boot_means = []
+    for _ in range(n_bootstrap):
+        sample = [diffs[rng.randrange(n)] for _ in range(n)] if n else []
+        boot_means.append(sum(sample) / n if n else 0.0)
+    boot_means.sort()
+    ci_low = boot_means[int(0.025 * n_bootstrap)] if boot_means else None
+    ci_high = boot_means[min(int(0.975 * n_bootstrap), n_bootstrap - 1)] if boot_means else None
+
+    mean_diff = sum(diffs) / n if n else None
+    p_value = wilcoxon_result.get("p_value") if wilcoxon_result else None
+
+    return {
+        "metric": metric_key,
+        "n_pairs": n,
+        "mean_paired_difference_B_minus_A": round(mean_diff, 4) if mean_diff is not None else None,
+        "wilcoxon_signed_rank": wilcoxon_result,
+        "bootstrap_95pct_ci_of_mean_difference": (
+            [round(ci_low, 4), round(ci_high, 4)] if ci_low is not None else None
+        ),
+        "significant_at_alpha_0.05": (p_value < 0.05) if p_value is not None else None,
+        "interpretation": (
+            "Paired test across the 20 matched query pairs (same case evaluated under both "
+            "configurations) -- the statistically correct comparison for this design, not "
+            "independent-sample resampling. p < 0.05 or a 95% CI excluding zero would indicate "
+            "the two providers' scores differ systematically across this query set, not merely "
+            "by chance in this one run. Still a modest sample (n=20 paired queries, one "
+            "domain/corpus) -- not a claim that generalizes beyond this specific evaluation set."
+        ),
+    }
+
+
 def main() -> None:
     original_provider = settings.llm_provider
     original_fallback = settings.fallback_llm_provider
@@ -377,12 +452,21 @@ def main() -> None:
             "B": result_b["reliability"],
             "delta_B_minus_A_provider_failure_rate": _delta(failure_rate_b, failure_rate_a),
         },
+        "statistical_tests": {
+            "faithfulness": _paired_significance_test(result_a["per_case"], result_b["per_case"], "faithfulness"),
+            "composite_score": _paired_significance_test(
+                result_a["per_case"], result_b["per_case"], "composite_score"
+            ),
+        },
         "statistical_note": (
-            "n=20 cases, single run per configuration (no repeated-measures/bootstrap resampling "
-            "performed). No significance test is reported: with this sample size and a single "
-            "observation per case per configuration, a significance claim would not be justified. "
-            "The deltas above are descriptive differences under this one frozen run, not a claim "
-            "that either configuration is statistically distinguishable from the other."
+            "Module 10 gap-closure (2026-09-22): a real paired Wilcoxon signed-rank test and "
+            "bootstrap 95% CI are now computed on the 20 matched query pairs (see "
+            "statistical_tests above) -- the previous version of this report claimed no "
+            "significance test was justified, which conflated 'single run per configuration' "
+            "with 'no valid test possible.' The pair (same query under both configurations) is "
+            "the correct unit of comparison here, and 20 pairs is a valid, if modest, sample for "
+            "a paired test. This remains a single frozen dataset/domain -- not a claim that "
+            "generalizes beyond this specific 20-case evaluation set."
         ),
         "limitations": [
             "Single run per configuration -- no repeated sampling to estimate variance; a single "

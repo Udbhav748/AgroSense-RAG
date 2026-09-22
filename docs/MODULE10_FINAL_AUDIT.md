@@ -1,6 +1,6 @@
 # Module 10 — Final Technical Audit
 
-**Branch**: `module10-final-pdf-compliance` (not merged to `main`) · **Commit**: verify with `git rev-parse HEAD` · **Regression**: 1031 passed, 1 skipped, 0 failed (1032 collected) · **Date**: 2026-09-21–22 (P9 consolidation; same-day follow-ups for real parallel execution, expanded encryption at rest, code-enforced secrets, and a real faithfulness root-cause fix)
+**Branch**: `module10-final-pdf-compliance` (not merged to `main`) · **Commit**: verify with `git rev-parse HEAD` · **Regression**: 1035 passed, 1 skipped, 0 failed (1036 collected) · **Date**: 2026-09-21–22 (P9 consolidation; same-day follow-ups for real parallel execution, expanded encryption at rest, code-enforced secrets, a real faithfulness root-cause fix, and a real paired significance test for Provider A/B)
 
 This is the detailed technical companion to `docs/MODULE10_FINAL_SUBMISSION.md` (the evaluator-facing overview). It gives checklist coverage, evidence locations, reproduction commands, measured metrics, and limitations per Module 10 section, without duplicating raw JSON results — those are linked, not pasted. The literal Module 10 PDF checklist (14 sections + 10-question design review) was provided directly in this pass and is mapped row-by-row in `docs/MODULE10_PDF_TRACEABILITY_MATRIX.md`; this document organizes evidence by the same section numbers.
 
@@ -85,7 +85,7 @@ Architecture diagram: `docs/ARCHITECTURE.md`. AI: agent/planner/tools/memory/RAG
 ```
 cd backend && pytest -q
 ```
-**1031 passed, 1 skipped, 0 failed** (1032 collected) — includes the 19 new parallel-execution tests, 12 new encryption-at-rest tests, 14 new secrets-validation tests, and 3 new retrieval-signature-regression tests, all added across 2026-09-21–22; verify with `git rev-parse HEAD` and `cd backend && pytest -q`. (Historical: 982 passed, 1 skipped at commit `7159169`, before any of the additions below.)
+**1035 passed, 1 skipped, 0 failed** (1036 collected) — includes the 19 new parallel-execution tests, 12 new encryption-at-rest tests, 14 new secrets-validation tests, 3 new retrieval-signature-regression tests, and 5 new provider-A/B-significance-test tests, all added across 2026-09-21–22; verify with `git rev-parse HEAD` and `cd backend && pytest -q`. (Historical: 982 passed, 1 skipped at commit `7159169`, before any of the additions below.)
 
 ## Reproduction Index
 
@@ -112,7 +112,7 @@ All under `backend/eval/module10/reports/` (35 artifacts as of this pass, never 
 7. HTTPS path documented, not independently tested against a live TLS endpoint.
 8. Secret management documented, not code-enforced.
 9. No formal GDPR/DPDP/HIPAA compliance assessment.
-10. Provider A/B is a single run (n=20 cases); no statistical significance claimed.
+10. Provider A/B: a real paired significance test is now applied (2026-09-22, see below) — still a single frozen dataset/domain (n=20 queries), and this run's result is substantially confounded by gemini's elevated provider-failure rate at run time, disclosed as such.
 
 ## Same-Day Addition After P9: Real Parallel Execution
 
@@ -141,3 +141,9 @@ Investigated the disclosed-unresolved `eval-potato-02` case and found it was nev
 Verified: `eval-potato-02` faithfulness 0.0 → **0.6** (all 8 expected active ingredients/organic remedies now correctly retrieved and cited, context recall 0.125 → 1.0). Full 20-case re-run: mean faithfulness 0.7093 → **0.7809**, mean context recall → **0.91**. Two cases remain weak under the now-correctly-exercised retrieval path — `eval-potato-01` (0.4) and a newly-visible `eval-apple-01` (0.0, was 0.3333 under the broken fallback) — both the same already-disclosed cross-encoder/dosage-table-chunk ranking limitation, not fixed by this pass, not hidden either.
 
 Regression test (calls the real `retrieve()`, not a mock, so a signature mismatch fails loudly): `tests/test_run_rag_eval_retrieval_signature.py` (3 tests). Evidence: `backend/eval/module10/reports/rag_eval_retrieve_signature_fix_20260922T145928Z.json`.
+
+## Same-Day Addition: Real Paired Significance Test for Provider A/B
+
+Closed the "single run, no significance claimed" gap (item 10 above). The prior framing conflated "single run per configuration" with "no valid significance test is possible" — the correct unit of comparison for this A/B design is the *pair* (the same query, run once under each configuration), and 20 matched pairs is a valid sample for a paired test. New `_paired_significance_test` function (`eval/module10/runners/run_provider_ab_eval.py`): a paired Wilcoxon signed-rank test plus a percentile bootstrap 95% CI on the mean paired difference, computed on faithfulness and composite score. 5 new deterministic unit tests on synthetic data (no live calls): `tests/test_provider_ab_eval.py::TestPairedSignificanceTest`.
+
+A fresh live re-run (real API calls, user-approved given the cost) was required to capture per-case pairs correctly measured against the also-just-fixed retrieval bug (reusing the prior run's stale per-case data would have built a "correct" statistical test on top of known-degraded retrieval numbers). Result (`provider_ab_eval_20260922T153548Z.json`): faithfulness groq=0.7641 vs gemini=0.21, **p=0.0009**, 95% CI [-0.76, -0.34] — significant, but gemini's provider failure rate was 0.7 this run (14/20 `GENERATION_ERROR_REPLY`), so most of the gap reflects provider reliability at run time, not a stable model-quality claim — disclosed prominently in `docs/MODULE10_RESULTS.md`, not buried. Production default unchanged; no provider declared superior.

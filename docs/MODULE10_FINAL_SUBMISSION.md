@@ -2,7 +2,7 @@
 
 **This document does not claim 100% completion.** Every item across this project is marked ✅ (implementation + reproducible test + real measurement), ⚠️ (partial/limited/local-only measurement), ❌ (missing), or N/A (genuinely not applicable, with rationale) — matching the underlying evidence exactly, never upgraded because code merely exists. See `docs/MODULE10_PDF_TRACEABILITY_MATRIX.md` for the row-by-row mapping against the literal Module 10 PDF checklist.
 
-**Branch**: `module10-final-pdf-compliance` (pushed to `origin`, **not merged to `main`**) · **Commit at last edit**: verify with `git rev-parse HEAD` · **Full regression**: 1031 passed, 1 skipped, 0 failed (1032 collected) · **Date**: 2026-09-19 through 2026-09-22, across 9 sequential evaluation/hardening passes (P0–P8) plus same-day P9 follow-ups implementing real parallel execution (13 + 6 new tests), expanded encryption at rest (12 new tests), code-enforced secrets (14 new tests), and a real faithfulness root-cause fix (3 new tests)
+**Branch**: `module10-final-pdf-compliance` (pushed to `origin`, **not merged to `main`**) · **Commit at last edit**: verify with `git rev-parse HEAD` · **Full regression**: 1035 passed, 1 skipped, 0 failed (1036 collected) · **Date**: 2026-09-19 through 2026-09-22, across 9 sequential evaluation/hardening passes (P0–P8) plus same-day P9 follow-ups implementing real parallel execution (13 + 6 new tests), expanded encryption at rest (12 new tests), code-enforced secrets (14 new tests), a real faithfulness root-cause fix (3 new tests), and a real paired significance test for Provider A/B (5 new tests)
 
 ---
 
@@ -163,17 +163,17 @@ Having these controls is **not** a formal GDPR/DPDP/HIPAA compliance assessment 
 
 ## 13. LLMOps / Provider A-B
 
-Real, controlled A-B comparison — `groq`/`openai/gpt-oss-120b` (A) vs. `gemini`/`gemini-3.5-flash` (B), same 20-case frozen dataset, fallback/routing disabled for isolation.
+Real, controlled A-B comparison — `groq`/`openai/gpt-oss-120b` (A) vs. `gemini`/`gemini-3.5-flash` (B), same 20-case frozen dataset, fallback/routing disabled for isolation. Re-run 2026-09-22 with a real paired significance test added (see below).
 
 | Metric | A (groq) | B (gemini) |
 |---|---:|---:|
-| Faithfulness | 0.6824 | 0.5158 |
-| Task success | 1.00 | 0.75 |
-| Mean latency | 16.33s | 12.32s |
-| Configured cost/successful task | $0.001572 | $0.000582 |
-| Provider generation errors | 0 | 5 |
+| Faithfulness | 0.7641 | 0.21 |
+| Task success | 0.95 | 0.25 |
+| Provider failure rate | 0.0 | 0.7 |
+| Mean latency | 15.89s | 21.88s |
+| Configured cost/successful task | $0.001744 | $0.000812 |
 
-**No provider is declared superior.** Deltas are reported neutrally; n=20, single run, no statistical significance claimed. Source: `provider_ab_eval_20260920T203231Z.json`.
+**Statistical significance (2026-09-22)**: a paired Wilcoxon signed-rank test on the 20 matched query pairs (same query, both configurations — the correct unit of comparison for this design, previously not applied) gives **p = 0.0009**, bootstrap 95% CI of the mean difference **[-0.76, -0.34]** — significant at α=0.05. **Disclosed confound**: gemini's provider failure rate was 0.7 this run (14/20 calls returned `GENERATION_ERROR_REPLY`, likely a rate-limit/transient issue at run time) — most of this run's faithfulness gap reflects **provider reliability at this moment**, not necessarily a stable model-quality difference; a re-run at another time could differ. **No provider is declared superior for production use** — this measures one frozen run's reliability + quality jointly. Sources: `provider_ab_eval_20260920T203231Z.json` (historical), `provider_ab_eval_20260922T153548Z.json` (current, with significance test). Regression test for the significance-test math (deterministic, no live calls): `tests/test_provider_ab_eval.py::TestPairedSignificanceTest`.
 
 ## 14. Load / Concurrency
 
@@ -199,7 +199,7 @@ Docker + docker-compose exist and are documented; an optional Caddy HTTPS overla
 | Provider generation failure (pre-fix) | "Not in documents" reply on real provider errors | Log trace + human review | `generator_node` laundering provider errors | `GENERATION_ERROR_REPLY` sentinel + fallback wiring | Fixed, regression-tested |
 | Structured-output malformed provider response | Falls back to free text | `structured_output_used=false` flag | N/A (expected path) | Automatic fallback | None — designed behavior |
 | Multimodal blur / spurious confidence | LeafSense over-confident on blurred synthetic images | Manual inspection | Not isolated (model behavior) | None | Disclosed, not fixed |
-| Provider A/B: gemini generation errors | 5/20 cases failed under B | HTTP/log classification | Not isolated to a specific cause (rate limit vs. transient) | N/A (fallback disabled for isolation) | Single run, not repeated |
+| Provider A/B: gemini generation errors | 5/20 cases failed under B (2026-09-20 run); 14/20 in the 2026-09-22 re-run | HTTP/log classification | Not isolated to a specific cause (rate limit vs. transient) | N/A (fallback disabled for isolation) | Single run per timestamp; a paired significance test is now applied across the 20 matched queries within each run (see §13), but the failure rate itself still varies run to run — disclosed, not smoothed over |
 | Load test: `/chat` @ concurrency=20 | 20/20 timeouts | `httpx.TimeoutException`, categorized | Single-worker CPU-bound (embedding+reranking) saturation | Service recovered, `/health` stayed healthy | Real, reproducible |
 | Cache-hit observability gap | Cache hits invisible to log aggregation | Empirical (during P6 report build) | `cache_lookup_node` routes to END, bypassing `finalizer_node`'s logging | N/A (disclosed, not patched) | Regression-pinned |
 | Rate-limit burst scenario | 0/100 rate-limited | HTTP 429 count | N/A — burst didn't cross the threshold in this run | N/A | Negative result, reported honestly |
@@ -250,7 +250,7 @@ See `docs/MODULE10_PDF_TRACEABILITY_MATRIX.md` for the complete, section-by-sect
 
 ```
 cd backend
-pytest -q                                                          # full regression: 1031 passed, 1 skipped
+pytest -q                                                          # full regression: 1035 passed, 1 skipped
 python scripts/run_rag_eval.py                                     # RAG + Faithfulness
 python eval/module10/runners/run_agent_eval.py                     # agent/planner
 python eval/unauthorized_access_check.py                           # RBAC

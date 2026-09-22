@@ -20,6 +20,8 @@ run if they regressed:
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from app.core.config import settings
 from eval.module10.runners.run_provider_ab_eval import CONFIGS, run_configuration
 
@@ -202,3 +204,67 @@ class TestClassifyAnswer:
         from eval.module10.runners.run_provider_ab_eval import _classify_answer
 
         assert _classify_answer("Sulfur fungicide treats apple scab [1].") == "real_generated_answer"
+
+
+class TestPairedSignificanceTest:
+    """Module 10 gap-closure: the A/B report previously claimed no
+    significance test was justified with a single run per configuration.
+    That conflated 'single run per configuration' with 'no valid test
+    possible' -- the correct unit of comparison is the PAIR (same query
+    under both configurations), and 20 matched pairs is a valid sample
+    for a paired test. These tests pin the math on small, fully
+    deterministic synthetic data -- no live LLM calls."""
+
+    def _cases(self, ids_and_scores: dict[str, float], metric: str) -> list[dict]:
+        return [{"id": cid, metric: score} for cid, score in ids_and_scores.items()]
+
+    def test_identical_scores_yield_no_significant_difference(self):
+        from eval.module10.runners.run_provider_ab_eval import _paired_significance_test
+
+        scores = {f"case-{i}": 0.7 for i in range(20)}
+        result = _paired_significance_test(
+            self._cases(scores, "faithfulness"), self._cases(scores, "faithfulness"), "faithfulness"
+        )
+        assert result["n_pairs"] == 20
+        assert result["mean_paired_difference_B_minus_A"] == 0.0
+        assert result["significant_at_alpha_0.05"] is False
+        assert result["bootstrap_95pct_ci_of_mean_difference"] == [0.0, 0.0]
+
+    def test_consistently_higher_b_scores_are_flagged_significant(self):
+        """20 pairs where B is uniformly 0.3 higher than A, no noise --
+        an unambiguous case a correct paired test must flag as
+        significant (this is the actual math, not a mocked result)."""
+        from eval.module10.runners.run_provider_ab_eval import _paired_significance_test
+
+        scores_a = {f"case-{i}": 0.5 for i in range(20)}
+        scores_b = {f"case-{i}": 0.8 for i in range(20)}
+        result = _paired_significance_test(
+            self._cases(scores_a, "faithfulness"), self._cases(scores_b, "faithfulness"), "faithfulness"
+        )
+        assert result["mean_paired_difference_B_minus_A"] == pytest.approx(0.3)
+        assert result["wilcoxon_signed_rank"]["p_value"] < 0.05
+        assert result["significant_at_alpha_0.05"] is True
+        ci_low, ci_high = result["bootstrap_95pct_ci_of_mean_difference"]
+        assert ci_low > 0  # CI excludes zero -- the real signature of a genuine difference
+
+    def test_only_matched_case_ids_are_paired(self):
+        """A case present in only one configuration's results must never
+        be silently paired with a different case -- it's simply excluded
+        from the paired sample."""
+        from eval.module10.runners.run_provider_ab_eval import _paired_significance_test
+
+        cases_a = self._cases({"case-1": 0.5, "case-2": 0.6, "case-only-in-a": 0.9}, "faithfulness")
+        cases_b = self._cases({"case-1": 0.5, "case-2": 0.6, "case-only-in-b": 0.1}, "faithfulness")
+        result = _paired_significance_test(cases_a, cases_b, "faithfulness")
+        assert result["n_pairs"] == 2  # only case-1 and case-2 are common to both
+
+    def test_mixed_direction_differences_computed_correctly(self):
+        from eval.module10.runners.run_provider_ab_eval import _paired_significance_test
+
+        scores_a = {"case-1": 0.2, "case-2": 0.8, "case-3": 0.5}
+        scores_b = {"case-1": 0.9, "case-2": 0.1, "case-3": 0.5}
+        result = _paired_significance_test(
+            self._cases(scores_a, "faithfulness"), self._cases(scores_b, "faithfulness"), "faithfulness"
+        )
+        # diffs: +0.7, -0.7, 0.0 -> mean 0.0
+        assert result["mean_paired_difference_B_minus_A"] == pytest.approx(0.0, abs=1e-9)
