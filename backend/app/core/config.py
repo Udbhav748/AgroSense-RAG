@@ -7,7 +7,28 @@ import contextlib
 import os
 from pathlib import Path
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Module 10 gap-closure: known placeholder/example secret values that show
+# up in .env.example, READMEs, or tutorials -- if any of these are still
+# in place on a DEBUG=false (production) run, that's a real misconfiguration
+# worth failing loudly on rather than silently running insecure. Not an
+# exhaustive deny-list (no such list could be), just the specific values
+# this project's own docs/.env.example actually suggest.
+_KNOWN_WEAK_SECRETS = {
+    "local-dev-api-key-change-me",
+    "change-me",
+    "changeme",
+    "change_me",
+    "secret",
+    "password",
+    "test",
+    "your-api-key-here",
+    "your-secret-key-here",
+    "insightai-dev-password",
+    "",
+}
 
 
 def _load_secrets_from_ssm() -> None:
@@ -965,6 +986,69 @@ class Settings(BaseSettings):
         (not an error) when unset — no proxy is trusted by default, so
         X-Forwarded-For is ignored everywhere until this is configured."""
         return {ip.strip() for ip in self.trusted_proxy_ips.split(",") if ip.strip()}
+
+    @model_validator(mode="after")
+    def _reject_weak_secrets_in_production(self) -> "Settings":
+        """Module 10 gap-closure: secrets management was previously
+        documented (.env/.env.example, SSM path) but not code-enforced --
+        nothing stopped a DEBUG=false (production) run from using the
+        exact placeholder values .env.example ships with. This closes
+        that gap: with DEBUG=true (the local-dev default), placeholder
+        secrets are expected and left alone -- this validator only acts
+        when DEBUG=false, i.e. a run explicitly claiming to be
+        production. It fails fast at Settings() construction (before the
+        app can serve a single request), matching the codebase's existing
+        "fail loud, not silently insecure" posture (EncryptionKeyMissingError,
+        AuthConfigurationError) rather than a runtime check elsewhere.
+        """
+        if self.debug:
+            return self
+
+        problems: list[str] = []
+
+        def _is_weak(value: str, min_length: int) -> bool:
+            return value.strip().lower() in _KNOWN_WEAK_SECRETS or len(value) < min_length
+
+        if self.api_keys:
+            # api_keys (plural) supersedes the single api_key entirely for
+            # auth resolution once set (see api_key_hash_map) -- a weak
+            # single api_key left over in the environment is then inert,
+            # not a real exposure, so only the values actually used for
+            # auth are validated here.
+            import json
+
+            try:
+                parsed = json.loads(self.api_keys)
+            except json.JSONDecodeError:
+                parsed = {}
+            if isinstance(parsed, dict):
+                for client_name, key_value in parsed.items():
+                    if not isinstance(key_value, str) or _is_weak(key_value, 16):
+                        problems.append(f"API_KEYS entry for client '{client_name}' is a placeholder or too short.")
+        elif _is_weak(self.api_key, 16):
+            problems.append(
+                "API_KEY is missing, a known placeholder, or shorter than 16 characters."
+            )
+
+        # jwt_secret_key is genuinely optional (individual-user login is an
+        # optional feature -- see create_access_token's own runtime check);
+        # only validate it here if a value was actually supplied.
+        if self.jwt_secret_key and _is_weak(self.jwt_secret_key, 32):
+            problems.append(
+                "JWT_SECRET_KEY is a known placeholder or shorter than 32 characters."
+            )
+
+        if self.database_url and "insightai-dev-password" in self.database_url:
+            problems.append("DATABASE_URL still contains the local-dev default password.")
+
+        if problems:
+            raise ValueError(
+                "Insecure secret configuration for a production run (DEBUG=false):\n- "
+                + "\n- ".join(problems)
+                + "\nGenerate strong secrets before deploying, e.g.: "
+                'python -c "import secrets; print(secrets.token_urlsafe(32))"'
+            )
+        return self
 
 
 settings = Settings()

@@ -2,7 +2,7 @@
 
 **This document does not claim 100% completion.** Every item across this project is marked ✅ (implementation + reproducible test + real measurement), ⚠️ (partial/limited/local-only measurement), ❌ (missing), or N/A (genuinely not applicable, with rationale) — matching the underlying evidence exactly, never upgraded because code merely exists. See `docs/MODULE10_PDF_TRACEABILITY_MATRIX.md` for the row-by-row mapping against the literal Module 10 PDF checklist.
 
-**Branch**: `module10-final-pdf-compliance` (pushed to `origin`, **not merged to `main`**) · **Commit at last edit**: verify with `git rev-parse HEAD` · **Full regression**: 1013 passed, 1 skipped, 0 failed (1014 collected) · **Date**: 2026-09-19 through 2026-09-21, across 9 sequential evaluation/hardening passes (P0–P8) plus same-day P9 follow-ups implementing real parallel execution (13 + 6 new tests) and expanded encryption at rest (12 new tests)
+**Branch**: `module10-final-pdf-compliance` (pushed to `origin`, **not merged to `main`**) · **Commit at last edit**: verify with `git rev-parse HEAD` · **Full regression**: 1031 passed, 1 skipped, 0 failed (1032 collected) · **Date**: 2026-09-19 through 2026-09-22, across 9 sequential evaluation/hardening passes (P0–P8) plus same-day P9 follow-ups implementing real parallel execution (13 + 6 new tests), expanded encryption at rest (12 new tests), code-enforced secrets (14 new tests), and a real faithfulness root-cause fix (3 new tests)
 
 ---
 
@@ -87,7 +87,7 @@ This project was built and evaluated across 9 sequential passes, each independen
 
 Source: `eval/module10/reports/rag_eval_20260919T103118Z.json` (30 cases).
 
-**Faithfulness** (20-case golden set, `scripts/run_rag_eval.py::GOLDEN_DATASET`): a historical, unverified baseline of 0.9420 could not be reproduced against a surviving artifact. A real regression to **0.0000** was found and root-caused (P2/earlier passes): `generator_node` was silently substituting a "not in documents" reply for any LLM provider failure surviving retries, making a provider outage indistinguishable from a genuine refusal. Fixed with a distinct `GENERATION_ERROR_REPLY` sentinel plus a `FallbackLLMClient` wiring fix and a `retrieval_top_k` increase (5→8). Post-fix, full-dataset re-run: **0.6485 → 0.7093** (P2's own root-cause pass raised it further by fixing 3 of 4 remaining zero-score cases). **One case (`eval-potato-02`) remains unresolved** — disclosed, not hidden. Source: `eval/module10/reports/faithfulness_final_20260920T181537Z.json`.
+**Faithfulness** (20-case golden set, `scripts/run_rag_eval.py::GOLDEN_DATASET`): a historical, unverified baseline of 0.9420 could not be reproduced against a surviving artifact. A real regression to **0.0000** was found and root-caused (P2/earlier passes): `generator_node` was silently substituting a "not in documents" reply for any LLM provider failure surviving retries, making a provider outage indistinguishable from a genuine refusal. Fixed with a distinct `GENERATION_ERROR_REPLY` sentinel plus a `FallbackLLMClient` wiring fix and a `retrieval_top_k` increase (5→8). Post-fix, full-dataset re-run: **0.6485 → 0.7093** (P2's own root-cause pass raised it further by fixing 3 of 4 remaining zero-score cases). **A second real bug was found and fixed 2026-09-22**: the eval script itself called `retrieve()` with a nonexistent keyword argument, silently degrading every retrieval it ever made to a raw fallback with no hybrid search/collection filter/reranking — fixed with a one-line change, raising the mean to **0.7809** and resolving `eval-potato-02` specifically (0.0 → 0.6). `eval-potato-01` and a newly-visible `eval-apple-01` remain weak under a disclosed retrieval-ranking limitation. Source: `eval/module10/reports/faithfulness_final_20260920T181537Z.json`, `eval/module10/reports/rag_eval_retrieve_signature_fix_20260922T145928Z.json`.
 
 Groundedness/citation figures use a lexical-overlap/claim-decomposition **proxy**, not a full entailment model — labeled as such throughout, not presented as ground truth.
 
@@ -194,7 +194,8 @@ Docker + docker-compose exist and are documented; an optional Caddy HTTPS overla
 
 | Case | Observed behavior | Detection | Root cause | Recovery | Limitation |
 |---|---|---|---|---|---|
-| `eval-potato-02` (Faithfulness) | Zero-score answer despite retrieval | Automated metric | Not fully isolated | N/A | Disclosed, unresolved |
+| `eval-potato-02` (Faithfulness) | Zero-score answer despite retrieval | Automated metric | Real bug: eval script called `retrieve()` with a nonexistent kwarg, silently falling back to degraded retrieval | Fixed 2026-09-22 (one-line kwarg fix); score 0.0 → 0.6 | Resolved, regression-tested |
+| `eval-potato-01` / `eval-apple-01` (Faithfulness) | Low/zero-score answers despite the correct dosage chunk existing in the corpus | Automated metric | Cross-encoder/hybrid ranking doesn't reliably surface this corpus's pipe-delimited dosage-table chunk format above a general topic-overview chunk for some queries | N/A | Disclosed, not fixed |
 | Provider generation failure (pre-fix) | "Not in documents" reply on real provider errors | Log trace + human review | `generator_node` laundering provider errors | `GENERATION_ERROR_REPLY` sentinel + fallback wiring | Fixed, regression-tested |
 | Structured-output malformed provider response | Falls back to free text | `structured_output_used=false` flag | N/A (expected path) | Automatic fallback | None — designed behavior |
 | Multimodal blur / spurious confidence | LeafSense over-confident on blurred synthetic images | Manual inspection | Not isolated (model behavior) | None | Disclosed, not fixed |
@@ -209,7 +210,7 @@ Docker + docker-compose exist and are documented; an optional Caddy HTTPS overla
 - Parallel execution is implemented for one real workflow only (non-streaming diagnose: vision + weather run concurrently); the main `/chat` corrective loop and the streaming diagnose path remain sequential.
 - Not all tools share one universal abstraction/envelope or identical retry/timeout behavior.
 - Tool-argument accuracy is measured only on a subset with ground-truth values.
-- Faithfulness = 0.7093; `eval-potato-02` remains unresolved.
+- Faithfulness = 0.7809 (raised from 0.7093 on 2026-09-22 by fixing a real eval-script bug); `eval-potato-01` and `eval-apple-01` remain weak under a disclosed retrieval-ranking limitation.
 - Groundedness/citation figures are lexical-overlap/claim-decomposition **proxies**.
 - Full TP/FP/TN/FN classification reporting is not applicable to this RAG problem's own metrics (used where genuinely applicable — planner classification).
 - Hallucination taxonomy evaluation is proxy-based, not a full dedicated model.
@@ -224,7 +225,7 @@ Docker + docker-compose exist and are documented; an optional Caddy HTTPS overla
 - No production cost-per-hour measurement.
 - Local resource metrics (CPU/RSS from `psutil`) are local-process measurements, not cloud capacity — and in the P7 load test, the sampler measured the wrong process (the client, not the server), disclosed.
 - HTTPS is a documented deployment path, not independently validated against a live TLS endpoint in this arc.
-- Secret management is documented (SSM path) but not enforced by the code itself.
+- Secret management: as of 2026-09-22, weak/placeholder secrets (`API_KEY`, `API_KEYS`, `JWT_SECRET_KEY`, `DATABASE_URL`) are now code-enforced — `Settings` refuses to construct when `DEBUG=false` and any of these look like a known placeholder or are too short (`app/core/config.py::_reject_weak_secrets_in_production`, 14 tests). The AWS SSM *retrieval* path itself remains documented, not newly built — this closes the "not enforced" half of the gap, not the managed-secret-storage half.
 - Formal GDPR/DPDP/HIPAA compliance is **not** satisfied merely by having security controls.
 - Encryption at rest now covers `ChatTurn.content` and `ChatSession.title` — still not the FAISS index/metadata, uploaded PDFs, or feedback records (each with a disclosed technical reason). No key rotation exists. Encryption in transit (HTTPS/TLS) is tracked separately, not solved by this expansion.
 
@@ -249,7 +250,7 @@ See `docs/MODULE10_PDF_TRACEABILITY_MATRIX.md` for the complete, section-by-sect
 
 ```
 cd backend
-pytest -q                                                          # full regression: 1013 passed, 1 skipped
+pytest -q                                                          # full regression: 1031 passed, 1 skipped
 python scripts/run_rag_eval.py                                     # RAG + Faithfulness
 python eval/module10/runners/run_agent_eval.py                     # agent/planner
 python eval/unauthorized_access_check.py                           # RBAC

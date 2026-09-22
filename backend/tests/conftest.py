@@ -27,6 +27,15 @@ os.environ["DATABASE_URL"] = ""
 os.environ.setdefault("GEMINI_API_KEY", "test-gemini-key")
 os.environ.setdefault("API_KEY", "test-secret-key")
 os.environ.setdefault("JWT_SECRET", "test-jwt-secret-key-for-testing-only-1234567890")
+# Explicit, not inherited from backend/.env: Settings._reject_weak_secrets_in_production
+# (app/core/config.py) refuses to construct with placeholder-looking
+# secrets when debug=False. The test suite intentionally uses short,
+# obviously-fake secrets above, so it must declare itself non-production
+# on its own -- relying on the ambient .env's DEBUG=true would make the
+# whole suite fail closed (breaking on Settings() import, before any test
+# even runs) the moment .env is absent or that line changes, e.g. in a
+# clean CI checkout.
+os.environ.setdefault("DEBUG", "true")
 
 import pytest
 

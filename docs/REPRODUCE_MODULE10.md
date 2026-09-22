@@ -19,7 +19,7 @@ Everything in this document assumes `backend/.env` exists with at least `GEMINI_
 pytest -q
 ```
 
-Expected: `1013 passed, 1 skipped (1014 collected)`.
+Expected: `1031 passed, 1 skipped (1032 collected)`.
 
 ## Targeted test subsets
 
@@ -35,7 +35,19 @@ pytest tests/test_human_approval_node.py -q           # human_approval_node in i
 pytest tests/test_agent_graph_parallel_execution.py -q  # generic concurrency primitive (13)
 pytest tests/test_handle_diagnose_parallel.py -q        # real diagnose-workflow concurrency (6)
 pytest tests/test_encryption.py tests/test_postgres_session_store_encryption.py tests/test_session_repository_encryption.py -q  # encryption at rest, both fields (33)
+pytest tests/test_settings_secret_validation.py -q       # production-mode weak-secret rejection (14)
+pytest tests/test_run_rag_eval_retrieval_signature.py -q # eval-script retrieve() signature regression (3)
 ```
+
+## Faithfulness eval-script fix evidence
+
+**Requires**: a real `GEMINI_API_KEY`/`GROQ_API_KEY` and a populated FAISS vector store (live LLM + retrieval calls).
+
+```
+python scripts/run_rag_eval.py
+```
+
+Re-runs the full 20-case golden dataset through the now-fixed `execute_retrieval()`. Expect `eval-potato-02` to score non-zero faithfulness (previously 0.0) and the overall mean faithfulness to land near 0.78, not the pre-fix 0.71 — exact numbers vary slightly run-to-run since LLM generation isn't fully deterministic.
 
 ## Encryption-at-rest evidence
 

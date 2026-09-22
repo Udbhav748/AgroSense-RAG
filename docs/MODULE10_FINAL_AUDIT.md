@@ -1,6 +1,6 @@
 # Module 10 — Final Technical Audit
 
-**Branch**: `module10-final-pdf-compliance` (not merged to `main`) · **Commit**: verify with `git rev-parse HEAD` · **Regression**: 1013 passed, 1 skipped, 0 failed (1014 collected) · **Date**: 2026-09-21 (P9 consolidation, updated same day for real parallel execution and again for expanded encryption at rest)
+**Branch**: `module10-final-pdf-compliance` (not merged to `main`) · **Commit**: verify with `git rev-parse HEAD` · **Regression**: 1031 passed, 1 skipped, 0 failed (1032 collected) · **Date**: 2026-09-21–22 (P9 consolidation; same-day follow-ups for real parallel execution, expanded encryption at rest, code-enforced secrets, and a real faithfulness root-cause fix)
 
 This is the detailed technical companion to `docs/MODULE10_FINAL_SUBMISSION.md` (the evaluator-facing overview). It gives checklist coverage, evidence locations, reproduction commands, measured metrics, and limitations per Module 10 section, without duplicating raw JSON results — those are linked, not pasted. The literal Module 10 PDF checklist (14 sections + 10-question design review) was provided directly in this pass and is mapped row-by-row in `docs/MODULE10_PDF_TRACEABILITY_MATRIX.md`; this document organizes evidence by the same section numbers.
 
@@ -85,7 +85,7 @@ Architecture diagram: `docs/ARCHITECTURE.md`. AI: agent/planner/tools/memory/RAG
 ```
 cd backend && pytest -q
 ```
-**1013 passed, 1 skipped, 0 failed** (1014 collected) — includes the 19 new parallel-execution tests and the 12 new encryption-at-rest tests, both added same day; verify with `git rev-parse HEAD` and `cd backend && pytest -q`. (Historical: 982 passed, 1 skipped at commit `7159169`, before either addition below.)
+**1031 passed, 1 skipped, 0 failed** (1032 collected) — includes the 19 new parallel-execution tests, 12 new encryption-at-rest tests, 14 new secrets-validation tests, and 3 new retrieval-signature-regression tests, all added across 2026-09-21–22; verify with `git rev-parse HEAD` and `cd backend && pytest -q`. (Historical: 982 passed, 1 skipped at commit `7159169`, before any of the additions below.)
 
 ## Reproduction Index
 
@@ -104,7 +104,7 @@ All under `backend/eval/module10/reports/` (35 artifacts as of this pass, never 
 ## Remaining ⚠️/❌ Items (not resolved by this pass, by design — P9 is a documentation/audit pass, not new feature work)
 
 1. Human IAA — infrastructure complete, real measurement pending an independent second reviewer.
-2. Faithfulness 0.7093, one case (`eval-potato-02`) unresolved.
+2. Faithfulness 0.7809 (raised from 0.7093 on 2026-09-22 after fixing a real eval-script bug that resolved `eval-potato-02`); `eval-potato-01` and `eval-apple-01` remain weak under a disclosed retrieval-ranking limitation.
 3. No cloud-validated RPS/autoscaling/load-balancer/cost-per-hour.
 4. `AlertEngine` not continuously scheduled; no hosted dashboard/centralized logging.
 5. Cache-hit responses invisible to log-based aggregation (disclosed, not patched).
@@ -125,3 +125,19 @@ Extended encryption-at-rest coverage (item 6 above) from `ChatTurn.content` only
 **Explicitly NOT encrypted, with reasons** (see `docs/MODULE10_PDF_TRACEABILITY_MATRIX.md` §13 for the full coverage matrix): FAISS metadata.json chunk text and the FAISS vector index (would require decrypting on every retrieval call across many call sites, or make similarity search itself impossible), uploaded raw PDF files on disk (PyMuPDF reads them directly by path; would require a decrypt-to-tempfile step plus a migration story for already-uploaded files), feedback.jsonl (an evaluation artifact read in bulk by `metrics_report.py`, not primary user-content storage), Tenant/User/ApiKey metadata (not free-text content; email is looked up by an equality index that transparent encryption would break without a blind-index scheme). Encryption in transit (HTTPS/TLS) was explicitly out of scope for this pass and is tracked separately.
 
 Evidence: `backend/eval/module10/reports/encryption_at_rest_final_20260921T193344Z.json` — real executed checks (encrypted-on-disk, round-trip, wrong-key, tamper, missing-key fail-closed, cross-session AAD isolation, legacy backward compatibility), all passed. Tests: 33 passed (21 pre-existing + 12 new, `tests/test_session_repository_encryption.py`).
+
+## Same-Day Addition: Secrets Now Code-Enforced
+
+Closed the "Secret management" gap (previously "documented, not code-enforced"). `Settings._reject_weak_secrets_in_production` (`app/core/config.py`, a `pydantic` `model_validator`) refuses to construct `Settings` when `DEBUG=false` (production) and `API_KEY`/`API_KEYS`/`JWT_SECRET_KEY`/`DATABASE_URL` are missing, a known placeholder from `.env.example`, or below a minimum length — failing fast at process startup, before a single request can be served, matching the codebase's existing "fail loud, not silently insecure" posture (`EncryptionKeyMissingError`, `AuthConfigurationError`). `DEBUG=true` (the local-dev default) leaves placeholder secrets untouched — this only activates for a run explicitly claiming to be production. Scope, stated honestly: this is **application-level** enforcement (weak values in the app's own config), not a managed secret-manager integration — the AWS SSM path remains documented, not newly built.
+
+A real bug was caught and fixed during this change's own regression run: the validator initially flagged the single `API_KEY` field even when `API_KEYS` (the per-client map) was set and actually superseded it — this crashed a real uvicorn subprocess in `tests/test_load_concurrency_eval.py`'s smoke test. Fixed by only validating `API_KEY` when `API_KEYS` is unset. `tests/conftest.py` was also updated to set `DEBUG=true` explicitly for the test session rather than relying on the ambient `backend/.env`, so the suite doesn't silently start failing closed in a clean checkout with no `.env` file.
+
+Tests: 14 new (`tests/test_settings_secret_validation.py`).
+
+## Same-Day Addition: Real Second Root-Cause Fix for Faithfulness (`eval-potato-02`)
+
+Investigated the disclosed-unresolved `eval-potato-02` case and found it was never a RAG-pipeline defect: a real bug in `scripts/run_rag_eval.py` itself. `execute_retrieval()` called `retrieval_service.retrieve()` with a keyword argument (`rerank_candidates`) that doesn't exist on the real function — the actual parameter is `rerank`. Every retrieval call in this script's history raised a `TypeError`, silently caught by a broad `except Exception` logged only at `DEBUG` level, degrading every retrieval to a raw-vector/file-based fallback (no hybrid BM25, no collection filter, no reranking) without ever surfacing an error. Fixed with a one-line change; the exception log was also elevated from `debug` to `warning` so this class of bug can't hide silently again.
+
+Verified: `eval-potato-02` faithfulness 0.0 → **0.6** (all 8 expected active ingredients/organic remedies now correctly retrieved and cited, context recall 0.125 → 1.0). Full 20-case re-run: mean faithfulness 0.7093 → **0.7809**, mean context recall → **0.91**. Two cases remain weak under the now-correctly-exercised retrieval path — `eval-potato-01` (0.4) and a newly-visible `eval-apple-01` (0.0, was 0.3333 under the broken fallback) — both the same already-disclosed cross-encoder/dosage-table-chunk ranking limitation, not fixed by this pass, not hidden either.
+
+Regression test (calls the real `retrieve()`, not a mock, so a signature mismatch fails loudly): `tests/test_run_rag_eval_retrieval_signature.py` (3 tests). Evidence: `backend/eval/module10/reports/rag_eval_retrieve_signature_fix_20260922T145928Z.json`.
