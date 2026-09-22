@@ -73,13 +73,31 @@ def run_planner_cases(chat_service: ChatService, cases: list[dict], document_id:
     }
 
 
-def run_tool_argument_cases(dataset_cases: list[dict], document_id: str, planner_tool_arg_cases: list) -> dict:
+def run_tool_argument_cases(
+    chat_service: ChatService, dataset_cases: list[dict], document_id: str, planner_tool_arg_cases: list
+) -> dict:
     cases = list(planner_tool_arg_cases)
     for c in dataset_cases:
         if c["tool"] == "diagnose":
             cases.append(ametrics.ToolArgCase(case_id=c["id"], tool="diagnose", expected=None, actual=None, applicable=False, note=c["note"]))
         elif c["tool"] == "retrieve" and c["expected_argument"] == "top_k":
             cases.append(ametrics.ToolArgCase(case_id=c["id"], tool="retrieve", expected=None, actual=None, applicable=False, note=c["note"]))
+        elif c["tool"] == "retrieve" and c["expected_argument"] == "crop":
+            # Real, genuinely measured ground-truth check (Module 10
+            # gap-closure): unlike top_k (a caller-supplied ChatRequest
+            # field, correctly N/A), crop/collection IS a planner-decided
+            # argument -- _plan() calls extract_crop_context(query) for
+            # every query regardless of resolved action, and the result
+            # is used downstream to scope retrieval to the right crop's
+            # documents. Previously untested; this is a real gap in
+            # ground-truth coverage, not a caller-supplied field like
+            # top_k, so it belongs in the applicable=True denominator.
+            plan = chat_service._plan(c["query"])  # noqa: SLF001 - eval needs the raw planner decision
+            cases.append(
+                ametrics.ToolArgCase(
+                    case_id=c["id"], tool="retrieve", expected=c["expected_value"], actual=plan.crop, note=c.get("note", "")
+                )
+            )
         elif c["tool"] == "web_research":
             cases.append(ametrics.ToolArgCase(case_id=c["id"], tool="web_research", expected=None, actual=None, applicable=False, note=c["note"]))
         elif c["tool"] == "summarize" and c["expected_value"] is None:
@@ -239,7 +257,9 @@ def main() -> None:
     chat_service = ChatService(vector_store, build_llm_client())
 
     planner_result = run_planner_cases(chat_service, dataset["planner_cases"], document_id)
-    tool_arg_result = run_tool_argument_cases(dataset["tool_argument_cases"], document_id, planner_result["tool_arg_cases_from_planner"])
+    tool_arg_result = run_tool_argument_cases(
+        chat_service, dataset["tool_argument_cases"], document_id, planner_result["tool_arg_cases_from_planner"]
+    )
     planning_result = run_planning_cases(chat_service, dataset["planning_cases"], document_id)
     memory_boundary_result = run_memory_session_boundary_cases()
     workflow_result = ametrics.agent_workflow_metrics()

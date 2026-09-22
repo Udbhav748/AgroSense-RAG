@@ -55,7 +55,7 @@ Status vocabulary: ✅ Verified (implementation + reproducible test/command + re
 | Latency | ✅ | per-tool `latency_ms` on `tool_invocation` events |
 | Security | ✅ | input validation, tenant scoping |
 
-**Metrics**: API Success Rate, Retry Success Rate, Timeout Rate measured in `tool_reliability_final_20260920T015928Z.json`/`tool_validation_final_20260920T012315Z.json`. Argument Accuracy: ⚠️ measured only on the subset of tool calls with a ground-truth argument value in the dataset (`summarize`'s `document_id`, `web_search`'s query) — not the full tool-call universe, disclosed rather than assumed complete.
+**Metrics**: API Success Rate, Retry Success Rate, Timeout Rate measured in `tool_reliability_final_20260920T015928Z.json`/`tool_validation_final_20260920T012315Z.json`. Argument Accuracy: ⚠️ measured only on the subset of tool calls with a ground-truth argument value in the dataset (`summarize`'s `document_id`, `retrieve`'s `crop`/`collection` — added 2026-09-22) — not the full tool-call universe, disclosed rather than assumed complete. `n_applicable` grew from 2 to 6 with the `retrieve` crop-extraction cases; accuracy remains 1.0. Regression: `tests/test_run_agent_eval_tool_arguments.py` (6 tests, fully offline/deterministic).
 
 ## 4. Retrieval-Augmented Generation
 
@@ -116,7 +116,7 @@ Applied where a genuine classification task exists — planner intent classifica
 | PDF Item | Status | Evidence |
 |---|---|---|
 | Tool selection | ✅ | Tool Selection Accuracy 1.0 |
-| Tool arguments | ⚠️ | measured on ground-truth subset only (see §3) |
+| Tool arguments | ⚠️ (expanded 2026-09-22) | measured on ground-truth subset — `n_applicable` grew 2→6 by adding real crop/collection extraction ground-truth for `retrieve` (previously untested; correctly distinguished from `top_k`, which remains N/A as a caller-supplied field, not a planner decision). Accuracy 1.0 (6/6). Still a subset, not the full tool-call universe — `web_research`/`diagnose` remain N/A by design (see §3). |
 | Planning | ✅ | Planning Success Rate 1.0 (3/3) |
 | Memory | ✅ | 0 cross-session leaks |
 | Hallucination | ⚠️ | lexical-overlap proxy (`_detect_hallucination`) + a dedicated taxonomy pass (`hallucination_taxonomy_final_20260920T014121Z.json`) — proxy-based, not a full dedicated model |

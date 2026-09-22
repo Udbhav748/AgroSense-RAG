@@ -2,7 +2,7 @@
 
 **This document does not claim 100% completion.** Every item across this project is marked ✅ (implementation + reproducible test + real measurement), ⚠️ (partial/limited/local-only measurement), ❌ (missing), or N/A (genuinely not applicable, with rationale) — matching the underlying evidence exactly, never upgraded because code merely exists. See `docs/MODULE10_PDF_TRACEABILITY_MATRIX.md` for the row-by-row mapping against the literal Module 10 PDF checklist.
 
-**Branch**: `module10-final-pdf-compliance` (pushed to `origin`, **not merged to `main`**) · **Commit at last edit**: verify with `git rev-parse HEAD` · **Full regression**: 1035 passed, 1 skipped, 0 failed (1036 collected) · **Date**: 2026-09-19 through 2026-09-22, across 9 sequential evaluation/hardening passes (P0–P8) plus same-day P9 follow-ups implementing real parallel execution (13 + 6 new tests), expanded encryption at rest (12 new tests), code-enforced secrets (14 new tests), a real faithfulness root-cause fix (3 new tests), and a real paired significance test for Provider A/B (5 new tests)
+**Branch**: `module10-final-pdf-compliance` (pushed to `origin`, **not merged to `main`**) · **Commit at last edit**: verify with `git rev-parse HEAD` · **Full regression**: 1041 passed, 1 skipped, 0 failed (1042 collected) · **Date**: 2026-09-19 through 2026-09-22, across 9 sequential evaluation/hardening passes (P0–P8) plus same-day P9 follow-ups implementing real parallel execution (13 + 6 new tests), expanded encryption at rest (12 new tests), code-enforced secrets (14 new tests), a real faithfulness root-cause fix (3 new tests), a real paired significance test for Provider A/B (5 new tests), and expanded tool-argument-accuracy ground truth (6 new tests)
 
 ---
 
@@ -100,12 +100,14 @@ Groundedness/citation figures use a lexical-overlap/claim-decomposition **proxy*
 | Workflow Completion Rate | 1.0 | same |
 | Node Success Rate | 1.0 | same |
 | Tool Selection Accuracy | 1.0 (evaluated subset) | same |
-| Tool Argument Accuracy | 1.0 (21/21, evaluated subset) | same |
+| Tool Argument Accuracy | 1.0 (6/6, evaluated subset — expanded 2026-09-22, see below) | same |
 | Average Steps | 8.5 | same |
 | Loop Rate | 0.0 | same |
 | Cost per Successful Task | $0.001124 (real per-request telemetry) | same |
 
-**Disclosed limitation**: tool-argument accuracy is measured only on the subset of tool calls where a ground-truth argument value exists in the dataset — not the full tool-call universe. Parallel execution of independent tasks is now implemented for the non-streaming diagnose workflow (vision + weather run as real concurrent `asyncio` branches, see `docs/MODULE10_PDF_TRACEABILITY_MATRIX.md` §2); the main `/chat` corrective loop and tool calls remain sequential by design (each step depends on the previous one's output) and the streaming diagnose path was not converted.
+**Tool-argument accuracy expanded (2026-09-22)**: was `n_applicable=2` (summarize's document_id only — the "21/21" figure previously shown here was a doc error, not backed by any saved artifact; the real historical number was 2/2). `retrieve`'s `crop`/`collection` argument is genuinely planner-decided (`extract_crop_context(query)`, used to scope retrieval to the right crop's documents) but had zero ground-truth coverage — unlike `top_k`/`min_score`, which are correctly N/A (caller-supplied `ChatRequest` fields, not planner decisions). Added 4 real ground-truth cases (3 crop-extraction positives across different crops + 1 no-crop negative) to `eval/module10/datasets/agent_eval.json`, wired into `run_tool_argument_cases` (`eval/module10/runners/run_agent_eval.py`). Measured: `n_applicable=6`, accuracy **1.0** (`retrieve`: 4/4, `summarize`: 2/2). Fully deterministic (`_plan()` is keyword-based, no LLM call) — verified offline, 6 new tests: `tests/test_run_agent_eval_tool_arguments.py`. **Still disclosed as a subset, not the full tool-call universe**: `web_research`'s approval gate and `diagnose`'s image-argument shape remain N/A here by design (measured elsewhere / out of scope for this text-only harness — see the dataset's own notes), not silently omitted.
+
+Parallel execution of independent tasks is now implemented for the non-streaming diagnose workflow (vision + weather run as real concurrent `asyncio` branches, see `docs/MODULE10_PDF_TRACEABILITY_MATRIX.md` §2); the main `/chat` corrective loop and tool calls remain sequential by design (each step depends on the previous one's output) and the streaming diagnose path was not converted.
 
 ## 8. Structured Output Evaluation
 
@@ -250,7 +252,7 @@ See `docs/MODULE10_PDF_TRACEABILITY_MATRIX.md` for the complete, section-by-sect
 
 ```
 cd backend
-pytest -q                                                          # full regression: 1035 passed, 1 skipped
+pytest -q                                                          # full regression: 1041 passed, 1 skipped
 python scripts/run_rag_eval.py                                     # RAG + Faithfulness
 python eval/module10/runners/run_agent_eval.py                     # agent/planner
 python eval/unauthorized_access_check.py                           # RBAC
