@@ -19,7 +19,7 @@ Everything in this document assumes `backend/.env` exists with at least `GEMINI_
 pytest -q
 ```
 
-Expected: `1041 passed, 1 skipped (1042 collected)`.
+Expected: `1048 passed, 1 skipped (1049 collected)`.
 
 ## Targeted test subsets
 
@@ -39,7 +39,18 @@ pytest tests/test_settings_secret_validation.py -q       # production-mode weak-
 pytest tests/test_run_rag_eval_retrieval_signature.py -q # eval-script retrieve() signature regression (3)
 pytest tests/test_provider_ab_eval.py -q                 # provider A/B harness + paired significance test (12)
 pytest tests/test_run_agent_eval_tool_arguments.py -q     # expanded tool-argument-accuracy ground truth (6)
+pytest tests/test_nli_faithfulness.py -q                  # NLI groundedness upgrade attempt (7, incl. 1 real-model test)
 ```
+
+## NLI groundedness upgrade evidence (honest negative result)
+
+**Requires**: nothing external for the primitive itself (pretrained model, inference only); the full comparison run needs a real `GEMINI_API_KEY`/`GROQ_API_KEY` (20 live LLM calls) plus local NLI inference.
+
+```
+python eval/module10/runners/run_nli_faithfulness_eval.py
+```
+
+Runs the full 20-case dataset through both the existing lexical-overlap faithfulness proxy and a real pretrained NLI cross-encoder, side by side. Reproduces the honest negative finding: NLI scores are real but substantially and systematically lower than the lexical proxy on this corpus's structured, pipe-delimited retrieval-chunk format — a domain-mismatch limitation of generic pretrained NLI models, not a bug. See the saved report's `honest_finding_domain_mismatch` field for the full investigation (which models/premise formats were tried and why none generalized).
 
 ## Provider A/B evidence (with paired significance test)
 

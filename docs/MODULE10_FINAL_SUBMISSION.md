@@ -2,7 +2,7 @@
 
 **This document does not claim 100% completion.** Every item across this project is marked ✅ (implementation + reproducible test + real measurement), ⚠️ (partial/limited/local-only measurement), ❌ (missing), or N/A (genuinely not applicable, with rationale) — matching the underlying evidence exactly, never upgraded because code merely exists. See `docs/MODULE10_PDF_TRACEABILITY_MATRIX.md` for the row-by-row mapping against the literal Module 10 PDF checklist.
 
-**Branch**: `module10-final-pdf-compliance` (pushed to `origin`, **not merged to `main`**) · **Commit at last edit**: verify with `git rev-parse HEAD` · **Full regression**: 1041 passed, 1 skipped, 0 failed (1042 collected) · **Date**: 2026-09-19 through 2026-09-22, across 9 sequential evaluation/hardening passes (P0–P8) plus same-day P9 follow-ups implementing real parallel execution (13 + 6 new tests), expanded encryption at rest (12 new tests), code-enforced secrets (14 new tests), a real faithfulness root-cause fix (3 new tests), a real paired significance test for Provider A/B (5 new tests), and expanded tool-argument-accuracy ground truth (6 new tests)
+**Branch**: `module10-final-pdf-compliance` (pushed to `origin`, **not merged to `main`**) · **Commit at last edit**: verify with `git rev-parse HEAD` · **Full regression**: 1048 passed, 1 skipped, 0 failed (1049 collected) · **Date**: 2026-09-19 through 2026-09-22, across 9 sequential evaluation/hardening passes (P0–P8) plus same-day P9 follow-ups implementing real parallel execution (13 + 6 new tests), expanded encryption at rest (12 new tests), code-enforced secrets (14 new tests), a real faithfulness root-cause fix (3 new tests), a real paired significance test for Provider A/B (5 new tests), expanded tool-argument-accuracy ground truth (6 new tests), and an honestly-reported NLI groundedness upgrade attempt (7 new tests)
 
 ---
 
@@ -89,7 +89,7 @@ Source: `eval/module10/reports/rag_eval_20260919T103118Z.json` (30 cases).
 
 **Faithfulness** (20-case golden set, `scripts/run_rag_eval.py::GOLDEN_DATASET`): a historical, unverified baseline of 0.9420 could not be reproduced against a surviving artifact. A real regression to **0.0000** was found and root-caused (P2/earlier passes): `generator_node` was silently substituting a "not in documents" reply for any LLM provider failure surviving retries, making a provider outage indistinguishable from a genuine refusal. Fixed with a distinct `GENERATION_ERROR_REPLY` sentinel plus a `FallbackLLMClient` wiring fix and a `retrieval_top_k` increase (5→8). Post-fix, full-dataset re-run: **0.6485 → 0.7093** (P2's own root-cause pass raised it further by fixing 3 of 4 remaining zero-score cases). **A second real bug was found and fixed 2026-09-22**: the eval script itself called `retrieve()` with a nonexistent keyword argument, silently degrading every retrieval it ever made to a raw fallback with no hybrid search/collection filter/reranking — fixed with a one-line change, raising the mean to **0.7809** and resolving `eval-potato-02` specifically (0.0 → 0.6). `eval-potato-01` and a newly-visible `eval-apple-01` remain weak under a disclosed retrieval-ranking limitation. Source: `eval/module10/reports/faithfulness_final_20260920T181537Z.json`, `eval/module10/reports/rag_eval_retrieve_signature_fix_20260922T145928Z.json`.
 
-Groundedness/citation figures use a lexical-overlap/claim-decomposition **proxy**, not a full entailment model — labeled as such throughout, not presented as ground truth.
+Groundedness/citation figures use a lexical-overlap/claim-decomposition **proxy**, not a full entailment model — labeled as such throughout, not presented as ground truth. **A real pretrained-NLI-model upgrade was attempted 2026-09-22 (no training — inference-only, per scope) and produced an honest negative result**: mean NLI faithfulness 0.3201 vs mean lexical 0.8847 on the same 20 cases, root-caused to a genuine domain mismatch (generic NLI models trained on clean sentence pairs are poorly calibrated for this corpus's structured, pipe-delimited retrieval-chunk format — verified via a larger model and three premise-reformatting attempts, none of which generalized without fragile per-claim field selection). The lexical proxy remains the primary metric; full investigation in `eval/module10/reports/nli_faithfulness_upgrade_20260922T170919Z.json`.
 
 ## 7. Agent Evaluation
 
@@ -213,7 +213,7 @@ Docker + docker-compose exist and are documented; an optional Caddy HTTPS overla
 - Not all tools share one universal abstraction/envelope or identical retry/timeout behavior.
 - Tool-argument accuracy is measured only on a subset with ground-truth values.
 - Faithfulness = 0.7809 (raised from 0.7093 on 2026-09-22 by fixing a real eval-script bug); `eval-potato-01` and `eval-apple-01` remain weak under a disclosed retrieval-ranking limitation.
-- Groundedness/citation figures are lexical-overlap/claim-decomposition **proxies**.
+- Groundedness/citation figures are lexical-overlap/claim-decomposition **proxies** — a real pretrained-NLI upgrade was attempted (2026-09-22) and honestly found to be a worse, not better, signal for this corpus (domain mismatch — see §6 above); the lexical proxy remains primary.
 - Full TP/FP/TN/FN classification reporting is not applicable to this RAG problem's own metrics (used where genuinely applicable — planner classification).
 - Hallucination taxonomy evaluation is proxy-based, not a full dedicated model.
 - Human approval is config-gated, not always-on.
@@ -252,7 +252,7 @@ See `docs/MODULE10_PDF_TRACEABILITY_MATRIX.md` for the complete, section-by-sect
 
 ```
 cd backend
-pytest -q                                                          # full regression: 1041 passed, 1 skipped
+pytest -q                                                          # full regression: 1048 passed, 1 skipped
 python scripts/run_rag_eval.py                                     # RAG + Faithfulness
 python eval/module10/runners/run_agent_eval.py                     # agent/planner
 python eval/unauthorized_access_check.py                           # RBAC
