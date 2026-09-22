@@ -114,3 +114,43 @@ def decrypt_bytes(blob: bytes, *, key_b64: str | None = None, associated_data: b
         raise EncryptionIntegrityError(
             "Ciphertext failed authentication -- wrong key or tampered/corrupted data."
         ) from exc
+
+
+# Versioned marker for a text column value produced by encrypt_text_field,
+# shared by every call site that stores an encrypted string in an
+# otherwise-plaintext text column (e.g. PostgresSessionStore's
+# ChatTurn.content, session_repository's ChatSession.title). Using one
+# shared prefix/helper -- rather than each call site reimplementing its
+# own encode/marker/decode logic -- means there is exactly one place that
+# defines "what does an encrypted text column value look like," and every
+# caller gets the same backward-compatibility (unmarked = legacy
+# plaintext, never mistaken for ciphertext) and fail-closed behavior for
+# free.
+TEXT_FIELD_ENC_PREFIX = "enc1:"
+
+
+def encrypt_text_field(plaintext: str, *, associated_data: str, key_b64: str | None = None) -> str:
+    """Encrypt a plain `str` for storage in a text column, returning a
+    single self-contained string (marker + base64 ciphertext) safe to
+    write directly into that column. `associated_data` is typically a
+    stable identifier (e.g. session_id) binding this ciphertext to its
+    owning row, authenticated but not encrypted -- see encrypt_bytes."""
+    ciphertext = encrypt_bytes(
+        plaintext.encode("utf-8"), key_b64=key_b64, associated_data=associated_data.encode("utf-8")
+    )
+    return TEXT_FIELD_ENC_PREFIX + base64.b64encode(ciphertext).decode("ascii")
+
+
+def decrypt_text_field(stored: str, *, associated_data: str, key_b64: str | None = None) -> str:
+    """Decrypt a value produced by encrypt_text_field. A value without
+    the TEXT_FIELD_ENC_PREFIX marker is a legacy plaintext row (written
+    before encryption existed for this column) and is returned as-is --
+    no migration is required for existing rows to remain readable, and a
+    plaintext row is never mistaken for ciphertext. A marked value that
+    fails to decrypt (wrong key, tampered ciphertext, missing key) raises
+    rather than returning anything -- fails closed."""
+    if not stored.startswith(TEXT_FIELD_ENC_PREFIX):
+        return stored
+    ciphertext = base64.b64decode(stored[len(TEXT_FIELD_ENC_PREFIX) :])
+    plaintext = decrypt_bytes(ciphertext, key_b64=key_b64, associated_data=associated_data.encode("utf-8"))
+    return plaintext.decode("utf-8")

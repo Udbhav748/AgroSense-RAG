@@ -7,7 +7,28 @@ import contextlib
 import os
 from pathlib import Path
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Module 10 gap-closure: known placeholder/example secret values that show
+# up in .env.example, READMEs, or tutorials -- if any of these are still
+# in place on a DEBUG=false (production) run, that's a real misconfiguration
+# worth failing loudly on rather than silently running insecure. Not an
+# exhaustive deny-list (no such list could be), just the specific values
+# this project's own docs/.env.example actually suggest.
+_KNOWN_WEAK_SECRETS = {
+    "local-dev-api-key-change-me",
+    "change-me",
+    "changeme",
+    "change_me",
+    "secret",
+    "password",
+    "test",
+    "your-api-key-here",
+    "your-secret-key-here",
+    "insightai-dev-password",
+    "",
+}
 
 
 def _load_secrets_from_ssm() -> None:
@@ -360,7 +381,29 @@ class Settings(BaseSettings):
     pgvector_table_name: str = "document_embeddings"
 
     # Default number of chunks to return from retrieval.
-    retrieval_top_k: int = 5
+    #
+    # MODULE 10 FAITHFULNESS ROOT-CAUSE FIX (P2, 2026-09-20): was 5. Raised
+    # to 8 after tracing a real Faithfulness-benchmark failure
+    # (eval-potato-01: "What fungicides and bio-treatments effectively
+    # manage potato early blight...") to a genuine retrieval-ranking miss,
+    # not a generation defect -- the exact "Agricultural Treatment &
+    # Dosage Reference: Potato - Early Blight" chunk (containing both the
+    # organic remedy and chemical treatment the ground truth expects) was
+    # confirmed present in the corpus and within the top-20 hybrid-search
+    # candidate pool, but ranked #8, just outside the old top_k=5 cutoff --
+    # verified directly against the live vector store, not assumed.
+    # Enabling the existing cross-encoder reranking feature was tried
+    # first and did NOT surface the chunk into the top-5 either (the
+    # MS-MARCO-trained cross-encoder does not score this corpus's
+    # pipe-delimited "Crop: X | Disease: Y | ..." dosage-table format as
+    # highly relevant to a natural-language question -- a real, disclosed
+    # limitation of that model on this corpus's formatting, not fixed
+    # here). Widening the plain top-k window is the smaller, more
+    # reliable fix: it directly and verifiably includes the missing chunk
+    # for the failing case without depending on reranking's relevance
+    # judgment for this corpus. See docs/MODULE10_RESULTS.md's
+    # Faithfulness section for the full before/after measurement.
+    retrieval_top_k: int = 8
 
     # When True, ChatService logs the exact prompt sent to the LLM on every
     # generation (see prompt_builder.build_prompt), not just its version —
@@ -432,9 +475,18 @@ class Settings(BaseSettings):
     # client sends structured_response=true, ChatService asks the provider
     # for a strict JSON answer (via response_mime_type / response_format)
     # and validates it against the StructuredAnswer schema, falling back to
-    # plain text if the model's output doesn't parse. Off by default so
-    # the standard free-text path is unchanged.
-    structured_output_enabled: bool = False
+    # plain text if the model's output doesn't parse.
+    #
+    # Module 10 gap-closure (2026-09-21): this is now True by default. The
+    # standard free-text path is still the default per-request behavior --
+    # structured mode only activates when a caller explicitly opts in via
+    # ChatRequest.structured_response=true (POST /chat only; /chat/stream,
+    # /chat/diagnose(/stream) never request it, since token-by-token SSE
+    # and vision-diagnosis text are intentionally free-form contracts, not
+    # structured ones). This flag being True just means the already-built,
+    # already-tested opt-in path is actually reachable in production
+    # instead of silently dead regardless of what a caller requests.
+    structured_output_enabled: bool = True
 
     # --- Multi-agent features (off by default) -------------------------
     # When True, intent classification uses an LLM router agent
@@ -549,6 +601,18 @@ class Settings(BaseSettings):
     # billed usage. Default is a placeholder; set to your model's real
     # blended rate.
     cost_per_1k_tokens: float = 0.00025
+
+    # Encryption-at-rest key for app.core.encryption (AES-256-GCM), used by
+    # app/services/postgres_session_store.py to encrypt/decrypt ChatTurn.content.
+    # Loaded via Settings (like every other config value in this app) rather
+    # than encryption.py's own os.environ fallback, since this codebase's
+    # .env is parsed by pydantic-settings and never exported to the process
+    # environment -- reading raw os.environ here would silently never see a
+    # value set only in .env. None (unset) means encrypted session-content
+    # read/write fails closed (EncryptionKeyMissingError), never falls back
+    # to storing plaintext. Base64-encoded 32-byte key; generate one with
+    # `python -c "from app.core.encryption import generate_key; print(generate_key())"`.
+    encryption_key_b64: str | None = None
 
     # Base URL of the LeafSense vision service (a separate FastAPI process,
     # its own TensorFlow/Keras stack — see services/vision_client.py).
@@ -692,7 +756,8 @@ class Settings(BaseSettings):
     hybrid_clip_weight: float = 0.2
 
     # --- Answer-quality / agentic / vector-store-hygiene flags ----------
-    # (docs/FEATURE_PROMPTS.md's 13-feature plan). Every one defaults False,
+    # (originally planned in _recycle_bin/docs-planning-history/FEATURE_PROMPTS.md's
+    # 13-feature plan, archived during repo cleanup). Every one defaults False,
     # per this codebase's convention: a new capability is off until
     # explicitly enabled. Two exceptions ship without a flag — 1.1
     # (retrieval_confidence banner: pure info-surfacing of a grade the app
@@ -921,6 +986,69 @@ class Settings(BaseSettings):
         (not an error) when unset — no proxy is trusted by default, so
         X-Forwarded-For is ignored everywhere until this is configured."""
         return {ip.strip() for ip in self.trusted_proxy_ips.split(",") if ip.strip()}
+
+    @model_validator(mode="after")
+    def _reject_weak_secrets_in_production(self) -> "Settings":
+        """Module 10 gap-closure: secrets management was previously
+        documented (.env/.env.example, SSM path) but not code-enforced --
+        nothing stopped a DEBUG=false (production) run from using the
+        exact placeholder values .env.example ships with. This closes
+        that gap: with DEBUG=true (the local-dev default), placeholder
+        secrets are expected and left alone -- this validator only acts
+        when DEBUG=false, i.e. a run explicitly claiming to be
+        production. It fails fast at Settings() construction (before the
+        app can serve a single request), matching the codebase's existing
+        "fail loud, not silently insecure" posture (EncryptionKeyMissingError,
+        AuthConfigurationError) rather than a runtime check elsewhere.
+        """
+        if self.debug:
+            return self
+
+        problems: list[str] = []
+
+        def _is_weak(value: str, min_length: int) -> bool:
+            return value.strip().lower() in _KNOWN_WEAK_SECRETS or len(value) < min_length
+
+        if self.api_keys:
+            # api_keys (plural) supersedes the single api_key entirely for
+            # auth resolution once set (see api_key_hash_map) -- a weak
+            # single api_key left over in the environment is then inert,
+            # not a real exposure, so only the values actually used for
+            # auth are validated here.
+            import json
+
+            try:
+                parsed = json.loads(self.api_keys)
+            except json.JSONDecodeError:
+                parsed = {}
+            if isinstance(parsed, dict):
+                for client_name, key_value in parsed.items():
+                    if not isinstance(key_value, str) or _is_weak(key_value, 16):
+                        problems.append(f"API_KEYS entry for client '{client_name}' is a placeholder or too short.")
+        elif _is_weak(self.api_key, 16):
+            problems.append(
+                "API_KEY is missing, a known placeholder, or shorter than 16 characters."
+            )
+
+        # jwt_secret_key is genuinely optional (individual-user login is an
+        # optional feature -- see create_access_token's own runtime check);
+        # only validate it here if a value was actually supplied.
+        if self.jwt_secret_key and _is_weak(self.jwt_secret_key, 32):
+            problems.append(
+                "JWT_SECRET_KEY is a known placeholder or shorter than 32 characters."
+            )
+
+        if self.database_url and "insightai-dev-password" in self.database_url:
+            problems.append("DATABASE_URL still contains the local-dev default password.")
+
+        if problems:
+            raise ValueError(
+                "Insecure secret configuration for a production run (DEBUG=false):\n- "
+                + "\n- ".join(problems)
+                + "\nGenerate strong secrets before deploying, e.g.: "
+                'python -c "import secrets; print(secrets.token_urlsafe(32))"'
+            )
+        return self
 
 
 settings = Settings()

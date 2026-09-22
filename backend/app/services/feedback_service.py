@@ -7,6 +7,19 @@ Acceptance Rate (and, for rubric-bearing events, per-criterion averages
 and Inter-Annotator Agreement) is enough. Mirrors upload_service.py's
 path convention (a directory name from Settings, resolved relative to
 backend/).
+
+ENCRYPTION AT REST (Module 10 gap-closure): `comment` is real,
+free-text, human-typed content a reviewer can put anything in — the one
+genuinely sensitive field in this file. It is encrypted with
+app.core.encryption's shared encrypt_text_field/decrypt_text_field
+helpers (the same primitive/format ChatTurn.content and
+ChatSession.title already use), message_id bound as associated data.
+`rating`/`rubric`/`reviewer_id`/`timestamp` stay plaintext — they are
+structured, non-free-text fields eval/metrics_report.py aggregates
+directly from this same file (Acceptance Rate, per-criterion averages,
+Inter-Annotator Agreement); encrypting them would require every
+existing aggregation reader to decrypt first, a broader change than
+this file's own genuinely-sensitive surface justifies.
 """
 
 import json
@@ -15,12 +28,19 @@ from datetime import UTC, datetime
 from typing import Any
 
 from app.core.config import settings
+from app.core.encryption import decrypt_text_field, encrypt_text_field
 from app.services import s3_sync_service
 
 FEEDBACK_DIR = settings.data_dir(settings.feedback_dir_name)
 FEEDBACK_PATH = FEEDBACK_DIR / settings.feedback_filename
 
 logger = logging.getLogger(__name__)
+
+
+def _decrypt_comment(stored: str | None, *, message_id: str) -> str | None:
+    if stored is None:
+        return None
+    return decrypt_text_field(stored, associated_data=message_id, key_b64=settings.encryption_key_b64)
 
 
 def list_feedback(limit: int = 50, reviewer_id: str | None = None) -> list[dict[str, Any]]:
@@ -48,6 +68,8 @@ def list_feedback(limit: int = 50, reviewer_id: str | None = None) -> list[dict[
                 # killed mid-write; skip it rather than failing the read.
                 continue
             if isinstance(event, dict):
+                if event.get("comment") is not None and event.get("message_id"):
+                    event["comment"] = _decrypt_comment(event["comment"], message_id=event["message_id"])
                 events.append(event)
     if reviewer_id is not None:
         events = [e for e in events if e.get("reviewer_id") == reviewer_id]
@@ -74,11 +96,17 @@ def record_feedback(
     """
     FEEDBACK_DIR.mkdir(parents=True, exist_ok=True)
 
+    encrypted_comment = (
+        encrypt_text_field(comment, associated_data=message_id, key_b64=settings.encryption_key_b64)
+        if comment is not None
+        else None
+    )
+
     event = {
         "timestamp": datetime.now(UTC).isoformat(),
         "message_id": message_id,
         "rating": rating,
-        "comment": comment,
+        "comment": encrypted_comment,
         "reviewer_id": reviewer_id,
         "rubric": rubric,
     }

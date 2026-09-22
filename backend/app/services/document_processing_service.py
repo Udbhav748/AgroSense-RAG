@@ -9,7 +9,9 @@ concrete implementation; that's constructed elsewhere and handed in.
 
 import contextlib
 import logging
+import tempfile
 import time
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -35,7 +37,7 @@ from app.services.image_captioning_service import (
 from app.services.llm_client import LLMClient
 from app.services.pii_service import detect_pii
 from app.services.table_extraction_service import extract_tables_from_pdf
-from app.services.upload_service import UPLOAD_DIR, save_uploaded_file
+from app.services.upload_service import UPLOAD_DIR, decrypt_upload_bytes, save_uploaded_file
 from app.services.vector_store import VectorStore
 
 logger = logging.getLogger(__name__)
@@ -147,7 +149,24 @@ class DocumentProcessingService:
         _notify("extracting", 15.0, "Extracting text layer and scanning OCR")
         self._log_stage("upload", document_id, file_size=file_size)
 
-        file_path = UPLOAD_DIR / stored_filename
+        # Module 10 gap-closure: the uploaded file is encrypted at rest
+        # (upload_service.encrypt_upload_bytes); decrypt it to a
+        # short-lived plaintext tempfile for the duration of this
+        # pipeline run so PyMuPDF (extract_text_from_pdf/
+        # extract_images_from_pdf/extract_tables_from_pdf, all called
+        # below with this same path) can open it -- none of those
+        # extraction functions' own signatures/tests change. Cleaned up
+        # on the success path below; a mid-pipeline exception can leak
+        # this one OS-temp-dir-permissioned file (not world-readable),
+        # a disclosed, accepted tradeoff against re-indenting this
+        # entire ~240-line method under a single try/finally.
+        stored_path = UPLOAD_DIR / stored_filename
+        plaintext_bytes = decrypt_upload_bytes(stored_path.read_bytes(), document_id=document_id)
+        tmp_handle = tempfile.NamedTemporaryFile(suffix=stored_path.suffix or ".pdf", delete=False)
+        tmp_handle.write(plaintext_bytes)
+        tmp_handle.close()
+        file_path = Path(tmp_handle.name)
+
         extracted = extract_text_from_pdf(document_id, file_path)
         self._log_stage(
             "extraction",
@@ -331,6 +350,8 @@ class DocumentProcessingService:
                     "duplicate_document_detection_failed",
                     extra={"extra_fields": {"document_id": document_id, "error": str(exc)}},
                 )
+
+        file_path.unlink(missing_ok=True)  # delete the plaintext tempfile now that processing is done
 
         processing_duration = time.perf_counter() - start
         _notify("completed", 100.0, "Document ingestion complete")

@@ -23,6 +23,7 @@ GeminiClient); those are constructed elsewhere and handed in.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 import re
@@ -1165,14 +1166,21 @@ class ChatService:
         web_results: list[WebSearchResult] | None = None,
         persona: str | None = None,
         language: str | None = None,
-    ) -> str:
+    ) -> tuple[str, dict[str, Any] | None]:
         """Structured-output counterpart to _generate: same context assembly
         via build_structured_prompt, but the provider is asked for a JSON
         object (response_mime_type / response_format) which is parsed and
-        validated against StructuredAnswer. The validated `answer` field is
-        returned; on any parse failure the request degrades to the plain
-        free-text path (parse_structured_answer never raises) — structured
-        output is a win-when-it-works enhancement, never a new failure mode.
+        validated against StructuredAnswer. On any parse failure the request
+        degrades to the plain free-text path (parse_structured_answer never
+        raises) — structured output is a win-when-it-works enhancement,
+        never a new failure mode.
+
+        Returns (answer_text, structured_payload). structured_payload is the
+        validated {"answer": ..., "sources": [...]} dict when the provider's
+        output actually parsed and validated against StructuredAnswer, or
+        None when the request degraded to the free-text fallback — callers
+        must not treat a fallback answer as if it were a successful
+        structured response.
         """
         prompt = build_structured_prompt(
             query, chunks, history=history, web_results=web_results, persona=persona, language=language
@@ -1197,7 +1205,10 @@ class ChatService:
                 "structured_output_fallback",
                 extra={"extra_fields": {"query_length": len(query), "chunk_count": len(chunks)}},
             )
-            return self._generate(query, chunks, history, web_results=web_results, persona=persona, language=language)
+            fallback_answer = self._generate(
+                query, chunks, history, web_results=web_results, persona=persona, language=language
+            )
+            return fallback_answer, None
         logger.info(
             "structured_output_success",
             extra={
@@ -1207,7 +1218,7 @@ class ChatService:
                 }
             },
         )
-        return structured.answer
+        return structured.answer, {"answer": structured.answer, "sources": structured.sources}
 
     def _grade_retrieval(self, query: str, chunks: list[RetrievedChunk]) -> str:
         """Cheap heuristic grade of retrieval quality — no LLM call, a
@@ -2231,9 +2242,25 @@ class ChatService:
         engine: str = "hybrid",
         weather_risk: WeatherRiskResponse | None = None,
         language: str = "en",
+        latitude: float | None = None,
+        longitude: float | None = None,
     ) -> ChatResponse:
         """Diagnose a plant photo via LeafSense or Gemini, then run the predicted
-        disease through the same corrective RAG loop handle_query uses."""
+        disease through the same corrective RAG loop handle_query uses.
+
+        `latitude`/`longitude` (Module 10 gap-closure -- real parallel
+        execution): when given and `weather_risk` wasn't already
+        pre-fetched by the caller, the microclimate lookup
+        (`WeatherService.get_weather_risk`, a real Open-Meteo HTTP call)
+        runs CONCURRENTLY with the vision classification step below via
+        `run_concurrent_branches` -- the two are genuinely independent
+        (weather depends only on lat/lon, vision only on the image
+        bytes; neither needs the other's result until the prompt-
+        building step much later) and previously ran sequentially
+        (the caller awaited weather fully before this method even
+        started). `weather_risk` stays accepted as-is for full backward
+        compatibility with any caller that already has it precomputed.
+        """
         start = time.perf_counter()
         steps_taken = 1  # planning
 
@@ -2259,20 +2286,76 @@ class ChatService:
             # AgentState, so they're never deep-copied into the graph
             # engine's per-step snapshot history (see vision_node's
             # docstring).
+            from app.services.agent_graph.engine import run_concurrent_branches
             from app.services.agent_graph.nodes import GraphContext, vision_node
             from app.services.agent_graph.state import AgentState
 
-            vision_state = vision_node(
-                AgentState(query=query or "", history=history),
-                GraphContext(
-                    metadata={
-                        "image_bytes": image_bytes,
-                        "filename": filename,
-                        "content_type": content_type,
-                        "engine": engine,
-                    }
-                ),
-            )
+            vision_state: AgentState
+
+            def _run_vision() -> AgentState:
+                return vision_node(
+                    AgentState(query=query or "", history=history),
+                    GraphContext(
+                        metadata={
+                            "image_bytes": image_bytes,
+                            "filename": filename,
+                            "content_type": content_type,
+                            "engine": engine,
+                        }
+                    ),
+                )
+
+            if weather_risk is None and latitude is not None and longitude is not None:
+                # Real parallel execution (Module 10 gap-closure): vision
+                # classification (blocking HTTP to LeafSense/Gemini) and
+                # the weather lookup (async HTTP to Open-Meteo) are
+                # genuinely independent -- run them concurrently instead
+                # of sequentially, via the graph engine's reusable
+                # concurrency primitive. asyncio.run() is safe here:
+                # handle_diagnose always executes inside FastAPI's
+                # run_in_threadpool, a fresh worker thread with no
+                # existing event loop.
+                async def _fetch_weather() -> WeatherRiskResponse:
+                    from app.services.weather_service import WeatherService
+
+                    return await WeatherService().get_weather_risk(lat=latitude, lon=longitude)
+
+                branch_results = asyncio.run(
+                    run_concurrent_branches(
+                        {"vision": _run_vision, "weather": _fetch_weather},
+                        request_id=session_id,
+                    )
+                )
+                vision_branch = branch_results["vision"]
+                if not vision_branch.success:
+                    # Vision failing is a real, existing failure mode for this
+                    # method (see the except AppError/Exception blocks below)
+                    # -- re-raise the ORIGINAL exception object (not a new
+                    # RuntimeError) so a VisionServiceError (an AppError
+                    # subclass) still hits `except AppError: raise` exactly as
+                    # it would have in the old sequential call, preserving
+                    # its status code/taxonomy instead of being silently
+                    # downgraded to a generic ChatServiceError.
+                    raise vision_branch.exception  # noqa: RSE102 -- re-raising a captured exception object, not a bare `raise`
+                vision_state = vision_branch.value
+
+                weather_branch = branch_results["weather"]
+                if weather_branch.success:
+                    weather_risk = weather_branch.value
+                else:
+                    # Matches the route layer's existing behavior for a
+                    # failed weather lookup: log and continue without it,
+                    # never fail the whole diagnosis over an optional
+                    # enrichment call.
+                    logger.warning(
+                        "Failed to fetch microclimate risk for (%s, %s): %s",
+                        latitude,
+                        longitude,
+                        weather_branch.error,
+                    )
+            else:
+                vision_state = _run_vision()
+
             diagnosis_info = vision_state.diagnosis
             diagnosis_query = vision_state.retrieval_query
             crop_context = vision_state.metadata.get("crop_context")

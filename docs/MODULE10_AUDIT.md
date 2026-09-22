@@ -48,7 +48,7 @@ Not verified at audit time — see `docs/MODULE10_PROJECT_INTRO.md`.
 | Retry | ✅ | tenacity on LLM/embedding/web-search, unchanged from `docs/CHECKLIST.md` §1 — not re-measured here (see "do not duplicate" instruction). |
 | Reflection | ✅ | `ChatService._correct`; failure-injection confirms it degrades safely under a real LLM failure — `failure_eval_20260919T092719Z.json`, `fail_001-003`. |
 | Human approval | ✅ | **PHASE 5**: `human_approval_node` is now genuinely wired into `build_chat_graph()`'s live routing for the web-search escalation (previously registered but unreachable — see `docs/MODULE10_FINAL_AUDIT.md` §8). `route_after_approval` confirmed: rejected/expired/pending never resume the guarded action; only a real, resolved `approved` status does. Document-delete approval separately hardened to verify the actual `ApprovalStore` resolution state instead of a client-supplied boolean. 12 new tests (`test_agent_graph_production.py`, `test_main.py`). Off by default in production — unchanged scope from Phase 1. |
-| Structured output | ⚠️ unchanged from `docs/CHECKLIST.md` §1 — not in this audit's scope. |
+| Structured output | ✅ Module 10 gap-closure (2026-09-21): now a real, enabled production path on `POST /chat` — see `docs/CHECKLIST.md` §1/§5 and `docs/MODULE10_RESULTS.md` for the wiring, measured metrics, and endpoint-level evidence. |
 | Error handling | ✅ | `AppError` taxonomy; `run_failure_eval.py` confirms 11/12 failure scenarios map to the correct taxonomy category and recover safely (`failure_eval_20260919T092719Z.json`). |
 | Logging | ✅ | unchanged from Phase 1, confirmed still emitting during every live run in this audit (see raw log excerpts this audit captured). |
 
@@ -115,8 +115,29 @@ re-measured in this pass.
 malicious-retrieved-content injection, jailbreak, and failure-recovery
 case types). Live capture artifact:
 `eval/module10/reports/human_eval_new_rows_capture_20260919T115041Z.json`.
-IAA = not available (one reviewer), honestly, unchanged by the
-expansion — not fabricated.
+
+**Module 10 gap-closure (2026-09-21, P8) — second reviewer / IAA
+infrastructure**: Reviewer 1's existing 24 scored cases were transcribed
+verbatim into structured JSON
+(`backend/eval/module10/human_eval/reviewer_1_ratings.json`) and a
+complete, tested pipeline was built for a real second reviewer: a
+blinded, self-contained, deterministically-shuffled JSON packet
+generator (`generate_reviewer2_packet.py`, never reads Reviewer 1's
+scores), a strict schema validator, and a runner
+(`run_human_eval_final.py`) computing weighted Cohen's kappa per
+dimension (quadratic weights, the standard chance-corrected ordinal
+agreement statistic — hand-verified against 3 independently-derived
+fixtures in `tests/test_human_eval_p8.py`), disagreement statistics, and
+hard/disagreement-case identification.
+
+**IAA = still not available.** Only one reviewer's real ratings exist —
+running `python eval/module10/runners/run_human_eval_final.py` today
+correctly prints `SECOND REVIEWER DATA REQUIRED` and computes only
+single-reviewer summaries. No second reviewer was fabricated and no
+LLM judge was substituted for the required independent human reviewer.
+This is disclosed as **infrastructure implemented**, distinct from
+**IAA measured** — see `docs/HUMAN_EVAL.md`'s Inter-Annotator Agreement
+section for the exact distinction and reproduction steps.
 
 ## 14. Debugging
 
@@ -133,11 +154,54 @@ this audit), consistent with what that section already claims.
 was not separately saved to `eval/module10/evidence/` in this pass — see
 Remaining Gaps.
 
+**Module 10 gap-closure (2026-09-21)**: a single authoritative
+observability report now exists —
+`eval/module10/reports/observability_final_*.json`, produced by
+`eval/module10/runners/run_observability_final_eval.py` from a real,
+controlled 35-request traffic sample (30 successful `POST /chat` + 5
+error-path `DELETE /documents/{missing}`). Measured: aggregate error
+rate 0.1429 (5/35, alongside the unchanged per-taxonomy breakdown), P50
+0.1ms / P95 0.2ms / P99 163.3ms (one cold-model-load outlier),
+availability 1.0 (15/15 real `GET /health` probes against a genuinely
+spawned local `uvicorn` process, labeled "bounded local service
+availability measurement," not production). `AlertEngine`'s threshold-
+to-payload path and `monitoring/dashboard.py`'s required views were both
+validated against this same captured telemetry. A real, previously-
+undocumented finding surfaced while building this report: a
+`cache_lookup_node` cache hit short-circuits straight to `END` and never
+reaches `finalizer_node`, so cache-hit responses never emit the
+`chat_query_handled` log line `monitoring/log_aggregate.py` counts
+toward `requests` — meaning log-based aggregation undercounts traffic
+whenever the response cache serves an answer (the live `GET /metrics`
+Prometheus registry, which instruments at the HTTP layer, is
+unaffected). Disclosed and regression-pinned
+(`tests/test_observability_cache_gap.py`), not silently patched into the
+graph, per this pass's own instruction not to rewrite working
+instrumentation unnecessarily. See `docs/MODULE10_RESULTS.md`'s
+Observability section for full detail.
+
 ## 16. LLMOps
 
 Unchanged from `docs/CHECKLIST.md` §11, plus this audit's own dataset
 versioning (`module10_v1`) and regression-relevant metadata (model/
 provider/config recorded in every result JSON — see `config.py::run_metadata`).
+
+**Module 10 gap-closure (2026-09-21, re-run + significance test added 2026-09-22) — provider/model A-B evaluation**:
+`eval/module10/runners/run_provider_ab_eval.py` runs the same frozen
+20-case golden RAG dataset under both supported providers (groq
+`openai/gpt-oss-120b`, gemini `gemini-3.5-flash`), fallback/routing
+disabled for isolation. Current run (2026-09-22): Faithfulness
+groq=0.7641 vs gemini=0.21; task success groq=0.95 vs gemini=0.25 (14
+provider-generation-error cases under gemini this run — a 0.7 failure
+rate, likely rate-limiting, disclosed as a real reliability event at run
+time, not a stable model-quality claim). A paired Wilcoxon signed-rank
+test across the 20 matched query pairs (the correct unit of comparison
+for this design) gives **p=0.0009**, bootstrap 95% CI of the mean
+difference [-0.76, -0.34] — statistically significant for this run, but
+substantially confounded by gemini's elevated failure rate this run.
+Full per-case detail, pricing assumptions, and disclosed limitations in
+`docs/MODULE10_RESULTS.md`. No production default changed as a result
+(TASK 11 of that pass) — this is a measurement, not a recommendation.
 
 ## 17. Cloud Deployment
 
@@ -159,6 +223,28 @@ scope.
 
 Unchanged from `docs/CHECKLIST.md` §14 except Unauthorized Access Rate
 (now measured as 0.0, corrected and resolved — see §18 above).
+
+**Module 10 gap-closure (2026-09-21) — load/concurrency evaluation
+(P7)**: a real HTTP-boundary concurrency ladder (1/2/5/10/20 concurrent
+clients, `httpx` against a genuinely spawned `uvicorn` subprocess, never
+`TestClient`) was run against `GET /health` (no LLM/retrieval) and
+`POST /chat` (real retrieval/reranking, `Settings.llm_provider=mock` for
+a deterministic zero-cost LLM stage — a small, narrow, opt-in addition,
+`app/services/mock_llm_client.py`). Measured: `/health` RPS 63.75-94.61
+across all levels with zero errors; `/chat` RPS fell from 11.66
+(concurrency=1) to 1.99 (concurrency=20), with **all 20 requests timing
+out at concurrency=20** — a genuine, reproducible single-worker
+CPU-bound saturation event (real sentence-transformers embedding +
+cross-encoder reranking serialized by the GIL under concurrent load),
+not an injected fault. `GET /health` remained healthy immediately after
+every level, including the fully-failed one — clean recovery, no
+crash/hang. A deliberate rate-limiter burst scenario (100 requests, one
+shared identity) did not trip the limiter in this run (0/100
+rate-limited) — reported honestly as a negative result. Full detail,
+per-level tables, and disclosed limitations (including a resource-
+sampling measurement gap: `psutil` measured the client process, not the
+server) in `docs/MODULE10_RESULTS.md`'s Load/Concurrency section.
+Explicitly NOT production capacity, NOT a cloud SLO.
 
 ## 20. Hard Cases
 

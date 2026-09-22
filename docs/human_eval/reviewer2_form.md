@@ -1,5 +1,14 @@
 # Human Evaluation — Reviewer 2 Blinded Scoring Packet
 
+**Superseded (2026-09-21, Module 10 P8)**: use
+`backend/eval/module10/human_eval/generate_reviewer2_packet.py` instead —
+it produces a self-contained, schema-validated JSON packet (embedding
+each case's query/system_output/evidence directly, so Reviewer 2 never
+needs this project's other docs open) plus a real runner
+(`eval/module10/runners/run_human_eval_final.py`) that computes weighted
+Cohen's kappa once filled in. This markdown form is kept only for
+historical reference and is not the authoritative packet format.
+
 **Status: not filled in — no second reviewer is currently available.** This is a prepared, ready-to-use packet, not a fabricated result. `docs/HUMAN_EVAL.md`'s Inter-Annotator Agreement remains honestly **N/A (one reviewer)** until a real second person fills this in independently, without seeing Reviewer 1's scores in `docs/HUMAN_EVAL.md`.
 
 ## Instructions for Reviewer 2

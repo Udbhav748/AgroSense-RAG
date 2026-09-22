@@ -125,6 +125,15 @@ class TestDuplicateDocumentDetection:
         monkeypatch.setattr(
             "app.services.document_processing_service.save_uploaded_file", _fake_save_uploaded_file
         )
+        # Module 10 gap-closure: the real save_uploaded_file now encrypts
+        # and writes the file to UPLOAD_DIR, but this test's fake stand-in
+        # doesn't touch disk at all -- point UPLOAD_DIR at tmp_path (where
+        # the UploadFile's own backing file below is actually created) so
+        # document_processing_service's post-save decrypt-to-tempfile step
+        # finds a real (here, empty) file instead of one that doesn't
+        # exist. Extraction itself is separately mocked below and ignores
+        # file content either way.
+        monkeypatch.setattr("app.services.document_processing_service.UPLOAD_DIR", tmp_path)
         monkeypatch.setattr(
             "app.services.document_processing_service.extract_text_from_pdf",
             lambda document_id, file_path: {
@@ -175,6 +184,15 @@ class TestDuplicateDocumentDetection:
         monkeypatch.setattr(
             "app.services.document_processing_service.save_uploaded_file", _fake_save_uploaded_file
         )
+        # Module 10 gap-closure: the real save_uploaded_file now encrypts
+        # and writes the file to UPLOAD_DIR, but this test's fake stand-in
+        # doesn't touch disk at all -- point UPLOAD_DIR at tmp_path (where
+        # the UploadFile's own backing file below is actually created) so
+        # document_processing_service's post-save decrypt-to-tempfile step
+        # finds a real (here, empty) file instead of one that doesn't
+        # exist. Extraction itself is separately mocked below and ignores
+        # file content either way.
+        monkeypatch.setattr("app.services.document_processing_service.UPLOAD_DIR", tmp_path)
         monkeypatch.setattr(
             "app.services.document_processing_service.extract_text_from_pdf",
             lambda document_id, file_path: {
@@ -223,6 +241,15 @@ class TestDuplicateDocumentDetection:
         monkeypatch.setattr(
             "app.services.document_processing_service.save_uploaded_file", _fake_save_uploaded_file
         )
+        # Module 10 gap-closure: the real save_uploaded_file now encrypts
+        # and writes the file to UPLOAD_DIR, but this test's fake stand-in
+        # doesn't touch disk at all -- point UPLOAD_DIR at tmp_path (where
+        # the UploadFile's own backing file below is actually created) so
+        # document_processing_service's post-save decrypt-to-tempfile step
+        # finds a real (here, empty) file instead of one that doesn't
+        # exist. Extraction itself is separately mocked below and ignores
+        # file content either way.
+        monkeypatch.setattr("app.services.document_processing_service.UPLOAD_DIR", tmp_path)
         monkeypatch.setattr(
             "app.services.document_processing_service.extract_text_from_pdf",
             lambda document_id, file_path: {

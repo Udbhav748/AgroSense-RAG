@@ -11,7 +11,7 @@
     {
       "id": "sec_pii_002",
       "description": "Smaller hand-labeled set (2 emails/2 phones/2 IDs) with explicit non-PII negative examples",
-      "measured_by": "eval/pii_recall_test.py",
+      "measured_by": "_recycle_bin/legacy-eval-code/pii_recall_test.py (archived 2026-09-21 repo cleanup -- this specific 2/2/2 negative-example fixture and its Precision/Recall/F1 formula are not reproduced by eval/pii_recall_check.py, which measures a different 5/5/5 fixture with a Recall-only formula; kept as an accurate provenance pointer rather than reattributed to a script that doesn't actually implement this case)",
       "formula": "Recall = TP/(TP+FN), Precision = TP/(TP+FP), F1 = 2PR/(P+R)"
     }
   ],

@@ -788,12 +788,20 @@ def execute_retrieval(
                 vector_store=vector_store,
                 top_k=top_k,
                 collection=crop,
-                rerank_candidates=rerank_flag,
+                rerank=rerank_flag,
             )
             if chunks:
                 return chunks
         except Exception as exc:
-            logger.debug("Live retrieve() call failed: %s. Falling back to direct search.", exc)
+            # Module 10 gap-closure: this was previously `logger.debug`,
+            # which let a real bug (retrieve()'s actual keyword is `rerank`,
+            # not `rerank_candidates` -- a TypeError on every single call)
+            # go completely unnoticed for this script's entire history,
+            # silently degrading every retrieval to the raw-vector fallback
+            # below (no hybrid BM25, no collection filter, no reranking).
+            # Elevated to `warning` so a real retrieval failure is never
+            # invisible again -- fail loud, not silently degraded.
+            logger.warning("Live retrieve() call failed: %s. Falling back to direct search.", exc)
             if hasattr(vector_store, "search"):
                 try:
                     from app.services.embedding_service import embed_query

@@ -505,21 +505,14 @@ async def diagnose(
     set_session_title_if_unset(session_id, query or "Leaf diagnosis")
     history = session_store.get_history(session_id)
 
-    weather_risk: WeatherRiskResponse | None = None
-    if latitude is not None and longitude is not None:
-        try:
-            weather_service = WeatherService()
-            weather_risk = await weather_service.get_weather_risk(
-                lat=latitude, lon=longitude
-            )
-        except Exception as exc:
-            logger.warning(
-                "Failed to fetch microclimate risk for (%s, %s): %s",
-                latitude,
-                longitude,
-                exc,
-            )
-
+    # Module 10 gap-closure (real parallel execution): weather is no
+    # longer pre-fetched and awaited HERE, before handle_diagnose even
+    # starts -- that was sequential (weather fully done, then vision
+    # starts). latitude/longitude are passed straight through instead,
+    # and handle_diagnose now runs the weather lookup CONCURRENTLY with
+    # vision classification internally (they're independent), via
+    # agent_graph.engine.run_concurrent_branches. See handle_diagnose's
+    # own docstring for the concurrency detail.
     logger.info(
         "diagnose_request_received",
         extra={
@@ -530,7 +523,7 @@ async def diagnose(
                 "session_id": session_id,
                 "history_turns": len(history) if history else 0,
                 "engine": engine,
-                "has_weather": weather_risk is not None,
+                "has_weather_coords": latitude is not None and longitude is not None,
                 "language": language,
             }
         },
@@ -547,8 +540,9 @@ async def diagnose(
         confirm_web_search=confirm_web_search,
         tenant_id=tenant_id,
         engine=engine,
-        weather_risk=weather_risk,
         language=language,
+        latitude=latitude,
+        longitude=longitude,
     )
 
     # Append this turn to server-side history, same shape /chat uses. The

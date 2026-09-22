@@ -20,11 +20,13 @@ from app.services.agent_graph.cache_node import cache_lookup_node, route_after_c
 from app.services.agent_graph.engine import (
     END,
     START,
+    BranchResult,
     CompiledGraph,
     GraphCompilationError,
     MaxStepsExceededError,
     StateGraph,
     StateSnapshot,
+    run_concurrent_branches,
 )
 from app.services.agent_graph.graph import build_chat_graph
 from app.services.agent_graph.human_approval import ApprovalType, human_approval_node
@@ -140,6 +142,7 @@ def create_rag_agent_graph(
 __all__ = [
     "AgentState",
     "ApprovalType",
+    "BranchResult",
     "CompiledGraph",
     "END",
     "GraphCompilationError",
@@ -165,6 +168,7 @@ __all__ = [
     "retrieval_node",
     "route_after_augmentation",
     "route_after_cache_lookup",
+    "run_concurrent_branches",
     "summarizer_node",
     "synthesizer_node",
     "validate_request_node",

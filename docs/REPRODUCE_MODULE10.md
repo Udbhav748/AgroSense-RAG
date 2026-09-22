@@ -19,7 +19,7 @@ Everything in this document assumes `backend/.env` exists with at least `GEMINI_
 pytest -q
 ```
 
-Expected: `819 passed, 1 skipped`.
+Expected: `1080 passed, 1 skipped (1081 collected)`.
 
 ## Targeted test subsets
 
@@ -32,7 +32,68 @@ pytest tests/test_groq_client.py -q                   # LLM client error mapping
 pytest tests/test_module10_telemetry_capture.py -q    # telemetry capture utility (6)
 pytest tests/test_human_approval_structured_output.py -q  # structured output + web-search approval (11)
 pytest tests/test_human_approval_node.py -q           # human_approval_node in isolation (6)
+pytest tests/test_agent_graph_parallel_execution.py -q  # generic concurrency primitive (13)
+pytest tests/test_handle_diagnose_parallel.py -q        # real diagnose-workflow concurrency (6)
+pytest tests/test_encryption.py tests/test_postgres_session_store_encryption.py tests/test_session_repository_encryption.py -q  # encryption at rest, both fields (33)
+pytest tests/test_settings_secret_validation.py -q       # production-mode weak-secret rejection (14)
+pytest tests/test_run_rag_eval_retrieval_signature.py -q # eval-script retrieve() signature regression (3)
+pytest tests/test_provider_ab_eval.py -q                 # provider A/B harness + paired significance test (12)
+pytest tests/test_run_agent_eval_tool_arguments.py -q     # expanded tool-argument-accuracy ground truth (6)
+pytest tests/test_nli_faithfulness.py -q                  # NLI groundedness upgrade attempt (7, incl. 1 real-model test)
+pytest tests/test_feedback_encryption.py -q                # feedback comment encryption (12)
+pytest tests/test_upload_encryption.py -q                  # uploaded PDF encryption, incl. a real PyMuPDF round trip (9)
+pytest tests/test_faiss_metadata_encryption.py -q          # FAISS metadata encryption, incl. a real BM25 round trip (11)
 ```
+
+## NLI groundedness upgrade evidence (honest negative result)
+
+**Requires**: nothing external for the primitive itself (pretrained model, inference only); the full comparison run needs a real `GEMINI_API_KEY`/`GROQ_API_KEY` (20 live LLM calls) plus local NLI inference.
+
+```
+python eval/module10/runners/run_nli_faithfulness_eval.py
+```
+
+Runs the full 20-case dataset through both the existing lexical-overlap faithfulness proxy and a real pretrained NLI cross-encoder, side by side. Reproduces the honest negative finding: NLI scores are real but substantially and systematically lower than the lexical proxy on this corpus's structured, pipe-delimited retrieval-chunk format — a domain-mismatch limitation of generic pretrained NLI models, not a bug. See the saved report's `honest_finding_domain_mismatch` field for the full investigation (which models/premise formats were tried and why none generalized).
+
+## Provider A/B evidence (with paired significance test)
+
+**Requires**: real `GROQ_API_KEY` and `GEMINI_API_KEY` (live LLM calls to both providers, 20 cases each — real API cost).
+
+```
+python eval/module10/runners/run_provider_ab_eval.py
+```
+
+Runs the frozen 20-case dataset under both providers and computes a paired Wilcoxon signed-rank test + bootstrap 95% CI on the matched per-case faithfulness/composite-score differences. Exact p-value/CI/failure-rate numbers vary run-to-run (live provider behavior isn't deterministic) — the math itself is pinned offline by `tests/test_provider_ab_eval.py::TestPairedSignificanceTest` on synthetic data, no live calls needed to verify correctness.
+
+## Faithfulness eval-script fix evidence
+
+**Requires**: a real `GEMINI_API_KEY`/`GROQ_API_KEY` and a populated FAISS vector store (live LLM + retrieval calls).
+
+```
+python scripts/run_rag_eval.py
+```
+
+Re-runs the full 20-case golden dataset through the now-fixed `execute_retrieval()`. Expect `eval-potato-02` to score non-zero faithfulness (previously 0.0) and the overall mean faithfulness to land near 0.78, not the pre-fix 0.71 — exact numbers vary slightly run-to-run since LLM generation isn't fully deterministic.
+
+## Encryption-at-rest evidence
+
+**Requires**: nothing external — runs against a real in-memory SQLite-backed SQLAlchemy session.
+
+```
+python eval/module10/runners/run_encryption_at_rest_eval.py
+```
+
+Runs real encrypt/decrypt/tamper/wrong-key/missing-key/plaintext-leakage checks against the actual `PostgresSessionStore`/`session_repository` code (not a description of intended behavior) and reruns the encryption test files, reporting the real pass count. Saves a timestamped JSON artifact under `backend/eval/module10/reports/encryption_at_rest_final_<timestamp>.json` with an 11-category coverage matrix distinguishing protected vs. disclosed-unprotected data.
+
+## Parallel execution performance evidence
+
+**Requires**: nothing external — all I/O (vision, weather) mocked with real sleeps standing in for real latency.
+
+```
+python eval/module10/runners/run_parallel_execution_final.py
+```
+
+Reproduces a real serial-vs-parallel timing comparison over the identical `ChatService.handle_diagnose` call and identical mocked I/O, isolating concurrency as the only variable. Expect a parallel mean close to the max single-branch duration and well below the serial mean; exact numbers may vary slightly run-to-run but the direction and rough magnitude should reproduce. Saves a timestamped JSON artifact under `backend/eval/module10/reports/parallel_execution_final_<timestamp>.json`.
 
 ## RAG evaluation (Module 10 package, 30-case ablation)
 
