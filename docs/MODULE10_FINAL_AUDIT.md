@@ -1,6 +1,6 @@
 # Module 10 — Final Technical Audit
 
-**Branch**: `module10-final-pdf-compliance` (not merged to `main`) · **Commit**: verify with `git rev-parse HEAD` · **Regression**: 1048 passed, 1 skipped, 0 failed (1049 collected) · **Date**: 2026-09-21–22 (P9 consolidation; same-day follow-ups for real parallel execution, expanded encryption at rest, code-enforced secrets, a real faithfulness root-cause fix, a real paired significance test for Provider A/B, expanded tool-argument-accuracy ground truth, and an honestly-reported NLI groundedness upgrade attempt)
+**Branch**: `module10-final-pdf-compliance` (not merged to `main`) · **Commit**: verify with `git rev-parse HEAD` · **Regression**: 1080 passed, 1 skipped, 0 failed (1081 collected) · **Date**: 2026-09-21–23 (P9 consolidation; same-day follow-ups for real parallel execution, code-enforced secrets, a real faithfulness root-cause fix, a real paired significance test for Provider A/B, expanded tool-argument-accuracy ground truth, an honestly-reported NLI groundedness upgrade attempt, and full encryption-at-rest scope expansion)
 
 This is the detailed technical companion to `docs/MODULE10_FINAL_SUBMISSION.md` (the evaluator-facing overview). It gives checklist coverage, evidence locations, reproduction commands, measured metrics, and limitations per Module 10 section, without duplicating raw JSON results — those are linked, not pasted. The literal Module 10 PDF checklist (14 sections + 10-question design review) was provided directly in this pass and is mapped row-by-row in `docs/MODULE10_PDF_TRACEABILITY_MATRIX.md`; this document organizes evidence by the same section numbers.
 
@@ -70,7 +70,7 @@ Docker + docker-compose exist. HTTPS is a documented Caddy-overlay path, not ind
 
 ## §13 Privacy, Security and Responsible AI
 
-See `docs/MODULE10_FINAL_SUBMISSION.md` §10 for the full metrics table. Authentication (API key/JWT), authorization (RBAC, `core/permissions.py`), PII detection, encryption at rest (`ChatTurn.content` **and** `ChatSession.title`, AES-256-GCM, expanded 2026-09-21 — see below), secret management (documented, not code-enforced), RBAC, human approval, audit logs (`core/logging.py`'s `audit_event` lines) all present. **No GDPR/DPDP/HIPAA compliance certification is claimed** — having these controls is not the same as a compliance assessment.
+See `docs/MODULE10_FINAL_SUBMISSION.md` §10 for the full metrics table. Authentication (API key/JWT), authorization (RBAC, `core/permissions.py`), PII detection, encryption at rest (full scope as of 2026-09-22/23 — see below), code-enforced secrets (2026-09-22 — see below), RBAC, human approval, audit logs (`core/logging.py`'s `audit_event` lines) all present. **No GDPR/DPDP/HIPAA compliance certification is claimed** — having these controls is not the same as a compliance assessment.
 
 ## §14 Production Readiness
 
@@ -85,7 +85,7 @@ Architecture diagram: `docs/ARCHITECTURE.md`. AI: agent/planner/tools/memory/RAG
 ```
 cd backend && pytest -q
 ```
-**1048 passed, 1 skipped, 0 failed** (1049 collected) — includes the 19 new parallel-execution tests, 12 new encryption-at-rest tests, 14 new secrets-validation tests, 3 new retrieval-signature-regression tests, 5 new provider-A/B-significance-test tests, 6 new tool-argument-accuracy tests, and 7 new NLI-faithfulness tests, all added across 2026-09-21–22; verify with `git rev-parse HEAD` and `cd backend && pytest -q`. (Historical: 982 passed, 1 skipped at commit `7159169`, before any of the additions below.)
+**1080 passed, 1 skipped, 0 failed** (1081 collected) — includes the 19 new parallel-execution tests, 12 new encryption-at-rest tests (first expansion), 14 new secrets-validation tests, 3 new retrieval-signature-regression tests, 5 new provider-A/B-significance-test tests, 6 new tool-argument-accuracy tests, 7 new NLI-faithfulness tests, and 45 new encryption-at-rest tests (full scope: feedback, uploads, FAISS metadata), all added across 2026-09-21–23; verify with `git rev-parse HEAD` and `cd backend && pytest -q`. (Historical: 982 passed, 1 skipped at commit `7159169`, before any of the additions below.)
 
 ## Reproduction Index
 
@@ -108,7 +108,7 @@ All under `backend/eval/module10/reports/` (35 artifacts as of this pass, never 
 3. No cloud-validated RPS/autoscaling/load-balancer/cost-per-hour.
 4. `AlertEngine` not continuously scheduled; no hosted dashboard/centralized logging.
 5. Cache-hit responses invisible to log-based aggregation (disclosed, not patched).
-6. Encryption at rest now covers `ChatTurn.content` and `ChatSession.title` (expanded 2026-09-21, see below); FAISS metadata/vectors, uploaded PDF files, and feedback records remain unencrypted for disclosed technical reasons. No key rotation.
+6. Encryption at rest now covers every genuinely sensitive persisted surface: `ChatTurn.content`, `ChatSession.title`, feedback comments, uploaded PDF files, and FAISS metadata chunk text (full scope reached 2026-09-22/23, see below). No key rotation.
 7. HTTPS path documented, not independently tested against a live TLS endpoint.
 8. Secret management documented, not code-enforced.
 9. No formal GDPR/DPDP/HIPAA compliance assessment.
@@ -163,3 +163,15 @@ Built a real primitive (`eval/module10/metrics/nli_faithfulness.py`, `cross-enco
 **Investigated as a potential bug before accepting it as a finding**: verified no sequence truncation (164/512 tokens), confirmed the needed text is present in what the model sees, tested a larger and more capable pretrained model (`cross-encoder/nli-deberta-v3-base`) on the identical real case — scored *worse* (classified the claim as neutral, entailment probability 0.0028). Tried three premise-reformatting strategies (naturalizing pipe-delimited fields into sentences, isolating a single relevant field, a hand-picked 2-field subset) — none generalizes without fragile, per-claim, corpus-specific field selection.
 
 **Conclusion**: generic pretrained NLI models (trained on clean SNLI/MultiNLI sentence pairs) are genuinely poorly calibrated for this project's structured, pipe-delimited retrieval-chunk format. This is a real, disclosed domain-mismatch finding, not a bug and not a fixable one within this pass's no-training scope. **The lexical-overlap proxy remains the project's primary faithfulness metric** — `nli_faithfulness` is reported as an additional, honestly-measured, but explicitly *not more trustworthy* signal. Tests: `tests/test_nli_faithfulness.py` (7, including a real-model integration test proving the primitive correctly distinguishes entailment from contradiction on simple examples — confirming the domain-mismatch is specific to this corpus's format, not a broken implementation).
+
+## Same-Day Addition: Full Encryption-at-Rest Scope Reached
+
+Closed the three remaining encryption-at-rest gaps this doc had disclosed since the first expansion (item 6 above): feedback comments, uploaded PDF files, and FAISS metadata chunk text are now all encrypted, each with its own tested implementation, not just described as future work.
+
+- **Feedback comments** (`app/services/feedback_service.py`): the genuinely free-text `comment` field, encrypted with the existing `encrypt_text_field`/`decrypt_text_field` helpers, `message_id`-bound AAD. `rating`/`rubric`/`reviewer_id` stay plaintext since `eval/metrics_report.py` aggregates them directly. 12 tests.
+- **Uploaded PDF files on disk** (`app/services/upload_service.py`): the previously-disclosed "would need a decrypt-to-tempfile step" limitation is now implemented — `encrypt_upload_bytes`/`decrypt_upload_bytes` (AES-256-GCM, `document_id`-bound AAD, a binary magic-marker scheme for legacy-plaintext backward compatibility). The ingestion pipeline decrypts to a short-lived tempfile for one upload's processing; the two routes that also read the raw file directly (`GET /documents/{id}/file`, `GET /documents/{id}/pages/{page}/highlight`) decrypt to in-memory bytes instead — no tempfile needed, since PyMuPDF opens directly from a byte stream and the file-serving route only ever needs the bytes as an HTTP response body. 9 tests, including one building a real PDF with PyMuPDF and proving genuine text extraction still works after a real encrypt→disk→decrypt round trip.
+- **FAISS metadata chunk text**: the previously-disclosed "would require decrypting on every retrieval call" concern turned out to be avoidable — BM25 lexical search already needs the full corpus's plaintext terms in memory regardless of encryption, so the correct design is decrypt-once-at-`load()`/encrypt-once-at-`save()`; the in-memory working set a running process searches from stays plaintext for the process's lifetime, and only the on-disk JSON file is protected. **Zero per-query overhead, zero change to search behavior** — verified directly, including a real BM25 lexical-match test after a save/load round trip. `chunk_id`-bound AAD. A real bug was caught during review: a missing/wrong key initially got mislabeled as a generic `CorruptedVectorStoreError` by an overly broad `except` clause in `load()`; fixed to let the real `EncryptionKeyMissingError`/`EncryptionIntegrityError` propagate, matching every other encrypted-field call site in this codebase. 11 tests.
+
+45 new tests total, on top of the existing 33 (78 encryption tests overall). Full backend regression: **1080 passed, 1 skipped, 0 failed**. A real regression was caught and fixed during this change's own review: 3 existing tests in `tests/test_agent3_features.py` mocked `save_uploaded_file` without writing a real file to disk (previously fine since extraction was also mocked and lazy) — now that the orchestrator itself needs to read real bytes before extraction, those tests needed `UPLOAD_DIR` pointed at their own `tmp_path` fixture; fixed, not weakened.
+
+**Encryption at rest is now applied everywhere this project persists genuinely sensitive free-text content.** Encryption in transit (HTTPS/TLS) remains tracked separately and was not addressed by this pass — see §14/`docs/OPERATIONS.md`.

@@ -28,6 +28,7 @@ except ImportError:
 import numpy as np
 
 from app.core.config import settings
+from app.core.encryption import decrypt_text_field, encrypt_text_field
 from app.core.exceptions import (
     CorruptedVectorStoreError,
     EmbeddingDimensionMismatchError,
@@ -44,6 +45,53 @@ logger = logging.getLogger(__name__)
 _VECTOR_STORE_DIR = settings.data_dir(settings.vector_store_dir_name)
 DEFAULT_INDEX_PATH = _VECTOR_STORE_DIR / settings.vector_index_filename
 DEFAULT_METADATA_PATH = _VECTOR_STORE_DIR / settings.vector_metadata_filename
+
+
+def _encrypt_metadata_for_disk(metadata: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Module 10 gap-closure: encrypt each record's chunk `text` before
+    writing metadata.json to disk. Returns a NEW list -- the in-memory
+    self._metadata this process continues to search/serve from is never
+    mutated, since BM25 (a lexical index over the raw terms) and every
+    other in-memory consumer need real plaintext to keep working; only
+    the on-disk copy is protected. `chunk_id` is bound as associated
+    data, so a ciphertext can't be silently swapped onto a different
+    chunk's row without detection -- the same pattern already used for
+    ChatTurn.content/ChatSession.title/feedback comments."""
+    encrypted = []
+    for record in metadata:
+        record_metadata = record.get("metadata", {})
+        text = record_metadata.get("text")
+        if text is None:
+            encrypted.append(record)
+            continue
+        new_record_metadata = dict(record_metadata)
+        new_record_metadata["text"] = encrypt_text_field(
+            text, associated_data=record["chunk_id"], key_b64=settings.encryption_key_b64
+        )
+        encrypted.append({**record, "metadata": new_record_metadata})
+    return encrypted
+
+
+def _decrypt_metadata_from_disk(metadata: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Decrypt each record's chunk `text` after reading metadata.json
+    from disk, back into the plaintext form every in-memory consumer
+    (BM25, prompt building, citations, ...) already expects. A record
+    without the encryption marker is a legacy plaintext row (written
+    before this change) and passes through unchanged -- no forced
+    migration, no plaintext row mistaken for ciphertext."""
+    decrypted = []
+    for record in metadata:
+        record_metadata = record.get("metadata", {})
+        text = record_metadata.get("text")
+        if text is None:
+            decrypted.append(record)
+            continue
+        new_record_metadata = dict(record_metadata)
+        new_record_metadata["text"] = decrypt_text_field(
+            text, associated_data=record["chunk_id"], key_b64=settings.encryption_key_b64
+        )
+        decrypted.append({**record, "metadata": new_record_metadata})
+    return decrypted
 
 
 class FAISSVectorStore(VectorStore):
@@ -429,7 +477,7 @@ class FAISSVectorStore(VectorStore):
 
             self.index_path.parent.mkdir(parents=True, exist_ok=True)
             faiss.write_index(self._index, str(self.index_path))
-            self.metadata_path.write_text(json.dumps(self._metadata))
+            self.metadata_path.write_text(json.dumps(_encrypt_metadata_for_disk(self._metadata)))
 
         # Outside the lock: network I/O has no reason to hold it, and this
         # covers both of save()'s call sites (upload, delete) automatically.
@@ -449,11 +497,20 @@ class FAISSVectorStore(VectorStore):
             ) from exc
 
         try:
-            metadata = json.loads(self.metadata_path.read_text())
+            raw_metadata = json.loads(self.metadata_path.read_text())
         except Exception as exc:
             raise CorruptedVectorStoreError(
                 f"Failed to read metadata at {self.metadata_path}: {exc}"
             ) from exc
+
+        # Deliberately NOT inside the try/except above: a missing/wrong
+        # encryption key or tampered ciphertext is a real, specific
+        # failure (EncryptionKeyMissingError/EncryptionIntegrityError)
+        # -- it must surface as that exact type, not be relabeled as a
+        # generic "corrupted vector store" error, matching every other
+        # encrypted-field call site in this codebase (ChatTurn.content,
+        # ChatSession.title, feedback comments).
+        metadata = _decrypt_metadata_from_disk(raw_metadata)
 
         if index.ntotal != len(metadata):
             raise MetadataSyncError(

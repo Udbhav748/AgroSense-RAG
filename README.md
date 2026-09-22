@@ -224,10 +224,9 @@ Chat history is server-side per `session_id` (`session_store.py`; `postgres_sess
 - Structured audit logging of feedback and admin-relevant events (`core/logging.py`).
 - API keys are SHA-256-hashed at startup; only hashes are kept in memory (`.env.example`'s `API_KEYS` documentation, `core/auth.py`).
 
-**Encryption at rest (partial, application-level)**: chat session content (`ChatTurn.content` — the actual text of every stored user query and assistant answer) is encrypted with AES-256-GCM before it's written to the database and decrypted on read (`app/core/encryption.py`, wired into `postgres_session_store.py`), with the session ID bound as authenticated associated data. Measured: 12/12 encrypted writes, 0 plaintext leakage in raw storage (`eval/module10/reports/encryption_at_rest_integration_*.json`). This does **not** cover the FAISS index, uploaded PDFs, or any other storage surface, and there is no key-rotation procedure — disclosed, not fixed.
+**Encryption at rest (application-level, full scope)**: every genuinely sensitive persisted text surface is encrypted with AES-256-GCM before being written to disk and decrypted on read (`app/core/encryption.py`) — chat content (`ChatTurn.content`), session titles (`ChatSession.title`), feedback comments, uploaded PDF files, and FAISS `metadata.json` chunk text, each with an appropriate authenticated-associated-data binding (session/message/document/chunk ID). FAISS metadata is decrypted once at index load and re-encrypted once at save — the in-memory copy BM25 lexical search needs stays plaintext for the process's lifetime, so this adds zero per-query overhead. Real per-field tests (78 total) include a genuine PyMuPDF text-extraction round trip after encrypting/decrypting an uploaded PDF, and a genuine BM25 lexical-match round trip after encrypting/decrypting FAISS metadata — not just byte-equality checks. There is no key-rotation procedure, and this is application-level encryption, not platform-level (e.g. an encrypted disk volume) — disclosed, not fixed.
 
 **Explicitly NOT implemented:**
-- No encryption at rest for the local/file-based FAISS index or uploaded PDFs in a self-hosted deployment. (`docs/CHECKLIST.md` credits S3 default SSE + Lambda KMS-encrypted env vars for the AWS Lambda deployment path specifically — that is infrastructure-level, not an application-level encryption feature, and doesn't apply to a plain Docker/local run.)
 - No password reset or refresh-token flow for JWT auth; a token is simply valid for `JWT_EXPIRY_MINUTES` and then the user logs in again.
 - No API key rotation, expiration, or revocation endpoint — only a `.env` edit + restart.
 - No GDPR/HIPAA/DPDP or other compliance certification of any kind — having these security controls is not the same as a formal compliance assessment.
@@ -251,7 +250,7 @@ Chat history is server-side per `session_id` (`session_store.py`; `postgres_sess
 
 ## Evaluation & benchmarks
 
-The full backend test suite: **1002 tests collected** via `pytest --collect-only` on the current tree (1001 passed, 1 skipped, 0 failed — `module10-final-pdf-compliance` branch, `cd backend && pytest`). Coverage spans the API end-to-end, RAG orchestration, LLM/Groq/Gemini clients and fallback, hybrid search/reranking, vision/diagnose, document/table/image extraction, agent-graph state machine, real concurrent branch execution, sessions, permissions, tenant isolation, security, encryption at rest, structured output, provider A/B evaluation, observability/alerting, load/concurrency, and human-evaluation infrastructure (`backend/eval/module10/` — see `docs/MODULE10_FINAL_SUBMISSION.md` for the full evidence-backed breakdown).
+The full backend test suite: **1081 tests collected** via `pytest --collect-only` on the current tree (1080 passed, 1 skipped, 0 failed — `module10-final-pdf-compliance` branch, `cd backend && pytest`). Coverage spans the API end-to-end, RAG orchestration, LLM/Groq/Gemini clients and fallback, hybrid search/reranking, vision/diagnose, document/table/image extraction, agent-graph state machine, real concurrent branch execution, sessions, permissions, tenant isolation, security, full-scope encryption at rest, structured output, provider A/B evaluation, observability/alerting, load/concurrency, and human-evaluation infrastructure (`backend/eval/module10/` — see `docs/MODULE10_FINAL_SUBMISSION.md` for the full evidence-backed breakdown).
 
 `backend/eval/` — three independent, code-verified tools (see `backend/eval/README.md`):
 
@@ -270,7 +269,7 @@ Module 10 results, as reported in `docs/MODULE10_FINAL_SUBMISSION.md`/`docs/MODU
 | Agent planner | Accuracy 0.9333, Macro F1 0.9475, Planning Success 1.0, Loop Rate 0.0 | measured |
 | Security (PII recall / unauthorized access / injection / jailbreak / false refusal / data leak) | 1.0 / 0.0 / 0.0 / 0.0 / 0.0 / 0.0 | measured |
 | Structured output (production path) | enabled by default on `POST /chat`; 17-case parser dataset, Field Accuracy 1.0, Parser Correctness 1.0 | measured |
-| Encryption at rest | `ChatTurn.content` AES-256-GCM, 12/12 encrypted writes, 0 plaintext leakage | measured |
+| Encryption at rest (full scope) | Chat content/titles, feedback comments, uploaded PDFs, FAISS metadata — all AES-256-GCM, 78 tests passing incl. real PyMuPDF/BM25 round trips | measured |
 | Provider A/B (groq `openai/gpt-oss-120b` vs. gemini `gemini-3.5-flash`) | Faithfulness 0.6824 vs. 0.5158, no provider declared superior | measured, single run, no significance claimed |
 | Observability | real 35-request sample: error rate 0.1429, P50/P95/P99 0.1/0.2/163.3ms; bounded-local availability 1.0 (15/15 probes) | measured, local only |
 | Load/concurrency (real HTTP boundary) | `/health` 63.75–94.61 RPS, 0 errors; `/chat` 11.66→1.99 RPS across concurrency 1→20, full timeout saturation at concurrency=20, clean recovery | measured, local only |
@@ -358,7 +357,7 @@ InsightAI-RAG/
 │   │                            # image/table extraction, session stores, tenant/user services
 │   ├── alembic/                 # DB migrations
 │   ├── eval/                    # run_eval.py, metrics_report.py, module10/
-│   └── tests/                   # 84 test files, 983 tests collected
+│   └── tests/                   # 96 test files, 1081 tests collected
 ├── docs/                        # architecture, API reference, operations, Module 10 audit trail
 ├── monitoring/                  # optional Prometheus/Grafana stack
 └── frontend/
@@ -499,7 +498,7 @@ Full interactive OpenAPI docs are available at `/docs` while the backend is runn
 
 ```bash
 cd backend
-pytest                                   # full suite (983 tests collected on this tree)
+pytest                                   # full suite (1081 tests collected on this tree)
 python -m eval.run_eval --dataset dataset_v1.json     # planner/groundedness/injection metrics (needs GEMINI_API_KEY + indexed docs)
 python -m eval.metrics_report                          # latency/cost/acceptance from real logs
 ```

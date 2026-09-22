@@ -19,7 +19,7 @@ Everything in this document assumes `backend/.env` exists with at least `GEMINI_
 pytest -q
 ```
 
-Expected: `1048 passed, 1 skipped (1049 collected)`.
+Expected: `1080 passed, 1 skipped (1081 collected)`.
 
 ## Targeted test subsets
 
@@ -40,6 +40,9 @@ pytest tests/test_run_rag_eval_retrieval_signature.py -q # eval-script retrieve(
 pytest tests/test_provider_ab_eval.py -q                 # provider A/B harness + paired significance test (12)
 pytest tests/test_run_agent_eval_tool_arguments.py -q     # expanded tool-argument-accuracy ground truth (6)
 pytest tests/test_nli_faithfulness.py -q                  # NLI groundedness upgrade attempt (7, incl. 1 real-model test)
+pytest tests/test_feedback_encryption.py -q                # feedback comment encryption (12)
+pytest tests/test_upload_encryption.py -q                  # uploaded PDF encryption, incl. a real PyMuPDF round trip (9)
+pytest tests/test_faiss_metadata_encryption.py -q          # FAISS metadata encryption, incl. a real BM25 round trip (11)
 ```
 
 ## NLI groundedness upgrade evidence (honest negative result)

@@ -2,7 +2,7 @@
 
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Request, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Request, Response, UploadFile, status
 from fastapi.responses import FileResponse
 
 from app.api.v1.routes.query import get_image_vector_store, get_llm_client, get_vector_store
@@ -35,7 +35,7 @@ from app.services.document_repository import (
 )
 from app.services.image_captioning_service import image_storage_dir, load_image_manifest
 from app.services.task_service import execute_background_ingestion, get_task_service
-from app.services.upload_service import UPLOAD_DIR, save_uploaded_file
+from app.services.upload_service import UPLOAD_DIR, decrypt_upload_bytes, save_uploaded_file
 from app.services.validation_service import validate_pdf_upload
 
 router = APIRouter(tags=["Documents"], dependencies=[Depends(require_auth)])
@@ -491,14 +491,21 @@ def delete_document(
 
 
 @router.get("/documents/{document_id}/file")
-def get_document_file(document_id: str, request: Request) -> FileResponse:
+def get_document_file(document_id: str, request: Request) -> Response:
     """Serve the original uploaded PDF bytes (Agent 4.1 — in-app PDF
-    citation preview). Tenant-scoped via _ensure_document_accessible."""
+    citation preview). Tenant-scoped via _ensure_document_accessible.
+
+    The file is encrypted at rest (Module 10 gap-closure) -- decrypted
+    to plaintext bytes in memory and served directly (no tempfile) since
+    the decrypted content is only ever the HTTP response body here, not
+    something another process needs to open by path.
+    """
     _ensure_document_accessible(request, document_id)
     matches = list(UPLOAD_DIR.glob(f"{document_id}.*"))
     if not matches:
         raise DocumentNotFoundError(f"No document found with id {document_id}")
-    return FileResponse(matches[0], media_type="application/pdf")
+    plaintext = decrypt_upload_bytes(matches[0].read_bytes(), document_id=document_id)
+    return Response(content=plaintext, media_type="application/pdf")
 
 
 @router.get(
@@ -518,7 +525,11 @@ def get_page_highlight(
         raise DocumentNotFoundError(f"No document found with id {document_id}")
     import fitz
 
-    document = fitz.open(matches[0])
+    # Module 10 gap-closure: the file is encrypted at rest -- decrypt to
+    # in-memory bytes and open PyMuPDF directly from the stream (no
+    # tempfile needed; fitz supports this natively).
+    plaintext = decrypt_upload_bytes(matches[0].read_bytes(), document_id=document_id)
+    document = fitz.open(stream=plaintext, filetype="pdf")
     try:
         if page_number < 1 or page_number > document.page_count:
             raise DocumentNotFoundError(f"No page {page_number} in document {document_id}")

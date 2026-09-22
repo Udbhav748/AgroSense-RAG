@@ -345,7 +345,13 @@ class TestChatFeedback:
         event = json.loads(lines[0])
         assert event["message_id"] == "msg-1-123"
         assert event["rating"] == "up"
-        assert event["comment"] == "Spot on."
+        # comment is encrypted at rest (Module 10 gap-closure) -- the raw
+        # stored value must never be the plaintext, only the "enc1:"
+        # ciphertext marker; the real value is recovered through the
+        # application's own read path (GET /feedback, see
+        # TestFeedbackReadBack), not by reading this file directly.
+        assert event["comment"] != "Spot on."
+        assert event["comment"].startswith("enc1:")
 
     def test_comment_is_optional(self, client):
         response = client.post(

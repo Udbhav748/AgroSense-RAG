@@ -2,7 +2,7 @@
 
 **This document does not claim 100% completion.** Every item across this project is marked ✅ (implementation + reproducible test + real measurement), ⚠️ (partial/limited/local-only measurement), ❌ (missing), or N/A (genuinely not applicable, with rationale) — matching the underlying evidence exactly, never upgraded because code merely exists. See `docs/MODULE10_PDF_TRACEABILITY_MATRIX.md` for the row-by-row mapping against the literal Module 10 PDF checklist.
 
-**Branch**: `module10-final-pdf-compliance` (pushed to `origin`, **not merged to `main`**) · **Commit at last edit**: verify with `git rev-parse HEAD` · **Full regression**: 1048 passed, 1 skipped, 0 failed (1049 collected) · **Date**: 2026-09-19 through 2026-09-22, across 9 sequential evaluation/hardening passes (P0–P8) plus same-day P9 follow-ups implementing real parallel execution (13 + 6 new tests), expanded encryption at rest (12 new tests), code-enforced secrets (14 new tests), a real faithfulness root-cause fix (3 new tests), a real paired significance test for Provider A/B (5 new tests), expanded tool-argument-accuracy ground truth (6 new tests), and an honestly-reported NLI groundedness upgrade attempt (7 new tests)
+**Branch**: `module10-final-pdf-compliance` (pushed to `origin`, **not merged to `main`**) · **Commit at last edit**: verify with `git rev-parse HEAD` · **Full regression**: 1080 passed, 1 skipped, 0 failed (1081 collected) · **Date**: 2026-09-19 through 2026-09-23, across 9 sequential evaluation/hardening passes (P0–P8) plus same-day P9 follow-ups implementing real parallel execution (13 + 6 new tests), a first encryption-at-rest expansion (12 new tests), code-enforced secrets (14 new tests), a real faithfulness root-cause fix (3 new tests), a real paired significance test for Provider A/B (5 new tests), expanded tool-argument-accuracy ground truth (6 new tests), an honestly-reported NLI groundedness upgrade attempt (7 new tests), and full encryption-at-rest scope expansion (45 new tests)
 
 ---
 
@@ -44,7 +44,7 @@ Client → API → validate_request → planner
 **Hybrid retrieval**: BM25 (lexical) + FAISS (semantic) fused via Reciprocal Rank Fusion.
 **Reranking**: optional cross-encoder (`cross-encoder/ms-marco-MiniLM-L-6-v2`), config-gated.
 **Tools**: web search, summarization, diagnose (vision), retrieval, PDF extraction, OCR — invoked via `tools/registry.py::ToolRegistry.execute`, never called raw from graph nodes.
-**Memory**: session-scoped conversation history (`InMemorySessionStore`, LRU-bounded), optional PostgreSQL-backed persistence (`PostgresSessionStore`) with **application-level AES-256-GCM encryption of `ChatTurn.content` and `ChatSession.title`** — see §10.
+**Memory**: session-scoped conversation history (`InMemorySessionStore`, LRU-bounded), optional PostgreSQL-backed persistence (`PostgresSessionStore`) with **application-level AES-256-GCM encryption of `ChatTurn.content` and `ChatSession.title`** (and, as of 2026-09-22/23, feedback comments, uploaded PDF files, and FAISS metadata chunk text — see §10 for the full scope).
 **Vision**: LeafSense integration (separate service) for leaf-disease classification.
 **Security**: API key + JWT auth, tenant-scoped RBAC (`app/core/permissions.py`), PII detection, audit events, prompt-injection/jailbreak defenses (untrusted-content delimiters in prompts).
 **Human approval**: web-search escalation and document deletion both gate on a real, resolved `ApprovalStore` record — a client-supplied boolean alone is insufficient for document deletion.
@@ -141,7 +141,7 @@ Verified end-to-end over a real `POST /chat` HTTP path (not just the parser in i
 | Data Leak Rate | 0.0 | same |
 | Memory session-boundary leakage | 0 | `agent_eval_*.json` |
 
-**Encryption at rest** (expanded 2026-09-21): `ChatTurn.content` **and** `ChatSession.title` (chat session text and its derived title) both encrypted with AES-256-GCM via shared `encrypt_text_field`/`decrypt_text_field` helpers, session ID bound as associated data. Historical evidence (`ChatTurn.content` only): 12/12 encrypted writes, 2/2 round-trip decrypts, 1/1 tamper detection, 2/2 wrong-key rejections, 2/2 missing-key fail-closed, 0 plaintext-at-rest leakage — `encryption_at_rest_integration_20260920T185450Z.json`. Current, expanded-scope evidence (both fields): encrypted-on-disk, round-trip, wrong-key rejection, tamper rejection, missing-key fail-closed, cross-session AAD isolation, and legacy-plaintext backward compatibility — all real checks passed, plus 33/33 tests passing — `backend/eval/module10/reports/encryption_at_rest_final_20260921T193344Z.json`. **Still does not cover** the FAISS index/metadata, uploaded PDF files on disk, or feedback records — each with a specific disclosed technical reason (see that artifact's `coverage_matrix`), not omitted silently; no key rotation exists.
+**Encryption at rest** (full scope reached 2026-09-22/23): AES-256-GCM now protects every genuinely sensitive persisted text surface — `ChatTurn.content`, `ChatSession.title`, feedback `comment`, uploaded PDF files on disk, and FAISS `metadata.json` chunk text. All via shared helpers in `app/core/encryption.py`, each field's own contextually-appropriate value bound as authenticated associated data (session_id / message_id / document_id / chunk_id). Uploaded-PDF encryption decrypts to a short-lived tempfile during ingestion and to in-memory bytes for the two routes that serve the raw file/compute highlights directly (no tempfile needed there). FAISS metadata encryption decrypts once at `load()` and encrypts once at `save()` — the in-memory copy BM25 lexical search needs stays plaintext for the process's lifetime, so this adds zero per-query overhead. 78 total encryption tests (33 from the first expansion + 45 new: feedback 12, uploads 9 incl. a real PyMuPDF round trip, FAISS metadata 11 incl. a real BM25 round trip). A real bug was caught and fixed during review: FAISS metadata's `load()` initially mislabeled a missing/wrong key as a generic `CorruptedVectorStoreError`; fixed to propagate the real `EncryptionKeyMissingError`/`EncryptionIntegrityError`. Full backend regression: 1080 passed, 1 skipped, 0 failed. No key rotation exists; this is application-level, not platform-level, encryption. Evidence: `backend/eval/module10/reports/encryption_at_rest_final_20260921T193344Z.json`.
 
 Having these controls is **not** a formal GDPR/DPDP/HIPAA compliance assessment — none is claimed.
 
@@ -229,7 +229,7 @@ Docker + docker-compose exist and are documented; an optional Caddy HTTPS overla
 - HTTPS is a documented deployment path, not independently validated against a live TLS endpoint in this arc.
 - Secret management: as of 2026-09-22, weak/placeholder secrets (`API_KEY`, `API_KEYS`, `JWT_SECRET_KEY`, `DATABASE_URL`) are now code-enforced — `Settings` refuses to construct when `DEBUG=false` and any of these look like a known placeholder or are too short (`app/core/config.py::_reject_weak_secrets_in_production`, 14 tests). The AWS SSM *retrieval* path itself remains documented, not newly built — this closes the "not enforced" half of the gap, not the managed-secret-storage half.
 - Formal GDPR/DPDP/HIPAA compliance is **not** satisfied merely by having security controls.
-- Encryption at rest now covers `ChatTurn.content` and `ChatSession.title` — still not the FAISS index/metadata, uploaded PDFs, or feedback records (each with a disclosed technical reason). No key rotation exists. Encryption in transit (HTTPS/TLS) is tracked separately, not solved by this expansion.
+- Encryption at rest now covers every genuinely sensitive persisted surface — chat content/titles, feedback comments, uploaded PDF files, and FAISS metadata chunk text (full scope reached 2026-09-22/23). No key rotation exists. Encryption in transit (HTTPS/TLS) is tracked separately, not solved by this expansion.
 
 ## 18. Ten Design Questions
 
@@ -252,7 +252,7 @@ See `docs/MODULE10_PDF_TRACEABILITY_MATRIX.md` for the complete, section-by-sect
 
 ```
 cd backend
-pytest -q                                                          # full regression: 1048 passed, 1 skipped
+pytest -q                                                          # full regression: 1080 passed, 1 skipped
 python scripts/run_rag_eval.py                                     # RAG + Faithfulness
 python eval/module10/runners/run_agent_eval.py                     # agent/planner
 python eval/unauthorized_access_check.py                           # RBAC
