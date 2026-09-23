@@ -127,14 +127,16 @@ def calculate_disease_risk(
     else:
         smith_score = 0.1
         smith_level = "Low"
-        smith_summary = (
-            "Microclimate is unfavorable for Late Blight / Downy Mildew (no sustained Smith Period detected)."
-        )
+        smith_summary = "Microclimate is unfavorable for Late Blight / Downy Mildew (no sustained Smith Period detected)."
 
     # 2. Powdery Mildew Model
-    current_powdery = (70.0 <= cur_rh <= 85.0) and (20.0 <= cur_temp <= 28.0) and (cur_precip <= 0.1)
+    current_powdery = (
+        (70.0 <= cur_rh <= 85.0) and (20.0 <= cur_temp <= 28.0) and (cur_precip <= 0.1)
+    )
     powdery_hours = sum(
-        1 for t, rh in zip(hourly_temps, hourly_rh, strict=False) if 70.0 <= rh <= 85.0 and 20.0 <= t <= 28.0
+        1
+        for t, rh in zip(hourly_temps, hourly_rh, strict=False)
+        if 70.0 <= rh <= 85.0 and 20.0 <= t <= 28.0
     )
     if current_powdery or powdery_hours >= 8:
         powdery_score = 0.85 if (current_powdery and powdery_hours >= 6) else 0.75
@@ -148,15 +150,11 @@ def calculate_disease_risk(
     elif powdery_hours >= 4 or (70.0 <= cur_rh <= 85.0 and 20.0 <= cur_temp <= 28.0):
         powdery_score = 0.55
         powdery_level = "Moderate"
-        powdery_summary = (
-            f"Moderate Powdery Mildew risk: warm temperatures (20°C-28°C) and moderate humidity recorded for {powdery_hours} hours."
-        )
+        powdery_summary = f"Moderate Powdery Mildew risk: warm temperatures (20°C-28°C) and moderate humidity recorded for {powdery_hours} hours."
     else:
         powdery_score = 0.1
         powdery_level = "Low"
-        powdery_summary = (
-            "Conditions unfavorable for Powdery Mildew (humidity or temperature outside 70-85% / 20°C-28°C range)."
-        )
+        powdery_summary = "Conditions unfavorable for Powdery Mildew (humidity or temperature outside 70-85% / 20°C-28°C range)."
 
     # 3. Bacterial Spot Model
     driving_rain_warm = (cur_precip > 5.0) and (cur_temp > 24.0)
@@ -173,15 +171,11 @@ def calculate_disease_risk(
     elif moderate_rain_warm or (cur_precip > 5.0 and cur_temp > 20.0):
         bacterial_score = 0.75
         bacterial_level = "High"
-        bacterial_summary = (
-            f"High Bacterial Spot risk: Substantial rainfall ({cur_precip:.1f} mm) and warm temperatures ({cur_temp:.1f}°C) create splash-dispersal hazard."
-        )
+        bacterial_summary = f"High Bacterial Spot risk: Substantial rainfall ({cur_precip:.1f} mm) and warm temperatures ({cur_temp:.1f}°C) create splash-dispersal hazard."
     elif warm_heavy_rain_forecast:
         bacterial_score = 0.55
         bacterial_level = "Moderate"
-        bacterial_summary = (
-            f"Moderate Bacterial Spot risk: Warm temperature ({cur_temp:.1f}°C) with imminent heavy rainfall forecast."
-        )
+        bacterial_summary = f"Moderate Bacterial Spot risk: Warm temperature ({cur_temp:.1f}°C) with imminent heavy rainfall forecast."
     else:
         bacterial_score = 0.1
         bacterial_level = "Low"
@@ -191,7 +185,9 @@ def calculate_disease_risk(
 
     # 4. Foliar Rust Model
     current_rust = (cur_rh > 80.0) and (16.0 <= cur_temp <= 24.0)
-    rust_hours = sum(1 for t, rh in zip(hourly_temps, hourly_rh, strict=False) if rh > 80.0 and 16.0 <= t <= 24.0)
+    rust_hours = sum(
+        1 for t, rh in zip(hourly_temps, hourly_rh, strict=False) if rh > 80.0 and 16.0 <= t <= 24.0
+    )
 
     if current_rust and rust_hours >= 6:
         rust_score = 0.85
@@ -203,9 +199,7 @@ def calculate_disease_risk(
     elif current_rust or rust_hours >= 4:
         rust_score = 0.65
         rust_level = "Moderate"
-        rust_summary = (
-            f"Moderate Foliar Rust risk: Sustained humidity >80% and temperatures between 16°C-24°C recorded for {rust_hours} hours."
-        )
+        rust_summary = f"Moderate Foliar Rust risk: Sustained humidity >80% and temperatures between 16°C-24°C recorded for {rust_hours} hours."
     else:
         rust_score = 0.1
         rust_level = "Low"
@@ -225,13 +219,36 @@ def calculate_disease_risk(
 
     disease_norm = (disease or "").lower().replace("_", " ")
 
-    if any(k in disease_norm for k in ["late blight", "downy mildew", "phytophthora", "late_blight", "downy_mildew", "blight"]):
+    if any(
+        k in disease_norm
+        for k in [
+            "late blight",
+            "downy mildew",
+            "phytophthora",
+            "late_blight",
+            "downy_mildew",
+            "blight",
+        ]
+    ):
         selected_score, selected_level, selected_summary = models["smith"]
     elif any(k in disease_norm for k in ["powdery mildew", "powdery_mildew", "oidium", "powdery"]):
         selected_score, selected_level, selected_summary = models["powdery"]
-    elif any(k in disease_norm for k in ["bacterial spot", "bacterial_spot", "bacterial", "xanthomonas", "pseudomonas", "spot"]):
+    elif any(
+        k in disease_norm
+        for k in [
+            "bacterial spot",
+            "bacterial_spot",
+            "bacterial",
+            "xanthomonas",
+            "pseudomonas",
+            "spot",
+        ]
+    ):
         selected_score, selected_level, selected_summary = models["bacterial"]
-    elif any(k in disease_norm for k in ["rust", "cedar apple rust", "common rust", "foliar rust", "puccinia"]):
+    elif any(
+        k in disease_norm
+        for k in ["rust", "cedar apple rust", "common rust", "foliar rust", "puccinia"]
+    ):
         selected_score, selected_level, selected_summary = models["rust"]
     else:
         # Find maximum risk across all pathogen models
@@ -265,7 +282,7 @@ class WeatherService:
 
     async def fetch_weather_data(self, lat: float, lon: float) -> dict[str, Any]:
         """Fetch current and 3-day hourly forecast from Open-Meteo."""
-        params = {
+        params: dict[str, str | int | float] = {
             "latitude": lat,
             "longitude": lon,
             "current": "temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m",
@@ -275,7 +292,9 @@ class WeatherService:
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             response = await client.get(self.base_url, params=params)
             response.raise_for_status()
-            return response.json()
+            from typing import cast
+
+            return cast("dict[str, Any]", response.json())
 
     def calculate_disease_risk(
         self,
@@ -316,5 +335,7 @@ class WeatherService:
             weather_data = await self.fetch_weather_data(lat, lon)
             return self.calculate_disease_risk(weather_data, crop=crop, disease=disease)
         except Exception as exc:
-            logger.warning("Failed to fetch or compute weather risk for (%s, %s): %s", lat, lon, exc)
+            logger.warning(
+                "Failed to fetch or compute weather risk for (%s, %s): %s", lat, lon, exc
+            )
             return self._fallback_response(lat, lon, str(exc))

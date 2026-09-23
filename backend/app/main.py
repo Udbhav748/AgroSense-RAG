@@ -56,6 +56,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     import threading
 
     from app.services.embedding_service import get_embedding_model
+
     threading.Thread(target=get_embedding_model, daemon=True).start()
 
     yield

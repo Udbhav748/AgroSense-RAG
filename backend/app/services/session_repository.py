@@ -35,7 +35,9 @@ logger = logging.getLogger(__name__)
 def _decrypt_title(stored: str | None, *, session_id: str) -> str | None:
     if stored is None:
         return None
-    return decrypt_text_field(stored, associated_data=session_id, key_b64=settings.encryption_key_b64)
+    return decrypt_text_field(
+        stored, associated_data=session_id, key_b64=settings.encryption_key_b64
+    )
 
 
 def _session() -> Session:

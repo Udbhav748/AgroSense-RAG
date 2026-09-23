@@ -610,6 +610,7 @@ def vision_node(state: AgentState, context: GraphContext | None = None) -> Agent
             # Delegate through the rag_service module attribute — same
             # monkeypatch-compatibility reasoning as retrieval_node's
             # `_rag_service_module.retrieve(...)` call (see its comment).
+            assert context is not None, "context is required"
             filename = context.metadata.get("filename", "upload")
             content_type = context.metadata.get("content_type", "application/octet-stream")
             engine = context.metadata.get("engine", "hybrid")
@@ -622,9 +623,13 @@ def vision_node(state: AgentState, context: GraphContext | None = None) -> Agent
                 prediction.crop if prediction.crop and prediction.crop != "unknown" else None
             )
             disease_context = (
-                prediction.disease if prediction.disease and prediction.disease != "unknown" else None
+                prediction.disease
+                if prediction.disease and prediction.disease != "unknown"
+                else None
             )
-            diagnosis_query = _build_diagnosis_query(prediction, state.query, collection=crop_context)
+            diagnosis_query = _build_diagnosis_query(
+                prediction, state.query, collection=crop_context
+            )
             diagnosis_info = _build_diagnosis_info(prediction)
         emit_node_trace(
             trace_id=state.trace_id,
@@ -641,7 +646,11 @@ def vision_node(state: AgentState, context: GraphContext | None = None) -> Agent
         new_state = state.copy_with(
             diagnosis=diagnosis_info,
             retrieval_query=diagnosis_query,
-            metadata={**state.metadata, "crop_context": crop_context, "disease_context": disease_context},
+            metadata={
+                **state.metadata,
+                "crop_context": crop_context,
+                "disease_context": disease_context,
+            },
             steps_taken=state.steps_taken + 1,
         )
     except Exception as exc:
@@ -702,7 +711,11 @@ def retrieval_node(state: AgentState, context: GraphContext | None = None) -> Ag
             # on state.query, only the value sent to retrieve() changes.
             retrieval_query = state.query
             recent_history = state.history[-_MAX_HISTORY_TURNS:] if state.history else None
-            if settings.query_contextualization_enabled and recent_history and chat_service is not None:
+            if (
+                settings.query_contextualization_enabled
+                and recent_history
+                and chat_service is not None
+            ):
                 retrieval_query = chat_service._contextualize_query(  # noqa: SLF001
                     state.query, recent_history
                 )
@@ -726,7 +739,9 @@ def retrieval_node(state: AgentState, context: GraphContext | None = None) -> Ag
             # same monkeypatch surface existing tests already rely on
             # (`monkeypatch.setattr(rag_service_module, "retrieve", ...)`),
             # matching handle_query's own call site exactly.
-            chunks = _rag_service_module.retrieve(retrieval_query, context.vector_store, **retrieve_kwargs)
+            chunks = _rag_service_module.retrieve(
+                retrieval_query, context.vector_store, **retrieve_kwargs
+            )
         was_reranked = any(
             isinstance(getattr(c, "metadata", None), dict) and "rerank_score" in c.metadata
             for c in chunks
@@ -943,7 +958,9 @@ def generator_node(state: AgentState, context: GraphContext | None = None) -> Ag
         )
         logger.info(GENERATION_COMPLETED, extra={"extra_fields": {"answer_length": len(answer)}})
         new_state = state.copy_with(
-            draft_answer=answer, structured_output=structured_payload, steps_taken=state.steps_taken + 1
+            draft_answer=answer,
+            structured_output=structured_payload,
+            steps_taken=state.steps_taken + 1,
         )
     except Exception as exc:
         error_type, root_cause = _node_error(exc)
@@ -1007,18 +1024,20 @@ def reflection_node(state: AgentState, context: GraphContext | None = None) -> A
         return new_state
     try:
         with timer:
-            answer, llm_calls, steps_taken, web_results, web_search_attempted = chat_service._correct(  # noqa: SLF001
-                state.query,
-                state.retrieved_chunks,
-                state.draft_answer,
-                recent_history,
-                state.web_results,
-                bool(state.metadata.get("web_search_attempted", False)),
-                1,  # llm_calls so far: generator_node's initial call
-                state.steps_taken,
-                confirm_web_search=state.confirm_web_search,
-                persona=state.persona,
-                language=language,
+            answer, llm_calls, steps_taken, web_results, web_search_attempted = (
+                chat_service._correct(  # noqa: SLF001
+                    state.query,
+                    state.retrieved_chunks,
+                    state.draft_answer,
+                    recent_history,
+                    state.web_results,
+                    bool(state.metadata.get("web_search_attempted", False)),
+                    1,  # llm_calls so far: generator_node's initial call
+                    state.steps_taken,
+                    confirm_web_search=state.confirm_web_search,
+                    persona=state.persona,
+                    language=language,
+                )
             )
         corrected = answer != state.draft_answer
         emit_node_trace(
@@ -1165,7 +1184,11 @@ def finalizer_node(state: AgentState, context: GraphContext | None = None) -> Ag
             # specific request, not a reusable good answer for the query in
             # general. A later, approved retry of the same query must not
             # be served this placeholder from cache.
-            if action == "retrieve" and state.approval_status not in ("pending", "rejected", "expired"):
+            if action == "retrieve" and state.approval_status not in (
+                "pending",
+                "rejected",
+                "expired",
+            ):
                 plan = state.plan if isinstance(state.plan, dict) else {}
                 chat_service._cache_response(  # noqa: SLF001
                     query=state.query,
@@ -1207,7 +1230,9 @@ def finalizer_node(state: AgentState, context: GraphContext | None = None) -> Ag
                 answer=answer,
                 retrieved_chunks=state.retrieved_chunks,
                 sources=sources,
-                processing_time=(time.perf_counter() - state.perf_start) if state.perf_start else 0.0,
+                processing_time=(time.perf_counter() - state.perf_start)
+                if state.perf_start
+                else 0.0,
                 tool_used=tool_used,
                 steps_taken=state.steps_taken + 1,
                 answer_source=source_type,
@@ -1218,7 +1243,9 @@ def finalizer_node(state: AgentState, context: GraphContext | None = None) -> Ag
         termination_reason = state.termination_reason
         if termination_reason is None:
             if state.error_type:
-                termination_reason = "model_failure" if state.error_type == "reasoning" else "tool_failure"
+                termination_reason = (
+                    "model_failure" if state.error_type == "reasoning" else "tool_failure"
+                )
             elif state.validation_errors and state.reflection_count_v2 >= 2:
                 termination_reason = "loop_limit_reached"
             elif state.approval_status == "rejected":

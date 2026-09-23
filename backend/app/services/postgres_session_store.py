@@ -48,7 +48,9 @@ def _encrypt_content(plaintext: str, *, session_id: str) -> str:
     Raises EncryptionKeyMissingError (fails closed, never falls back to
     storing plaintext) if Settings.encryption_key_b64 isn't configured.
     """
-    return encrypt_text_field(plaintext, associated_data=session_id, key_b64=settings.encryption_key_b64)
+    return encrypt_text_field(
+        plaintext, associated_data=session_id, key_b64=settings.encryption_key_b64
+    )
 
 
 def _decrypt_content(stored: str, *, session_id: str) -> str:
@@ -61,7 +63,9 @@ def _decrypt_content(stored: str, *, session_id: str) -> str:
     than returning anything -- fails closed, per
     app.core.encryption's own contract.
     """
-    return decrypt_text_field(stored, associated_data=session_id, key_b64=settings.encryption_key_b64)
+    return decrypt_text_field(
+        stored, associated_data=session_id, key_b64=settings.encryption_key_b64
+    )
 
 
 def _utcnow() -> datetime:
@@ -128,7 +132,10 @@ class PostgresSessionStore:
             session.last_accessed_at = _utcnow()
             db.commit()
             return [
-                {"role": turn.role, "content": _decrypt_content(turn.content, session_id=session_id)}
+                {
+                    "role": turn.role,
+                    "content": _decrypt_content(turn.content, session_id=session_id),
+                }
                 for turn in session.turns
             ]
 
@@ -138,7 +145,9 @@ class PostgresSessionStore:
             if session is None:
                 return False
             encrypted_content = _encrypt_content(content, session_id=session_id)
-            session.turns.append(ChatTurn(role=role, content=encrypted_content, created_at=_utcnow()))
+            session.turns.append(
+                ChatTurn(role=role, content=encrypted_content, created_at=_utcnow())
+            )
             session.last_accessed_at = _utcnow()
             # Trim to max_turns_per_session (keep most recent)
             if len(session.turns) > self._max_turns_per_session:

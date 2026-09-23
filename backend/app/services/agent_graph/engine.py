@@ -383,7 +383,9 @@ class CompiledGraph:
         metrics.record_agent_workflow_duration(time.perf_counter() - wall_start)
         metrics.record_agent_steps(step_index)
         workflow_status = getattr(current_state, "workflow_status", None)
-        completed = workflow_status == "completed" if workflow_status else current_state.error is None
+        completed = (
+            workflow_status == "completed" if workflow_status else current_state.error is None
+        )
         metrics.record_agent_workflow_completed(status="completed" if completed else "failed")
 
         return current_state

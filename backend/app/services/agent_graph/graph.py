@@ -49,6 +49,7 @@ from app.services.agent_graph.cache_node import cache_lookup_node, route_after_c
 from app.services.agent_graph.engine import END, START, CompiledGraph, StateGraph
 from app.services.agent_graph.human_approval import human_approval_node
 from app.services.agent_graph.nodes import (
+    GraphContext,
     finalizer_node,
     generator_node,
     output_validation_node,
@@ -64,17 +65,20 @@ from app.services.agent_graph.routing import (
     route_after_grader,
     route_after_planner,
 )
+from app.services.agent_graph.state import AgentState  # noqa: TC001
 from app.services.prompt_builder import FALLBACK_REPLY
 from app.services.rag_service import _match_conversational_reply
 
 
-def _conversational_node(state, context=None):  # noqa: ANN001, ANN201
+def _conversational_node(state: AgentState, context: GraphContext | None = None) -> AgentState:
     """Delegates to ChatService's existing `_match_conversational_reply`
     (the same canned-reply lookup `_plan` used to decide this was a
     conversational turn in the first place) — not a second copy of the
     canned-reply table."""
     reply = _match_conversational_reply(state.query) or FALLBACK_REPLY
-    return state.copy_with(draft_answer=reply, final_answer=reply, steps_taken=state.steps_taken + 1)
+    return state.copy_with(
+        draft_answer=reply, final_answer=reply, steps_taken=state.steps_taken + 1
+    )
 
 
 def build_chat_graph(max_steps: int = 16) -> CompiledGraph:
@@ -126,7 +130,9 @@ def build_chat_graph(max_steps: int = 16) -> CompiledGraph:
     graph.add_conditional_edges(
         "cache_lookup",
         route_after_cache_lookup,
-        {"retrieval": "retrieval"},  # END is returned as the literal END sentinel, not a mapping key
+        {
+            "retrieval": "retrieval"
+        },  # END is returned as the literal END sentinel, not a mapping key
     )
 
     graph.add_edge("retrieval", "retrieval_grader")

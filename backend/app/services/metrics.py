@@ -10,7 +10,7 @@ from __future__ import annotations
 import threading
 import time
 from collections import defaultdict
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -106,9 +106,15 @@ class RAGMetricsService:
         self._reflection_score_override: float | None = None
 
         # Generic custom metrics
-        self._custom_counters: defaultdict[tuple[str, tuple[tuple[str, str], ...]], float] = defaultdict(float)
-        self._custom_gauges: defaultdict[tuple[str, tuple[tuple[str, str], ...]], float] = defaultdict(float)
-        self._custom_histograms: defaultdict[tuple[str, tuple[tuple[str, str], ...]], _Histogram] = defaultdict(_Histogram)
+        self._custom_counters: defaultdict[tuple[str, tuple[tuple[str, str], ...]], float] = (
+            defaultdict(float)
+        )
+        self._custom_gauges: defaultdict[tuple[str, tuple[tuple[str, str], ...]], float] = (
+            defaultdict(float)
+        )
+        self._custom_histograms: defaultdict[
+            tuple[str, tuple[tuple[str, str], ...]], _Histogram
+        ] = defaultdict(_Histogram)
 
     def reset(self) -> None:
         """Reset all metrics to initial empty state."""
@@ -130,7 +136,9 @@ class RAGMetricsService:
 
     # --- RAG Request Counts --------------------------------------------------
 
-    def record_rag_request(self, endpoint: str, status: str = "success", amount: float = 1.0) -> None:
+    def record_rag_request(
+        self, endpoint: str, status: str = "success", amount: float = 1.0
+    ) -> None:
         """Increment the RAG request counter for a specific endpoint and status."""
         with self._lock:
             self._rag_requests[(endpoint, status)] += amount
@@ -231,7 +239,9 @@ class RAGMetricsService:
 
     # --- Generic Metric Registration ----------------------------------------
 
-    def inc_counter(self, name: str, labels: dict[str, Any] | None = None, amount: float = 1.0) -> None:
+    def inc_counter(
+        self, name: str, labels: dict[str, Any] | None = None, amount: float = 1.0
+    ) -> None:
         with self._lock:
             self._custom_counters[(name, _label_key(labels))] += amount
 
@@ -239,7 +249,9 @@ class RAGMetricsService:
         with self._lock:
             self._custom_gauges[(name, _label_key(labels))] = float(value)
 
-    def observe_histogram(self, name: str, value: float, labels: dict[str, Any] | None = None) -> None:
+    def observe_histogram(
+        self, name: str, value: float, labels: dict[str, Any] | None = None
+    ) -> None:
         with self._lock:
             self._custom_histograms[(name, _label_key(labels))].observe(value)
 
@@ -251,7 +263,9 @@ class RAGMetricsService:
             lines: list[str] = []
 
             # 1. RAG requests counter
-            lines.append("# HELP insightai_rag_requests_total Total count of InsightAI RAG requests by endpoint and status.")
+            lines.append(
+                "# HELP insightai_rag_requests_total Total count of InsightAI RAG requests by endpoint and status."
+            )
             lines.append("# TYPE insightai_rag_requests_total counter")
             if self._rag_requests:
                 for (endpoint, status), count in sorted(self._rag_requests.items()):
@@ -259,12 +273,16 @@ class RAGMetricsService:
                     lines.append(f"insightai_rag_requests_total{labels} {count:.0f}")
 
             # 2. Latency histogram
-            lines.append("# HELP insightai_rag_latency_seconds Latency of InsightAI RAG pipeline processing steps in seconds.")
+            lines.append(
+                "# HELP insightai_rag_latency_seconds Latency of InsightAI RAG pipeline processing steps in seconds."
+            )
             lines.append("# TYPE insightai_rag_latency_seconds histogram")
             for step, hist in sorted(self._rag_latencies.items()):
                 for i, bound in enumerate(HISTOGRAM_BUCKETS_SECONDS):
                     bucket_labels = _format_labels({"le": f"{bound:g}", "step": step})
-                    lines.append(f"insightai_rag_latency_seconds_bucket{bucket_labels} {hist.cumulative[i]:.0f}")
+                    lines.append(
+                        f"insightai_rag_latency_seconds_bucket{bucket_labels} {hist.cumulative[i]:.0f}"
+                    )
                 inf_labels = _format_labels({"le": "+Inf", "step": step})
                 lines.append(f"insightai_rag_latency_seconds_bucket{inf_labels} {hist.count:.0f}")
                 sum_labels = _format_labels({"step": step})
@@ -272,7 +290,9 @@ class RAGMetricsService:
                 lines.append(f"insightai_rag_latency_seconds_count{sum_labels} {hist.count:.0f}")
 
             # 3. Retrieval chunks count
-            lines.append("# HELP insightai_rag_retrieval_chunks_count Number of document chunks retrieved for RAG context.")
+            lines.append(
+                "# HELP insightai_rag_retrieval_chunks_count Number of document chunks retrieved for RAG context."
+            )
             lines.append("# TYPE insightai_rag_retrieval_chunks_count gauge")
             lines.append(f"insightai_rag_retrieval_chunks_count {self._retrieval_chunks_count:.0f}")
 
@@ -280,14 +300,22 @@ class RAGMetricsService:
             rerank_avg = (
                 self._rerank_score_override
                 if self._rerank_score_override is not None
-                else (self._rerank_scores_sum / self._rerank_scores_count if self._rerank_scores_count > 0 else 0.0)
+                else (
+                    self._rerank_scores_sum / self._rerank_scores_count
+                    if self._rerank_scores_count > 0
+                    else 0.0
+                )
             )
-            lines.append("# HELP insightai_rag_rerank_score_average Average reranking relevance score of retrieved chunks.")
+            lines.append(
+                "# HELP insightai_rag_rerank_score_average Average reranking relevance score of retrieved chunks."
+            )
             lines.append("# TYPE insightai_rag_rerank_score_average gauge")
             lines.append(f"insightai_rag_rerank_score_average {rerank_avg:.4f}")
 
             # 5. Vision inferences counter
-            lines.append("# HELP insightai_vision_inferences_total Total count of plant disease vision inferences by crop and disease.")
+            lines.append(
+                "# HELP insightai_vision_inferences_total Total count of plant disease vision inferences by crop and disease."
+            )
             lines.append("# TYPE insightai_vision_inferences_total counter")
             if self._vision_inferences:
                 for (crop, disease), count in sorted(self._vision_inferences.items()):
@@ -295,17 +323,27 @@ class RAGMetricsService:
                     lines.append(f"insightai_vision_inferences_total{labels} {count:.0f}")
 
             # 6. Active vector chunks
-            lines.append("# HELP insightai_active_vector_chunks_total Total number of active vector chunks indexed in vector store.")
+            lines.append(
+                "# HELP insightai_active_vector_chunks_total Total number of active vector chunks indexed in vector store."
+            )
             lines.append("# TYPE insightai_active_vector_chunks_total gauge")
-            lines.append(f"insightai_active_vector_chunks_total {self._active_vector_chunks_total:.0f}")
+            lines.append(
+                f"insightai_active_vector_chunks_total {self._active_vector_chunks_total:.0f}"
+            )
 
             # 7. RAG reflection score average
             refl_avg = (
                 self._reflection_score_override
                 if self._reflection_score_override is not None
-                else (self._reflection_scores_sum / self._reflection_scores_count if self._reflection_scores_count > 0 else 0.0)
+                else (
+                    self._reflection_scores_sum / self._reflection_scores_count
+                    if self._reflection_scores_count > 0
+                    else 0.0
+                )
             )
-            lines.append("# HELP insightai_rag_reflection_score_average Average RAG self-reflection and faithfulness score.")
+            lines.append(
+                "# HELP insightai_rag_reflection_score_average Average RAG self-reflection and faithfulness score."
+            )
             lines.append("# TYPE insightai_rag_reflection_score_average gauge")
             lines.append(f"insightai_rag_reflection_score_average {refl_avg:.4f}")
 
@@ -329,12 +367,14 @@ class RAGMetricsService:
                 lines.append(f"# HELP {name} Observation durations in seconds.")
                 lines.append(f"# TYPE {name} histogram")
                 for i, bound in enumerate(HISTOGRAM_BUCKETS_SECONDS):
-                    bucket_labels = dict(label_dict)
-                    bucket_labels["le"] = f"{bound:g}"
-                    lines.append(f"{name}_bucket{_format_labels(bucket_labels)} {hist.cumulative[i]:.0f}")
-                inf_labels = dict(label_dict)
-                inf_labels["le"] = "+Inf"
-                lines.append(f"{name}_bucket{_format_labels(inf_labels)} {hist.count:.0f}")
+                    custom_bucket_labels = dict(label_dict)
+                    custom_bucket_labels["le"] = f"{bound:g}"
+                    lines.append(
+                        f"{name}_bucket{_format_labels(custom_bucket_labels)} {hist.cumulative[i]:.0f}"
+                    )
+                custom_inf_labels = dict(label_dict)
+                custom_inf_labels["le"] = "+Inf"
+                lines.append(f"{name}_bucket{_format_labels(custom_inf_labels)} {hist.count:.0f}")
                 lines.append(f"{name}_sum{_format_labels(label_dict)} {hist.sum:.4f}")
                 lines.append(f"{name}_count{_format_labels(label_dict)} {hist.count:.0f}")
 
@@ -425,7 +465,7 @@ def set_reflection_score_average(score: float) -> None:
     _metrics_service.set_reflection_score_average(score)
 
 
-def timer(step: str) -> Generator[None, None, None]:
+def timer(step: str) -> AbstractContextManager[None]:
     """Context manager for timing a RAG execution step."""
     return _metrics_service.timer(step)
 

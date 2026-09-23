@@ -1024,7 +1024,9 @@ class Settings(BaseSettings):
             if isinstance(parsed, dict):
                 for client_name, key_value in parsed.items():
                     if not isinstance(key_value, str) or _is_weak(key_value, 16):
-                        problems.append(f"API_KEYS entry for client '{client_name}' is a placeholder or too short.")
+                        problems.append(
+                            f"API_KEYS entry for client '{client_name}' is a placeholder or too short."
+                        )
         elif _is_weak(self.api_key, 16):
             problems.append(
                 "API_KEY is missing, a known placeholder, or shorter than 16 characters."
@@ -1034,9 +1036,7 @@ class Settings(BaseSettings):
         # optional feature -- see create_access_token's own runtime check);
         # only validate it here if a value was actually supplied.
         if self.jwt_secret_key and _is_weak(self.jwt_secret_key, 32):
-            problems.append(
-                "JWT_SECRET_KEY is a known placeholder or shorter than 32 characters."
-            )
+            problems.append("JWT_SECRET_KEY is a known placeholder or shorter than 32 characters.")
 
         if self.database_url and "insightai-dev-password" in self.database_url:
             problems.append("DATABASE_URL still contains the local-dev default password.")

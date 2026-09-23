@@ -241,7 +241,9 @@ def detect_context_from_text(text: str) -> dict[str, str]:
         context["crop"] = crop_match.group(1).strip().lower()
 
     # Match explicit "- **Disease**: Early Blight"
-    disease_match = re.search(r"-\s*\*\*Disease\*\*:\s*([A-Za-z0-9\s]+?)(?:\s*\(|$|\n)", text, re.IGNORECASE)
+    disease_match = re.search(
+        r"-\s*\*\*Disease\*\*:\s*([A-Za-z0-9\s]+?)(?:\s*\(|$|\n)", text, re.IGNORECASE
+    )
     if disease_match:
         context["disease"] = disease_match.group(1).strip().lower()
 
@@ -292,7 +294,9 @@ def parse_tabular_row_dict(
 ) -> ParsedTableRow:
     """Parse a single tabular row dictionary into a ParsedTableRow atomic unit."""
     context = doc_context or {}
-    norm_row = {normalize_column_name(k): str(v or "").strip() for k, v in row.items() if k is not None}
+    norm_row = {
+        normalize_column_name(k): str(v or "").strip() for k, v in row.items() if k is not None
+    }
 
     # Extract Crop
     crop = ""
@@ -363,7 +367,10 @@ def parse_tabular_row_dict(
     if not active_ingredient:
         for k in list(extra_fields.keys()):
             norm_k = normalize_column_name(k)
-            if any(term in norm_k for term in ("agent", "ingredient", "chemical", "control_measure", "specification")):
+            if any(
+                term in norm_k
+                for term in ("agent", "ingredient", "chemical", "control_measure", "specification")
+            ):
                 active_ingredient = extra_fields[k]
                 break
 
@@ -474,7 +481,18 @@ def extract_markdown_tables(text: str) -> list[ParsedTable]:
                 table_type = "dosage_matrix"
                 # Determine table type from headers or section
                 norm_h_str = " ".join(normalize_column_name(h) for h in headers)
-                if any(k in norm_h_str for k in ("dosage", "rate", "phi", "chemical", "active_ingredient", "spray", "frac")):
+                if any(
+                    k in norm_h_str
+                    for k in (
+                        "dosage",
+                        "rate",
+                        "phi",
+                        "chemical",
+                        "active_ingredient",
+                        "spray",
+                        "frac",
+                    )
+                ):
                     table_type = "dosage_matrix"
                 elif any(k in norm_h_str for k in ("control_measure", "remedy", "ipm", "organic")):
                     table_type = "ipm_matrix"
@@ -575,7 +593,9 @@ def parse_csv_content(
             ]
             for r in slice_rows:
                 table_lines.append(
-                    "| " + " | ".join(str(r.get(h, "")).strip().replace("|", "/") for h in headers) + " |"
+                    "| "
+                    + " | ".join(str(r.get(h, "")).strip().replace("|", "/") for h in headers)
+                    + " |"
                 )
             slice_text = "\n".join(table_lines)
 
@@ -716,7 +736,7 @@ def parse_layout_aware_markdown(
         except Exception:
             sub_texts = _fallback_split_text(p_text, c_size, c_overlap)
 
-        prose_chunks = []
+        prose_chunks: list[DocumentChunk] = []
         for st in sub_texts:
             if not st.strip():
                 continue

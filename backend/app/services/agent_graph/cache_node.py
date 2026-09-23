@@ -52,9 +52,7 @@ def cache_lookup_node(state: AgentState, context: GraphContext | None = None) ->
                     document_ids=state.document_ids,
                 )
             except Exception as exc:
-                logger.warning(
-                    "cache_lookup_failed", extra={"extra_fields": {"error": str(exc)}}
-                )
+                logger.warning("cache_lookup_failed", extra={"extra_fields": {"error": str(exc)}})
                 cached = None
 
     cache_hit = cached is not None
@@ -67,7 +65,7 @@ def cache_lookup_node(state: AgentState, context: GraphContext | None = None) ->
         extra={"cache_hit": cache_hit},
     )
 
-    if not cache_hit:
+    if cached is None:
         new_state = state.copy_with(
             steps_taken=state.steps_taken + 1,
             metadata={**state.metadata, "cache_hit": False},

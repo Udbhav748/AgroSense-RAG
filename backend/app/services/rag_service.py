@@ -56,13 +56,13 @@ from app.services.prompt_builder import (
 from app.services.prompt_injection_service import detect_possible_injection
 from app.services.rag.router import extract_crop_context as _extract_crop_context
 from app.services.research_agent import ResearchAgent, ResearchFindings
-from app.services.retrieval_service import retrieve
+from app.services.retrieval_service import retrieve as retrieve
 from app.services.router_agent import RouterAgent
 from app.services.structured_output import parse_structured_answer
 from app.services.summarization_service import summarize_document
 from app.services.tools.base import ToolContext
 from app.services.tools.factory import build_tool_registry
-from app.services.vision_client import diagnose_image
+from app.services.vision_client import diagnose_image as diagnose_image
 from app.services.vision_qa_service import try_vision_qa
 from app.services.web_search_service import search_web, web_search_ready
 
@@ -1183,7 +1183,12 @@ class ChatService:
         structured response.
         """
         prompt = build_structured_prompt(
-            query, chunks, history=history, web_results=web_results, persona=persona, language=language
+            query,
+            chunks,
+            history=history,
+            web_results=web_results,
+            persona=persona,
+            language=language,
         )
         _capture_prompt(prompt, variant="structured")
         logger.info(
@@ -1258,7 +1263,10 @@ class ChatService:
                 )
             else:
                 effective_thresh = (
-                    (settings.retrieval_grade_threshold / (getattr(settings, "hybrid_rrf_k", 60) + 1))
+                    (
+                        settings.retrieval_grade_threshold
+                        / (getattr(settings, "hybrid_rrf_k", 60) + 1)
+                    )
                     if settings.hybrid_search_enabled and top_score < 0.1
                     else settings.retrieval_grade_threshold
                 )
@@ -1334,7 +1342,9 @@ class ChatService:
         except Exception:
             return True
 
-    def _maybe_ask_clarifying_question(self, query: str, answer: str, grade: str) -> tuple[str, bool]:
+    def _maybe_ask_clarifying_question(
+        self, query: str, answer: str, grade: str
+    ) -> tuple[str, bool]:
         """Agent 1.4 — Ask-instead-of-guess: when retrieval graded
         "insufficient" and the corrective loop still couldn't produce a
         grounded answer (sitting on the literal fallback line), ask one
@@ -1749,7 +1759,9 @@ class ChatService:
             except AppError:
                 raise
             except Exception as exc:
-                raise ChatServiceError(f"Unexpected error while handling chat query: {exc}") from exc
+                raise ChatServiceError(
+                    f"Unexpected error while handling chat query: {exc}"
+                ) from exc
             steps_taken += 1  # generation
             return self._respond(
                 answer=summary,
@@ -1997,7 +2009,9 @@ class ChatService:
             plan_crop = getattr(plan, "crop", None)
             plan_disease = getattr(plan, "disease", None)
             graph_context = GraphContext(
-                chat_service=self, vector_store=self._vector_store, image_vector_store=self._image_vector_store
+                chat_service=self,
+                vector_store=self._vector_store,
+                image_vector_store=self._image_vector_store,
             )
             node_state = AgentState(
                 query=query,
@@ -2050,6 +2064,8 @@ class ChatService:
             steps_taken += 1  # grading
             node_state = retrieval_grader_node(node_state, graph_context)
             grade = node_state.retrieval_grade
+            # The retrieval_grader_node unconditionally sets retrieval_grade.
+            assert grade is not None, "retrieval_grade is guaranteed by retrieval_grader_node"
             yield _trace_event("grading", {"grade": grade})
 
             # See handle_query for why plan.action == "research" forces
@@ -2121,7 +2137,12 @@ class ChatService:
             yield _trace_event("generating", {})
             answer = ""
             for is_final, value in self._generate_streamed(
-                query, chunks, recent_history, web_results=web_results, persona=persona, language=language
+                query,
+                chunks,
+                recent_history,
+                web_results=web_results,
+                persona=persona,
+                language=language,
             ):
                 if is_final:
                     answer = value
@@ -2156,7 +2177,9 @@ class ChatService:
             # each, not two. The chunks streamed above are provisional —
             # the done payload's answer is authoritative and the UI
             # renders it.
-            answer, is_clarifying_question = self._maybe_ask_clarifying_question(query, answer, grade)
+            answer, is_clarifying_question = self._maybe_ask_clarifying_question(
+                query, answer, grade
+            )
 
             follow_up_questions = []
             if settings.follow_up_questions_enabled:
@@ -2269,7 +2292,11 @@ class ChatService:
         logger.info(
             "plan_decided",
             extra={
-                "extra_fields": {"action": plan.action, "query_length": len(query) if query else 0, "engine": engine}
+                "extra_fields": {
+                    "action": plan.action,
+                    "query_length": len(query) if query else 0,
+                    "engine": engine,
+                }
             },
         )
 
@@ -2336,7 +2363,11 @@ class ChatService:
                     # it would have in the old sequential call, preserving
                     # its status code/taxonomy instead of being silently
                     # downgraded to a generic ChatServiceError.
-                    raise vision_branch.exception  # noqa: RSE102 -- re-raising a captured exception object, not a bare `raise`
+                    if vision_branch.exception is not None:
+                        raise vision_branch.exception  # noqa: RSE102 -- re-raising a captured exception object, not a bare `raise`
+                    raise RuntimeError(
+                        f"Vision branch failed without exception: {vision_branch.error}"
+                    )
                 vision_state = vision_branch.value
 
                 weather_branch = branch_results["weather"]
@@ -2358,6 +2389,9 @@ class ChatService:
 
             diagnosis_info = vision_state.diagnosis
             diagnosis_query = vision_state.retrieval_query
+            # Both diagnosis and retrieval_query are guaranteed by the vision_node
+            assert diagnosis_info is not None, "diagnosis is guaranteed by vision_node"
+            assert diagnosis_query is not None, "retrieval_query is guaranteed by vision_node"
             crop_context = vision_state.metadata.get("crop_context")
             disease_context = vision_state.metadata.get("disease_context")
 
@@ -2517,7 +2551,11 @@ class ChatService:
         logger.info(
             "plan_decided",
             extra={
-                "extra_fields": {"action": plan.action, "query_length": len(query) if query else 0, "engine": engine}
+                "extra_fields": {
+                    "action": plan.action,
+                    "query_length": len(query) if query else 0,
+                    "engine": engine,
+                }
             },
         )
 
@@ -2562,7 +2600,9 @@ class ChatService:
                 prediction.crop if prediction.crop and prediction.crop != "unknown" else None
             )
             disease_context = (
-                prediction.disease if prediction.disease and prediction.disease != "unknown" else None
+                prediction.disease
+                if prediction.disease and prediction.disease != "unknown"
+                else None
             )
             diagnosis_query = _build_diagnosis_query(prediction, query, collection=crop_context)
 

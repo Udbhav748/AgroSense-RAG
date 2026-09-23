@@ -59,7 +59,9 @@ def decrypt_upload_bytes(stored: bytes, *, document_id: str) -> bytes:
     if not stored.startswith(_ENC_MAGIC):
         return stored
     ciphertext = stored[len(_ENC_MAGIC) :]
-    return decrypt_bytes(ciphertext, key_b64=settings.encryption_key_b64, associated_data=document_id.encode("utf-8"))
+    return decrypt_bytes(
+        ciphertext, key_b64=settings.encryption_key_b64, associated_data=document_id.encode("utf-8")
+    )
 
 
 @contextlib.contextmanager

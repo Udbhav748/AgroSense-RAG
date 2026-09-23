@@ -6,6 +6,8 @@ optional fallback/routing wiring live in one place instead of being
 duplicated wherever an LLMClient is needed.
 """
 
+from collections.abc import Callable
+
 from app.core.config import settings
 from app.core.exceptions import LLMConfigurationError
 from app.services.fallback_llm_client import FallbackLLMClient
@@ -15,7 +17,7 @@ from app.services.llm_client import LLMClient
 from app.services.mock_llm_client import MockLLMClient
 from app.services.routing_llm_client import RoutingLLMClient
 
-_PROVIDERS = {
+_PROVIDERS: dict[str, Callable[[], LLMClient]] = {
     "gemini": GeminiClient,
     "groq": GroqClient,
     # Deterministic, zero-cost, zero-network stand-in -- reachable only

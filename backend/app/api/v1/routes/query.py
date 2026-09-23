@@ -12,6 +12,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
 from app.core.auth import require_auth
 from app.core.config import settings
@@ -219,7 +220,7 @@ def _sse_line(event: dict[str, Any]) -> str:
     done payload before this is called), leave it as-is.
     """
     payload = event.get("payload")
-    if hasattr(payload, "model_dump"):
+    if isinstance(payload, BaseModel):
         event = {**event, "payload": payload.model_dump(mode="json")}
     return f"data: {json.dumps(event)}\n\n"
 
@@ -408,11 +409,13 @@ async def chat_agent_graph_stream(payload: ChatRequest, request: Request) -> Str
             start_t = time.perf_counter()
             timestamp = time.time()
 
-            yield _sse_line({
-                "type": "node_start",
-                "node": current_node,
-                "timestamp": timestamp,
-            })
+            yield _sse_line(
+                {
+                    "type": "node_start",
+                    "node": current_node,
+                    "timestamp": timestamp,
+                }
+            )
 
             try:
                 current_state = await graph._invoke_node(current_node, current_state, context)
@@ -423,12 +426,14 @@ async def chat_agent_graph_stream(payload: ChatRequest, request: Request) -> Str
                 )
                 current_state = current_state.copy_with(error=f"{type(exc).__name__}: {exc}")
                 duration_ms = round((time.perf_counter() - start_t) * 1000, 2)
-                yield _sse_line({
-                    "type": "node_complete",
-                    "node": current_node,
-                    "output": {"error": str(exc)},
-                    "duration_ms": duration_ms,
-                })
+                yield _sse_line(
+                    {
+                        "type": "node_complete",
+                        "node": current_node,
+                        "output": {"error": str(exc)},
+                        "duration_ms": duration_ms,
+                    }
+                )
                 break
 
             duration_ms = round((time.perf_counter() - start_t) * 1000, 2)
@@ -440,12 +445,14 @@ async def chat_agent_graph_stream(payload: ChatRequest, request: Request) -> Str
                     yield _sse_line({"type": "token", "text": tok})
 
             output = _extract_agent_graph_node_output(current_node, current_state)
-            yield _sse_line({
-                "type": "node_complete",
-                "node": current_node,
-                "output": output,
-                "duration_ms": duration_ms,
-            })
+            yield _sse_line(
+                {
+                    "type": "node_complete",
+                    "node": current_node,
+                    "output": output,
+                    "duration_ms": duration_ms,
+                }
+            )
 
             current_node = await graph._get_next_node(current_node, current_state, context)
 
@@ -461,10 +468,12 @@ async def chat_agent_graph_stream(payload: ChatRequest, request: Request) -> Str
         if session_id and "session_id" in final_state_data:
             final_state_data["session_id"] = session_id
 
-        yield _sse_line({
-            "type": "graph_done",
-            "final_state": final_state_data,
-        })
+        yield _sse_line(
+            {
+                "type": "graph_done",
+                "final_state": final_state_data,
+            }
+        )
 
     return StreamingResponse(event_source(), media_type="text/event-stream")
 
@@ -619,9 +628,7 @@ async def diagnose_stream(
     if latitude is not None and longitude is not None:
         try:
             weather_service = WeatherService()
-            weather_risk = await weather_service.get_weather_risk(
-                lat=latitude, lon=longitude
-            )
+            weather_risk = await weather_service.get_weather_risk(lat=latitude, lon=longitude)
         except Exception as exc:
             logger.warning(
                 "Failed to fetch microclimate risk for (%s, %s): %s",

@@ -20,14 +20,15 @@ logger = logging.getLogger(__name__)
 
 # Try importing cv2 if installed; fallback to pure NumPy/PIL if unavailable
 try:
-    import cv2  # type: ignore[import-not-found,import-untyped]
+    import cv2
+
     _HAS_CV2 = True
 except ImportError:
-    cv2 = None
+    cv2 = None  # type: ignore[assignment]
     _HAS_CV2 = False
 
 
-def _rgb_to_hsv_numpy(rgb: np.ndarray) -> np.ndarray:
+def _rgb_to_hsv_numpy(rgb: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
     """Convert RGB float image [0, 1] to HSV [H in 0..180, S in 0..255, V in 0..255]."""
     r, g, b = rgb[..., 0], rgb[..., 1], rgb[..., 2]
     max_c = np.maximum(np.maximum(r, g), b)
@@ -60,7 +61,7 @@ def _rgb_to_hsv_numpy(rgb: np.ndarray) -> np.ndarray:
     return np.stack([h, s, v], axis=-1)
 
 
-def _rgb_to_lab_numpy(rgb: np.ndarray) -> np.ndarray:
+def _rgb_to_lab_numpy(rgb: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
     """Convert RGB image [0..255] to approximate LAB representation."""
     # Normalized RGB
     r = rgb[..., 0] / 255.0
@@ -68,7 +69,7 @@ def _rgb_to_lab_numpy(rgb: np.ndarray) -> np.ndarray:
     b = rgb[..., 2] / 255.0
 
     # Linearize RGB (sRGB -> linear)
-    def linearize(c: np.ndarray) -> np.ndarray:
+    def linearize(c: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
         return np.where(c > 0.04045, ((c + 0.055) / 1.055) ** 2.4, c / 12.92)
 
     r_lin = linearize(r)
@@ -85,7 +86,7 @@ def _rgb_to_lab_numpy(rgb: np.ndarray) -> np.ndarray:
     y_n = y / 1.00000
     z_n = z / 1.08883
 
-    def f(t: np.ndarray) -> np.ndarray:
+    def f(t: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
         delta = 6.0 / 29.0
         return np.where(t > delta**3, t ** (1.0 / 3.0), (t / (3.0 * delta**2)) + (4.0 / 29.0))
 
@@ -101,7 +102,7 @@ def _rgb_to_lab_numpy(rgb: np.ndarray) -> np.ndarray:
     return np.stack([l_val, a_val, b_val], axis=-1)
 
 
-def _count_connected_components(binary_mask: np.ndarray, min_pixel_size: int = 10) -> int:
+def _count_connected_components(binary_mask: np.ndarray[Any, Any], min_pixel_size: int = 10) -> int:
     """Count distinct connected lesion blobs, discarding small noise clusters."""
     if not np.any(binary_mask):
         return 0
@@ -151,14 +152,16 @@ def _count_connected_components(binary_mask: np.ndarray, min_pixel_size: int = 1
     return count
 
 
-def _compute_edge_gradients(gray_img: np.ndarray) -> np.ndarray:
+def _compute_edge_gradients(gray_img: np.ndarray[Any, Any]) -> np.ndarray[Any, Any]:
     """Compute high-frequency edge gradients to emphasize irregular lesion spot margins."""
     if _HAS_CV2 and cv2 is not None:
         sobelx = cv2.Sobel(gray_img, cv2.CV_64F, 1, 0, ksize=3)
         sobely = cv2.Sobel(gray_img, cv2.CV_64F, 0, 1, ksize=3)
         grad_mag = np.sqrt(sobelx**2 + sobely**2)
         norm_grad = np.clip((grad_mag / (grad_mag.max() + 1e-6)) * 255.0, 0, 255).astype(np.uint8)
-        return norm_grad
+        from typing import cast
+
+        return cast("np.ndarray[Any, Any]", norm_grad)
 
     # PIL-based edge enhancement fallback
     pil_gray = Image.fromarray(gray_img)
@@ -228,7 +231,7 @@ def generate_leaf_saliency(image_bytes: bytes) -> dict[str, Any]:
         # Healthy/diseased leaf hue in OpenCV range [10..95], plus reasonable saturation/luminance
         is_plant_hue = (hue >= 10) & (hue <= 95)
         has_color = (sat >= 25) & (val >= 25) & (val <= 248)
-        not_pure_gray = (np.ptp(img_rgb, axis=-1) >= 15)
+        not_pure_gray = np.ptp(img_rgb, axis=-1) >= 15
         leaf_mask = (is_plant_hue | (has_color & not_pure_gray)) & (val >= 20) & (val <= 250)
 
         total_leaf_pixels = int(np.count_nonzero(leaf_mask))
@@ -250,19 +253,27 @@ def generate_leaf_saliency(image_bytes: bytes) -> dict[str, Any]:
         # Necrotic brown/black lesions (dark centers, brown/reddish hue or low luminance)
         is_dark_lesion = (val <= 45) & leaf_mask
         is_brown_lesion = (hue <= 22) & (sat >= 30) & (val <= 140) & (r_ch >= g_ch - 10) & leaf_mask
-        necrotic_mask = (is_dark_lesion | is_brown_lesion | (high_grad_mask & (val <= 100))) & leaf_mask & ~is_healthy_green
+        necrotic_mask = (
+            (is_dark_lesion | is_brown_lesion | (high_grad_mask & (val <= 100)))
+            & leaf_mask
+            & ~is_healthy_green
+        )
 
         # Chlorosis yellowing margins (yellow-amber hue [18..35], moderate/high brightness)
         is_yellow_hue = (hue >= 18) & (hue <= 35) & (sat >= 45) & (val >= 70) & (r_ch > b_ch + 30)
         is_lab_yellow = (lab_b >= 165) & (lab_l >= 110)
-        chlorosis_mask = (is_yellow_hue | is_lab_yellow) & leaf_mask & ~necrotic_mask & ~is_healthy_green
+        chlorosis_mask = (
+            (is_yellow_hue | is_lab_yellow) & leaf_mask & ~necrotic_mask & ~is_healthy_green
+        )
 
         # Combined infected foliar mask
         infected_mask = (necrotic_mask | chlorosis_mask) & leaf_mask
 
         # 5. Calculate Metrics
         infected_pixels = int(np.count_nonzero(infected_mask))
-        infected_percentage = round((float(infected_pixels) / float(max(total_leaf_pixels, 1))) * 100.0, 1)
+        infected_percentage = round(
+            (float(infected_pixels) / float(max(total_leaf_pixels, 1))) * 100.0, 1
+        )
         infected_percentage = min(max(infected_percentage, 0.0), 100.0)
 
         lesion_count = _count_connected_components(necrotic_mask, min_pixel_size=8)

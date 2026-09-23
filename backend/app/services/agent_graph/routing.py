@@ -27,7 +27,9 @@ def route_after_planner(state: AgentState) -> str:
         state.plan.get("action") if isinstance(state.plan, dict) else None
     )
     if action in ("conversational", "summarize", "retrieve", "research", "diagnose"):
-        return "diagnose" if action == "diagnose" else ("retrieve" if action == "research" else action)
+        return (
+            "diagnose" if action == "diagnose" else ("retrieve" if action == "research" else action)
+        )
     return "retrieve"
 
 

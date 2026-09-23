@@ -254,7 +254,9 @@ def _diagnose_with_gemini_fallback(
         low_confidence = confidence < settings.vision_confidence_threshold
         logger.info(
             "vision_gemini_diagnosis_succeeded",
-            extra={"extra_fields": {"class": raw_class, "confidence": confidence, "engine": engine_tag}},
+            extra={
+                "extra_fields": {"class": raw_class, "confidence": confidence, "engine": engine_tag}
+            },
         )
         return VisionPrediction(
             raw_class=raw_class,

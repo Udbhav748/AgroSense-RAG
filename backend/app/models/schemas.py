@@ -121,9 +121,7 @@ class DiagnosisInfo(BaseModel):
     infected_area_percentage: float | None = Field(
         None, description="Estimated percentage of leaf surface infected (0.0% to 100.0%)."
     )
-    lesion_count: int | None = Field(
-        None, description="Estimated count of distinct lesion spots."
-    )
+    lesion_count: int | None = Field(None, description="Estimated count of distinct lesion spots.")
 
 
 class CurrentWeather(BaseModel):
@@ -134,7 +132,9 @@ class CurrentWeather(BaseModel):
 
 
 class WeatherRiskResponse(BaseModel):
-    location: dict[str, Any] = Field(..., description="Geographic coordinates and timezone metadata.")
+    location: dict[str, Any] = Field(
+        ..., description="Geographic coordinates and timezone metadata."
+    )
     current: CurrentWeather = Field(..., description="Current atmospheric weather readings.")
     risk_level: Literal["Low", "Moderate", "High", "Critical"] = Field(
         ..., description="Categorical microclimate disease infection risk level."
@@ -143,7 +143,8 @@ class WeatherRiskResponse(BaseModel):
         ..., ge=0.0, le=1.0, description="Normalized pathogen infection risk score (0.0 to 1.0)."
     )
     favorable_conditions_summary: str = Field(
-        ..., description="Detailed explanation of environmental conditions driving pathogen pressure."
+        ...,
+        description="Detailed explanation of environmental conditions driving pathogen pressure.",
     )
     spray_advisory: str = Field(
         ..., description="Actionable agronomical spray window and wind drift guidance."

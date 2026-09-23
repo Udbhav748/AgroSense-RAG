@@ -64,7 +64,9 @@ def _load_key(key_b64: str | None) -> bytes:
     except Exception as exc:  # noqa: BLE001
         raise EncryptionKeyMissingError(f"{_KEY_ENV_VAR} is not valid base64.") from exc
     if len(key) != 32:
-        raise EncryptionKeyMissingError(f"{_KEY_ENV_VAR} must decode to exactly 32 bytes (AES-256), got {len(key)}.")
+        raise EncryptionKeyMissingError(
+            f"{_KEY_ENV_VAR} must decode to exactly 32 bytes (AES-256), got {len(key)}."
+        )
     return key
 
 
@@ -84,11 +86,15 @@ class EncryptedPayload:
     @classmethod
     def from_bytes(cls, blob: bytes) -> EncryptedPayload:
         if len(blob) < _NONCE_SIZE:
-            raise EncryptionIntegrityError("Ciphertext blob is shorter than the nonce size -- not a valid payload.")
+            raise EncryptionIntegrityError(
+                "Ciphertext blob is shorter than the nonce size -- not a valid payload."
+            )
         return cls(nonce=blob[:_NONCE_SIZE], ciphertext=blob[_NONCE_SIZE:])
 
 
-def encrypt_bytes(plaintext: bytes, *, key_b64: str | None = None, associated_data: bytes | None = None) -> bytes:
+def encrypt_bytes(
+    plaintext: bytes, *, key_b64: str | None = None, associated_data: bytes | None = None
+) -> bytes:
     """Encrypt `plaintext`, returning a single blob (nonce + ciphertext)
     ready to write to disk. `associated_data` is authenticated but not
     encrypted -- e.g. a document_id, so a ciphertext can't be silently
@@ -100,7 +106,9 @@ def encrypt_bytes(plaintext: bytes, *, key_b64: str | None = None, associated_da
     return EncryptedPayload(nonce=nonce, ciphertext=ciphertext).to_bytes()
 
 
-def decrypt_bytes(blob: bytes, *, key_b64: str | None = None, associated_data: bytes | None = None) -> bytes:
+def decrypt_bytes(
+    blob: bytes, *, key_b64: str | None = None, associated_data: bytes | None = None
+) -> bytes:
     """Decrypt a blob produced by `encrypt_bytes`. Raises
     EncryptionIntegrityError (never returns garbage) if the key is wrong
     or the ciphertext was tampered with -- AES-GCM's authentication tag
@@ -152,5 +160,7 @@ def decrypt_text_field(stored: str, *, associated_data: str, key_b64: str | None
     if not stored.startswith(TEXT_FIELD_ENC_PREFIX):
         return stored
     ciphertext = base64.b64decode(stored[len(TEXT_FIELD_ENC_PREFIX) :])
-    plaintext = decrypt_bytes(ciphertext, key_b64=key_b64, associated_data=associated_data.encode("utf-8"))
+    plaintext = decrypt_bytes(
+        ciphertext, key_b64=key_b64, associated_data=associated_data.encode("utf-8")
+    )
     return plaintext.decode("utf-8")

@@ -22,7 +22,7 @@ import logging
 import time
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -75,7 +75,7 @@ class MockNotificationSink:
         self.delivered.append(event)
 
 
-def make_webhook_sink(post_fn: Callable[[str, dict], None], url: str) -> NotificationSink:
+def make_webhook_sink(post_fn: Callable[[str, dict[str, Any]], None], url: str) -> NotificationSink:
     """Real webhook adapter: `post_fn` is typically `httpx.post`'s
     signature-compatible callable, injected so this module never imports
     httpx directly or hardcodes a URL/secret -- callers supply both,
@@ -115,7 +115,7 @@ class AlertEngine:
         self._rules: dict[str, list[AlertRule]] = {}
         self._active: dict[str, float] = {}  # rule_name -> time first alerted
         self._last_alert_at: dict[str, float] = {}
-        self.audit_log: list[dict] = []
+        self.audit_log: list[dict[str, Any]] = []
 
     def register(self, rule: AlertRule) -> None:
         self._rules.setdefault(rule.metric, []).append(rule)
@@ -150,9 +150,23 @@ class AlertEngine:
         return emitted
 
     def _emit(self, rule: AlertRule, value: float, kind: str, now: float) -> AlertEvent:
-        event = AlertEvent(rule_name=rule.name, metric=rule.metric, value=value, threshold=rule.threshold, kind=kind, timestamp=now)
+        event = AlertEvent(
+            rule_name=rule.name,
+            metric=rule.metric,
+            value=value,
+            threshold=rule.threshold,
+            kind=kind,
+            timestamp=now,
+        )
         self.audit_log.append(
-            {"rule": rule.name, "metric": rule.metric, "value": value, "threshold": rule.threshold, "kind": kind, "timestamp": now}
+            {
+                "rule": rule.name,
+                "metric": rule.metric,
+                "value": value,
+                "threshold": rule.threshold,
+                "kind": kind,
+                "timestamp": now,
+            }
         )
         try:
             self._sink.send(event)
@@ -161,7 +175,13 @@ class AlertEngine:
             # and must never be silently swallowed without a trace either.
             logger.warning(
                 "alert_delivery_failed",
-                extra={"extra_fields": {"rule": rule.name, "metric": rule.metric, "error_type": type(exc).__name__}},
+                extra={
+                    "extra_fields": {
+                        "rule": rule.name,
+                        "metric": rule.metric,
+                        "error_type": type(exc).__name__,
+                    }
+                },
             )
         return event
 
@@ -170,10 +190,34 @@ class AlertEngine:
 # project (docs/RAG_BENCHMARK_REPORT.md's 3s latency target,
 # .github/workflows/health-monitor.yml's own 3s threshold) -- not invented fresh here.
 DEFAULT_RULES = [
-    AlertRule(name="high_error_rate", metric="error_rate", threshold=0.05, comparator=Comparator.GREATER_THAN, debounce_seconds=60.0),
-    AlertRule(name="high_p95_latency", metric="p95_latency_seconds", threshold=3.0, comparator=Comparator.GREATER_THAN, debounce_seconds=60.0),
-    AlertRule(name="health_check_down", metric="health_check_success", threshold=0.5, comparator=Comparator.LESS_THAN, debounce_seconds=30.0),
-    AlertRule(name="cost_threshold_exceeded", metric="estimated_cost_usd_per_request", threshold=0.01, comparator=Comparator.GREATER_THAN, debounce_seconds=300.0),
+    AlertRule(
+        name="high_error_rate",
+        metric="error_rate",
+        threshold=0.05,
+        comparator=Comparator.GREATER_THAN,
+        debounce_seconds=60.0,
+    ),
+    AlertRule(
+        name="high_p95_latency",
+        metric="p95_latency_seconds",
+        threshold=3.0,
+        comparator=Comparator.GREATER_THAN,
+        debounce_seconds=60.0,
+    ),
+    AlertRule(
+        name="health_check_down",
+        metric="health_check_success",
+        threshold=0.5,
+        comparator=Comparator.LESS_THAN,
+        debounce_seconds=30.0,
+    ),
+    AlertRule(
+        name="cost_threshold_exceeded",
+        metric="estimated_cost_usd_per_request",
+        threshold=0.01,
+        comparator=Comparator.GREATER_THAN,
+        debounce_seconds=300.0,
+    ),
 ]
 
 

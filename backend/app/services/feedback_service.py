@@ -40,7 +40,9 @@ logger = logging.getLogger(__name__)
 def _decrypt_comment(stored: str | None, *, message_id: str) -> str | None:
     if stored is None:
         return None
-    return decrypt_text_field(stored, associated_data=message_id, key_b64=settings.encryption_key_b64)
+    return decrypt_text_field(
+        stored, associated_data=message_id, key_b64=settings.encryption_key_b64
+    )
 
 
 def list_feedback(limit: int = 50, reviewer_id: str | None = None) -> list[dict[str, Any]]:
@@ -69,7 +71,9 @@ def list_feedback(limit: int = 50, reviewer_id: str | None = None) -> list[dict[
                 continue
             if isinstance(event, dict):
                 if event.get("comment") is not None and event.get("message_id"):
-                    event["comment"] = _decrypt_comment(event["comment"], message_id=event["message_id"])
+                    event["comment"] = _decrypt_comment(
+                        event["comment"], message_id=event["message_id"]
+                    )
                 events.append(event)
     if reviewer_id is not None:
         events = [e for e in events if e.get("reviewer_id") == reviewer_id]

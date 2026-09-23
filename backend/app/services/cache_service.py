@@ -171,12 +171,14 @@ class SemanticQueryCache:
 
         if self._embedding_service is not None:
             try:
+                from typing import cast
+
                 if callable(self._embedding_service):
-                    return self._embedding_service(text)
+                    return cast("list[float] | None", self._embedding_service(text))
                 if hasattr(self._embedding_service, "embed_query"):
-                    return self._embedding_service.embed_query(text)
+                    return cast("list[float] | None", self._embedding_service.embed_query(text))
                 if hasattr(self._embedding_service, "get_embedding"):
-                    return self._embedding_service.get_embedding(text)
+                    return cast("list[float] | None", self._embedding_service.get_embedding(text))
             except Exception as exc:
                 logger.debug("Failed to embed query via custom embedding service: %s", exc)
                 return None
@@ -242,7 +244,9 @@ class SemanticQueryCache:
                     self._cache.move_to_end(lookup_key, last=True)
                     self._hits += 1
                     response = copy.deepcopy(entry.response)
-                    if isinstance(response, dict) and ("answer" in response or "metadata" in response or "diagnosis" in response):
+                    if isinstance(response, dict) and (
+                        "answer" in response or "metadata" in response or "diagnosis" in response
+                    ):
                         if "metadata" not in response or not isinstance(response["metadata"], dict):
                             response["metadata"] = {}
                         response["metadata"]["cached"] = True
@@ -598,7 +602,9 @@ class AdaptiveCacheService:
             **kwargs,
         )
 
-    def delete(self, key_or_query: str, crop: str | None = None, disease: str | None = None) -> bool:
+    def delete(
+        self, key_or_query: str, crop: str | None = None, disease: str | None = None
+    ) -> bool:
         """Delete key from both Redis and in-memory cache."""
         deleted = False
         if self.is_redis_active:

@@ -162,7 +162,9 @@ class DocumentProcessingService:
         # entire ~240-line method under a single try/finally.
         stored_path = UPLOAD_DIR / stored_filename
         plaintext_bytes = decrypt_upload_bytes(stored_path.read_bytes(), document_id=document_id)
-        with tempfile.NamedTemporaryFile(suffix=stored_path.suffix or ".pdf", delete=False) as tmp_handle:
+        with tempfile.NamedTemporaryFile(
+            suffix=stored_path.suffix or ".pdf", delete=False
+        ) as tmp_handle:
             tmp_handle.write(plaintext_bytes)
         file_path = Path(tmp_handle.name)
 
@@ -350,7 +352,9 @@ class DocumentProcessingService:
                     extra={"extra_fields": {"document_id": document_id, "error": str(exc)}},
                 )
 
-        file_path.unlink(missing_ok=True)  # delete the plaintext tempfile now that processing is done
+        file_path.unlink(
+            missing_ok=True
+        )  # delete the plaintext tempfile now that processing is done
 
         processing_duration = time.perf_counter() - start
         _notify("completed", 100.0, "Document ingestion complete")
