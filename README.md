@@ -52,6 +52,22 @@ A ~2:20 walkthrough recorded straight from the running app (signup → PDF uploa
 <td align="center"><sub>Chat session history</sub></td>
 <td align="center"><sub>Interactive architecture / vector graph explorer</sub></td>
 </tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/diagnose-calculator.png" alt="Field spray dosage & tank mix calculator"></td>
+<td width="50%"><img src="docs/screenshots/prescription-work-order.png" alt="Official agronomic prescription & spray work order"></td>
+</tr>
+<tr>
+<td align="center"><sub>Field spray dosage &amp; tank-mix calculator</sub></td>
+<td align="center"><sub>Auto-generated spray prescription work order</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/command-palette.png" alt="Command palette (Cmd/Ctrl+K)"></td>
+<td width="50%"><img src="docs/screenshots/signup.png" alt="Signup"></td>
+</tr>
+<tr>
+<td align="center"><sub>Global command palette (Cmd/Ctrl+K)</sub></td>
+<td align="center"><sub>Signup / account creation</sub></td>
+</tr>
 </table>
 
 ## Table of contents

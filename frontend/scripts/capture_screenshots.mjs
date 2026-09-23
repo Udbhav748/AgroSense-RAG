@@ -73,6 +73,17 @@ async function main() {
   await sleep(1500);
   await page.screenshot({ path: path.join(OUT_DIR, 'chat.png') });
 
+  // ---- Command palette (Cmd/Ctrl+K) ----
+  await page.keyboard.press('Control+k');
+  const paletteInput = page.getByPlaceholder(/type a command|search/i).first();
+  const paletteAppeared = await paletteInput.waitFor({ state: 'visible', timeout: 5000 }).then(() => true).catch(() => false);
+  if (paletteAppeared) {
+    await sleep(500);
+    await page.screenshot({ path: path.join(OUT_DIR, 'command-palette.png') });
+    await page.keyboard.press('Escape');
+    await sleep(300);
+  }
+
   // ---- Diagnose ----
   await page.goto(`${BASE_URL}/diagnose`, { waitUntil: 'domcontentloaded' });
   await sleep(1000);
@@ -105,8 +116,28 @@ async function main() {
         const calcAppeared = await fieldSizeInput.waitFor({ state: 'visible', timeout: 5000 }).then(() => true).catch(() => false);
         if (calcAppeared) {
           await fieldSizeInput.scrollIntoViewIfNeeded();
+          await fieldSizeInput.fill('2.5');
           await sleep(800);
           await page.screenshot({ path: path.join(OUT_DIR, 'diagnose-calculator.png') });
+        }
+
+        // Prescription work order modal.
+        const downloadRxBtn = page.locator('[data-testid="download-prescription-button"]');
+        const rxAppeared = await downloadRxBtn.waitFor({ state: 'visible', timeout: 5000 }).then(() => true).catch(() => false);
+        if (rxAppeared) {
+          await downloadRxBtn.scrollIntoViewIfNeeded();
+          await downloadRxBtn.click();
+          const modalAppeared = await page
+            .getByRole('dialog')
+            .waitFor({ state: 'visible', timeout: 8000 })
+            .then(() => true)
+            .catch(() => false);
+          if (modalAppeared) {
+            await sleep(800);
+            await page.screenshot({ path: path.join(OUT_DIR, 'prescription-work-order.png') });
+            await page.keyboard.press('Escape');
+            await sleep(300);
+          }
         }
       }
     }
