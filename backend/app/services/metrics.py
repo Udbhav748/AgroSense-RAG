@@ -311,32 +311,32 @@ class RAGMetricsService:
 
             # Custom counters
             for (name, label_key), val in sorted(self._custom_counters.items()):
-                labels = dict(label_key)
+                label_dict = dict(label_key)
                 lines.append(f"# HELP {name} Counter incremented by observed events.")
                 lines.append(f"# TYPE {name} counter")
-                lines.append(f"{name}{_format_labels(labels)} {val:.0f}")
+                lines.append(f"{name}{_format_labels(label_dict)} {val:.0f}")
 
             # Custom gauges
             for (name, label_key), val in sorted(self._custom_gauges.items()):
-                labels = dict(label_key)
+                label_dict = dict(label_key)
                 lines.append(f"# HELP {name} Gauge set to the last observed value.")
                 lines.append(f"# TYPE {name} gauge")
-                lines.append(f"{name}{_format_labels(labels)} {val:.4f}")
+                lines.append(f"{name}{_format_labels(label_dict)} {val:.4f}")
 
             # Custom histograms
             for (name, label_key), hist in sorted(self._custom_histograms.items()):
-                labels = dict(label_key)
+                label_dict = dict(label_key)
                 lines.append(f"# HELP {name} Observation durations in seconds.")
                 lines.append(f"# TYPE {name} histogram")
                 for i, bound in enumerate(HISTOGRAM_BUCKETS_SECONDS):
-                    bucket_labels = dict(labels)
+                    bucket_labels = dict(label_dict)
                     bucket_labels["le"] = f"{bound:g}"
                     lines.append(f"{name}_bucket{_format_labels(bucket_labels)} {hist.cumulative[i]:.0f}")
-                inf_labels = dict(labels)
+                inf_labels = dict(label_dict)
                 inf_labels["le"] = "+Inf"
                 lines.append(f"{name}_bucket{_format_labels(inf_labels)} {hist.count:.0f}")
-                lines.append(f"{name}_sum{_format_labels(labels)} {hist.sum:.4f}")
-                lines.append(f"{name}_count{_format_labels(labels)} {hist.count:.0f}")
+                lines.append(f"{name}_sum{_format_labels(label_dict)} {hist.sum:.4f}")
+                lines.append(f"{name}_count{_format_labels(label_dict)} {hist.count:.0f}")
 
             return "\n".join(lines) + "\n"
 

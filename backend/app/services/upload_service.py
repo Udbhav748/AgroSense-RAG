@@ -73,10 +73,9 @@ def decrypted_upload_tempfile(document_id: str, stored_path: Path) -> Iterator[P
     """
     plaintext = decrypt_upload_bytes(stored_path.read_bytes(), document_id=document_id)
     suffix = stored_path.suffix or ".pdf"
-    tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
-    try:
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         tmp.write(plaintext)
-        tmp.close()
+    try:
         yield Path(tmp.name)
     finally:
         Path(tmp.name).unlink(missing_ok=True)

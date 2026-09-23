@@ -2,7 +2,17 @@
 
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Request, Response, UploadFile, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    Form,
+    Request,
+    Response,
+    UploadFile,
+    status,
+)
 from fastapi.responses import FileResponse
 
 from app.api.v1.routes.query import get_image_vector_store, get_llm_client, get_vector_store

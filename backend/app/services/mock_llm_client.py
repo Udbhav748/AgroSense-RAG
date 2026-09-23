@@ -15,9 +15,12 @@ shapes without depending on live generation quality.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from typing import TYPE_CHECKING
 
 from app.services.llm_client import LLMClient
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 _ANSWER_TEXT = (
     "This is a deterministic mock answer citing the retrieved context [1]. "
@@ -40,4 +43,4 @@ class MockLLMClient(LLMClient):
         yield _ANSWER_TEXT
 
     def generate_structured(self, prompt: str) -> str:
-        return '{"answer": "%s", "sources": []}' % _ANSWER_TEXT
+        return f'{{"answer": "{_ANSWER_TEXT}", "sources": []}}'
