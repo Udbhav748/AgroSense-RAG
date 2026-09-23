@@ -310,26 +310,28 @@ Module 10 results, as reported in `docs/MODULE10_FINAL_SUBMISSION.md`/`docs/MODU
 | Area | Result | Label |
 |---|---|---|
 | RAG retrieval (hybrid + rerank) | P@5 0.6435, Recall@5 0.8080, Hit@5 0.9130, MRR 0.8783 | measured |
-| Faithfulness (20-case golden set, post root-cause fix) | 0.7093 (up from a pre-fix 0.6485; historical unverified baseline 0.9420) | measured, one case (`eval-potato-02`) still unresolved |
+| Faithfulness (20-case golden set, post root-cause fixes) | 0.7809 (0.6485 → 0.7093 → 0.7809 across two real bug fixes; historical unverified baseline 0.9420) | measured, `eval-potato-01`/`eval-apple-01` remain weak under a disclosed retrieval-ranking limitation |
 | Agent planner | Accuracy 0.9333, Macro F1 0.9475, Planning Success 1.0, Loop Rate 0.0 | measured |
 | Security (PII recall / unauthorized access / injection / jailbreak / false refusal / data leak) | 1.0 / 0.0 / 0.0 / 0.0 / 0.0 / 0.0 | measured |
 | Structured output (production path) | enabled by default on `POST /chat`; 17-case parser dataset, Field Accuracy 1.0, Parser Correctness 1.0 | measured |
 | Encryption at rest (full scope) | Chat content/titles, feedback comments, uploaded PDFs, FAISS metadata — all AES-256-GCM, 78 tests passing incl. real PyMuPDF/BM25 round trips | measured |
-| Provider A/B (groq `openai/gpt-oss-120b` vs. gemini `gemini-3.5-flash`) | Faithfulness 0.6824 vs. 0.5158, no provider declared superior | measured, single run, no significance claimed |
+| Provider A/B (groq `openai/gpt-oss-120b` vs. gemini `gemini-3.5-flash`) | Faithfulness 0.7641 vs. 0.21, paired Wilcoxon p=0.0009 (significant); gemini's 0.7 provider-failure rate this run drives most of the gap — not a stable model-quality claim | measured, single run, no provider declared superior for production |
 | Observability | real 35-request sample: error rate 0.1429, P50/P95/P99 0.1/0.2/163.3ms; bounded-local availability 1.0 (15/15 probes) | measured, local only |
 | Load/concurrency (real HTTP boundary) | `/health` 63.75–94.61 RPS, 0 errors; `/chat` 11.66→1.99 RPS across concurrency 1→20, full timeout saturation at concurrency=20, clean recovery | measured, local only |
 | Human evaluation | 24 cases, 7 rubric dimensions, **1 real reviewer**; two-reviewer/IAA infrastructure built and tested | IAA not yet measured — pending an independent second reviewer, disclosed, not fabricated |
 | Parallel execution (diagnose workflow: vision + weather) | real concurrent `asyncio` branches, serial mean 0.6598s vs parallel mean 0.3544s, 46.3% measured reduction | measured, one workflow only (non-streaming diagnose); streaming diagnose and the main chat corrective loop remain sequential |
-| Full test suite | 1001 passed, 1 skipped, 0 failed (1002 collected) | measured |
+| Full test suite | 1080 passed, 1 skipped, 0 failed (1081 collected) | measured |
 
 Every figure above is cited to a specific `backend/eval/module10/reports/*.json` artifact and reproduction command in `docs/MODULE10_RESULTS.md` and `docs/MODULE10_FINAL_SUBMISSION.md` — nothing here is a marketing estimate. None of these numbers should be read as production-scale, cloud-validated, or clinical-grade claims; see [Current limitations](#current-limitations) and `docs/MODULE10_FINAL_SUBMISSION.md`'s Limitations section for the full, explicit list.
 
 ## Hard cases & failure recovery
 
-Two genuine bugs were found and fixed during self-audit, documented in-repo rather than hidden:
+Several genuine bugs were found and fixed during self-audit, documented in-repo rather than hidden:
 
 - **Mislabeled LLM-provider-failure regression** (`docs/PHASE3_PRODUCTION_HARDENING_REPORT.md`): the corrective-generation loop was silently relabeling LLM provider failures (timeouts, rate limits) as confident "not in the documents" answers — indistinguishable from a genuine grounded refusal. Root-caused and fixed with a distinct error sentinel; re-verified live on the two cases that first exposed it.
 - **A self-bypassable authorization gate**, found and fixed during the same audit cycle (referenced in `docs/MODULE10_FINAL_AUDIT.md`).
+- **Cross-configuration response-cache leak in the Provider A/B eval harness**: `ChatService`'s process-wide response cache isn't keyed by provider, so configuration B's run was silently served configuration A's cached answers instead of ever calling Gemini — caught because it produced suspiciously-identical scores and near-zero cost/latency. Fixed by clearing the cache between configurations (`tests/test_provider_ab_eval.py::TestResponseCacheIsolation`).
+- **A real bug in the eval script itself, not the RAG pipeline** (`docs/MODULE10_FINAL_AUDIT.md`): `scripts/run_rag_eval.py` called `retrieve()` with a nonexistent `rerank_candidates` keyword argument, silently caught by a broad `except Exception` logged only at `DEBUG`, degrading every retrieval this script ever made to a raw fallback (no hybrid BM25, no collection filter, no reranking) — for the script's entire history. Fixed with a one-line change; raised mean Faithfulness 0.7093 → 0.7809 (`tests/test_run_rag_eval_retrieval_signature.py`).
 
 Hand-run demo scenarios exist at `docs/demo/DEMO.md` — one successful, one failing, and one recovery path per capability.
 
@@ -340,16 +342,17 @@ Graceful-degradation behaviors verified in code:
 
 ## Performance
 
-No dedicated load-testing artifact was found in this repo (no `k6`/`locust`/latency-under-load report located in `docs/` or `backend/eval/`). What is measured:
+A real local load/concurrency measurement exists (see the Evaluation & benchmarks table above): `/health` sustained 63.75–94.61 RPS with 0 errors, and `/chat` ranged 11.66→1.99 RPS across concurrency 1→20, saturating on timeout at concurrency=20 with clean recovery — `backend/eval/module10/` artifacts, local-only, not cloud-validated. Beyond that:
 
 - `processing_time` is returned per `/chat` response (see API reference below) — a real, request-level wall-clock figure, not a benchmark aggregate.
 - `backend/eval/metrics_report.py` computes latency percentiles (p50/p95/p99) from live JSON logs when run against real traffic — a tool, not a pre-computed number this README can restate without running it.
+- The Observability row above (P50/P95/P99 0.1/0.2/163.3ms) is a separate, smaller real-traffic sample used for alerting/dashboard verification, not the load-test above.
 
-No performance numbers are stated here as repo-verified facts beyond these two mechanisms; treat any specific latency figure elsewhere in older docs as unverified for this pass.
+No performance numbers beyond what's cited above and in the Evaluation table are stated here as repo-verified facts; treat any other specific latency figure elsewhere in older docs as unverified for this pass.
 
 ## Cost
 
-`COST_PER_1K_TOKENS` (Gemini, `$0.00025` default) and `GROQ_COST_PER_1K_TOKENS` (`$0.0006` default) in `backend/.env.example` are used only to log a **rough per-generation cost estimate**, not billed/metered usage — stated explicitly in the config comments. `backend/eval/metrics_report.py` aggregates these into a total token/cost figure from real logs, but only when run against real traffic; no aggregate dollar figure from a completed run was found checked into the repo, so none is restated here.
+`COST_PER_1K_TOKENS` (Gemini, `$0.00025` default) and `GROQ_COST_PER_1K_TOKENS` (`$0.0006` default) in `backend/.env.example` are used only to log a **rough per-generation cost estimate**, not billed/metered usage — stated explicitly in the config comments. `backend/eval/metrics_report.py` aggregates these into a total token/cost figure from real logs when run against real traffic. One real aggregate exists from the Provider A/B eval (20 queries each): groq $0.031431 total / $0.001572 per successful task; gemini $0.008733 total / $0.000582 per successful task (`docs/MODULE10_RESULTS.md`) — a one-off measurement at this pricing config, not a production cost projection.
 
 ## Tech stack
 
