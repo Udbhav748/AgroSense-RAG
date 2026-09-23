@@ -1,14 +1,14 @@
-# InsightAI-RAG — Module 10 Final Submission
+# AgroSense-RAG — Module 10 Final Submission
 
 **This document does not claim 100% completion.** Every item across this project is marked ✅ (implementation + reproducible test + real measurement), ⚠️ (partial/limited/local-only measurement), ❌ (missing), or N/A (genuinely not applicable, with rationale) — matching the underlying evidence exactly, never upgraded because code merely exists. See `docs/MODULE10_PDF_TRACEABILITY_MATRIX.md` for the row-by-row mapping against the literal Module 10 PDF checklist.
 
-**Branch**: `module10-final-pdf-compliance` (pushed to `origin`, **not merged to `main`**) · **Commit at last edit**: verify with `git rev-parse HEAD` · **Full regression**: 1080 passed, 1 skipped, 0 failed (1081 collected) · **Date**: 2026-09-19 through 2026-09-23, across 9 sequential evaluation/hardening passes (P0–P8) plus same-day P9 follow-ups implementing real parallel execution (13 + 6 new tests), a first encryption-at-rest expansion (12 new tests), code-enforced secrets (14 new tests), a real faithfulness root-cause fix (3 new tests), a real paired significance test for Provider A/B (5 new tests), expanded tool-argument-accuracy ground truth (6 new tests), an honestly-reported NLI groundedness upgrade attempt (7 new tests), and full encryption-at-rest scope expansion (45 new tests)
+**Branch**: work was developed on `module10-final-pdf-compliance`, which has since been merged into `main` (see `git log --oneline --merges` for the merge commit) — `main` is now the accurate, current state of this evaluation · **Commit at last edit**: verify with `git rev-parse HEAD` · **Full regression**: 1080 passed, 1 skipped, 0 failed (1081 collected) · **Date**: 2026-09-19 through 2026-09-23, across 9 sequential evaluation/hardening passes (P0–P8) plus same-day P9 follow-ups implementing real parallel execution (13 + 6 new tests), a first encryption-at-rest expansion (12 new tests), code-enforced secrets (14 new tests), a real faithfulness root-cause fix (3 new tests), a real paired significance test for Provider A/B (5 new tests), expanded tool-argument-accuracy ground truth (6 new tests), an honestly-reported NLI groundedness upgrade attempt (7 new tests), and full encryption-at-rest scope expansion (45 new tests)
 
 ---
 
 ## 1. Project Overview
 
-**InsightAI-RAG** is a document-grounded Retrieval-Augmented Generation assistant with an explicit agent workflow and a multimodal plant-pathology diagnosis mode. Upload a PDF; it's chunked, embedded, and indexed into a FAISS vector store. Ask questions through a chat interface; every answer is grounded in retrieved passages with structured, citable sources. A second mode accepts a plant-leaf photo, runs it through an external LeafSense vision service, and feeds the resulting diagnosis back through the same RAG loop for treatment guidance drawn from indexed agricultural-pathology documents.
+**AgroSense-RAG** is a document-grounded Retrieval-Augmented Generation assistant with an explicit agent workflow and a multimodal plant-pathology diagnosis mode. Upload a PDF; it's chunked, embedded, and indexed into a FAISS vector store. Ask questions through a chat interface; every answer is grounded in retrieved passages with structured, citable sources. A second mode accepts a plant-leaf photo, runs it through an external LeafSense vision service, and feeds the resulting diagnosis back through the same RAG loop for treatment guidance drawn from indexed agricultural-pathology documents.
 
 **Why RAG**: uploaded documents (PMP course material, agricultural-pathology guides) have no fixed schema — answering questions against them requires retrieving relevant passages and having an LLM synthesize across them, not a database lookup.
 
@@ -54,7 +54,7 @@ Client → API → validate_request → planner
 
 ## 3. Repository / Demo
 
-**Repository**: `Udbhav748/InsightAI-RAG-Project-` on GitHub, branch `module10-final-pdf-compliance` (this branch is the evaluated one; it is not merged into `main`).
+**Repository**: `Udbhav748/AgroSense-RAG` on GitHub (renamed from `InsightAI-RAG-Project-`), `main` branch — the `module10-final-pdf-compliance` work described in this document has been merged into `main`.
 **Demo**: a real, screen-recorded local walkthrough exists at `docs/assets/demo.mp4` (signup → upload → grounded chat with citations → multimodal diagnosis → session history) — embedded in the root `README.md`. **No live/hosted demo URL exists**; none is claimed here.
 
 ## 4. Module 10 Audit Method

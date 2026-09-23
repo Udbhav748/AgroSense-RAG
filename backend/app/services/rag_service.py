@@ -120,7 +120,7 @@ def _capture_prompt(prompt: str, *, variant: str) -> None:
 _CONVERSATIONAL_INTENTS = [
     (
         {"hi", "hey", "yo", "hiya"},
-        "Hi! I'm InsightAI. How can I help you with your uploaded documents today?",
+        "Hi! I'm AgroSense-RAG. How can I help you with your uploaded documents today?",
     ),
     (
         {"hello", "good morning", "good afternoon", "good evening"},
@@ -136,7 +136,7 @@ _CONVERSATIONAL_INTENTS = [
     ),
     (
         {"who are you", "what are you"},
-        "I'm InsightAI, an AI-powered document assistant. I can analyze your uploaded "
+        "I'm AgroSense-RAG, an AI-powered document assistant. I can analyze your uploaded "
         "documents, answer questions, summarize content, and help you quickly find "
         "information.",
     ),

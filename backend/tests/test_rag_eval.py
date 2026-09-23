@@ -327,7 +327,7 @@ def test_ascii_scorecard_formatting():
     )
 
     table_str = format_ascii_scorecard(sample_report)
-    assert "INSIGHTAI-RAG QUANTITATIVE BENCHMARK SCORECARD" in table_str
+    assert "AGROSENSE-RAG QUANTITATIVE BENCHMARK SCORECARD" in table_str
     assert "Hybrid RRF + Cross-Encoder" in table_str
     assert "eval-tomato-01" in table_str
     assert "eval-apple-01" in table_str

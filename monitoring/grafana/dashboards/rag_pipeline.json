@@ -1,7 +1,7 @@
 {
-  "uid": "insightai-rag-pipeline",
-  "title": "InsightAI RAG Pipeline",
-  "tags": ["insightai", "rag"],
+  "uid": "agrosense-rag-pipeline",
+  "title": "AgroSense RAG Pipeline",
+  "tags": ["agrosense", "rag"],
   "timezone": "browser",
   "schemaVersion": 39,
   "version": 1,

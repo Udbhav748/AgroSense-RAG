@@ -535,7 +535,7 @@ connected GitHub repo:
    the dashboard; CORS will reject requests from the real frontend until
    this matches exactly).
 4. Deploy. Render builds `backend/Dockerfile` and serves on the URL it
-   assigns (`https://insightai-rag-backend.onrender.com`-shaped).
+   assigns (`https://agrosense-rag-backend.onrender.com`-shaped).
 
 ### Deploying the frontend
 
@@ -644,7 +644,7 @@ credentials over the network.
 Never open 5432 (Postgres) or 8001 (LeafSense) in either mode —
 `docker-compose.prod.yml` already stops publishing both (`!reset []`),
 keeping them reachable only from other containers on the Compose
-network. LeafSense is only ever called by InsightAI-RAG's own backend
+network. LeafSense is only ever called by AgroSense-RAG's own backend
 (`http://leafsense:8001`, wired via `docker-compose.yml`'s
 `VISION_SERVICE_URL` override — no manual `.env` edit needed for the
 Compose path), never directly by a client, so it has no reason to be
@@ -669,12 +669,12 @@ To use it:
 1. Create the parameters (once, from your local machine or the instance,
    wherever you have AWS credentials configured):
    ```
-   aws ssm put-parameter --name /insightai/prod/gemini_api_key --type SecureString --value "<your key>"
-   aws ssm put-parameter --name /insightai/prod/api_key --type SecureString --value "<your key>"
-   aws ssm put-parameter --name /insightai/prod/jwt_secret_key --type SecureString --value "<a long random value>"
+   aws ssm put-parameter --name /agrosense/prod/gemini_api_key --type SecureString --value "<your key>"
+   aws ssm put-parameter --name /agrosense/prod/api_key --type SecureString --value "<your key>"
+   aws ssm put-parameter --name /agrosense/prod/jwt_secret_key --type SecureString --value "<a long random value>"
    # optional: groq_api_key, database_url, following the same pattern
    ```
-2. On the instance, set `SECRETS_SSM_PREFIX=/insightai/prod` in
+2. On the instance, set `SECRETS_SSM_PREFIX=/agrosense/prod` in
    `backend/.env` (this one value is fine to keep in plaintext — it's a
    path, not a credential) instead of the real secret values.
 3. Give the instance's IAM role (or its EC2 instance profile)
@@ -712,7 +712,7 @@ version; swap in the SSM steps above wherever they diverge.
    above): `sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile &&
    sudo mkswap /swapfile && sudo swapon /swapfile`, then append
    `/swapfile none swap sw 0 0` to `/etc/fstab` so it survives a reboot.
-3. `git clone <repo-url> insightai-rag && cd insightai-rag`.
+3. `git clone <repo-url> agrosense-rag && cd agrosense-rag`.
 4. `cp backend/.env.example backend/.env` and set the required values —
    **recommended**: just `SECRETS_SSM_PREFIX` (see "Secrets" above, and
    create the actual parameters before this step); **fallback**: the real
@@ -775,7 +775,7 @@ plainly — in exchange for no cold starts and real persistent storage.
 
 ## LeafSense Vision Service Deployment & Operations
 
-InsightAI-RAG integrates with **LeafSense** (a dedicated deep learning service
+AgroSense-RAG integrates with **LeafSense** (a dedicated deep learning service
 serving a Hybrid CBAM + ViT + EfficientNetB0 plant pathology model across 38
 disease classes).
 
@@ -783,10 +783,10 @@ disease classes).
 
 - **Microservice Separation**: LeafSense runs in its own dedicated Python virtual
   environment (`LeafSense/backend/.venv`) on **port 8001** to prevent TensorFlow /
-  PyTorch / CUDA dependency and port collisions with InsightAI-RAG (port 8000).
-- **Communication Protocol**: InsightAI-RAG communicates with LeafSense over
+  PyTorch / CUDA dependency and port collisions with AgroSense-RAG (port 8000).
+- **Communication Protocol**: AgroSense-RAG communicates with LeafSense over
   HTTP via `app/services/vision_client.py`.
-- **Health & Diagnostic Probes**: `GET /health/vision` on InsightAI-RAG actively
+- **Health & Diagnostic Probes**: `GET /health/vision` on AgroSense-RAG actively
   monitors LeafSense availability with a 5-second TTL cache, surfacing real-time
   service status to the `/diagnose` frontend UI.
 
@@ -817,7 +817,7 @@ Or start LeafSense independently:
 
 ### Production Deployment & Systemd Service
 
-When deploying LeafSense on a production VM / EC2 instance alongside InsightAI-RAG:
+When deploying LeafSense on a production VM / EC2 instance alongside AgroSense-RAG:
 
 1. **Systemd Service (`/etc/systemd/system/leafsense.service`)**:
    ```ini
@@ -842,7 +842,7 @@ When deploying LeafSense on a production VM / EC2 instance alongside InsightAI-R
    sudo systemctl enable --now leafsense
    ```
 
-2. **Configure InsightAI-RAG Environment**:
+2. **Configure AgroSense-RAG Environment**:
    In `backend/.env`:
    ```ini
    VISION_SERVICE_URL=http://127.0.0.1:8001
@@ -856,7 +856,7 @@ When deploying LeafSense on a production VM / EC2 instance alongside InsightAI-R
    # 1. Check LeafSense directly
    curl http://127.0.0.1:8001/model-info
 
-   # 2. Check Vision connectivity through InsightAI-RAG
+   # 2. Check Vision connectivity through AgroSense-RAG
    curl http://127.0.0.1:8000/health/vision
    ```
 

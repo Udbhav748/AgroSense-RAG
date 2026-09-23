@@ -123,7 +123,7 @@ Environmental Advisory:           Wind speed < 8 mph (12 km/h); apply during
 --------------------------------------------------------------------------------
 Certified Agronomist:    Dr. J. Henderson, Ph.D., CCA
 License / Reg Number:    CCA-${verificationCode}
-Digital Stamp Seal:      DIGITALLY VERIFIED - INSIGHTAI BOTANICAL ARBITER
+Digital Stamp Seal:      DIGITALLY VERIFIED - AGROSENSE BOTANICAL ARBITER
 Date of Verification:    ${today}
 Agronomist Signature:    Dr. J. Henderson, Ph.D., CCA __________________________
 
@@ -497,7 +497,7 @@ Always read and strictly follow manufacturer product labels prior to mixing.
                     <span className="text-[7px] tracking-widest text-emerald-700 dark:text-emerald-400 print:text-black">★ OFFICIAL SEAL ★</span>
                     <span className="font-extrabold text-[9px] leading-tight text-emerald-900 dark:text-emerald-200 print:text-black">CERTIFIED AGRONOMIST</span>
                     <span className="font-mono text-[7px] text-emerald-800 dark:text-emerald-300 print:text-black">#AGRI-88294-EXT</span>
-                    <span className="text-[6px] tracking-tight text-emerald-600 dark:text-emerald-400 print:text-black">INSIGHTAI ARBITER</span>
+                    <span className="text-[6px] tracking-tight text-emerald-600 dark:text-emerald-400 print:text-black">AGROSENSE ARBITER</span>
                   </div>
 
                   <div className="text-right">

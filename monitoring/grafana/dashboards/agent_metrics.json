@@ -1,7 +1,7 @@
 {
-  "uid": "insightai-agent-metrics",
-  "title": "InsightAI Agent Metrics",
-  "tags": ["insightai", "agents"],
+  "uid": "agrosense-agent-metrics",
+  "title": "AgroSense Agent Metrics",
+  "tags": ["agrosense", "agents"],
   "timezone": "browser",
   "schemaVersion": 39,
   "version": 1,

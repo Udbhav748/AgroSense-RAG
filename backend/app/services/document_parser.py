@@ -1,4 +1,4 @@
-"""Layout-Aware Ingestion & Tabular Parsing Service for InsightAI-RAG.
+"""Layout-Aware Ingestion & Tabular Parsing Service for AgroSense-RAG.
 
 Specialized parser for agricultural documents, treatment dosage matrices,
 and complex multi-column structured tables (CSV and Markdown tables).

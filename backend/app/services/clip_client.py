@@ -1,7 +1,7 @@
 """HTTP client for the CLIP embedding microservice (clip_service/).
 
 The CLIP service keeps its own transformers/torch stack in its own
-process; InsightAI never imports torch or CLIP code — this module makes
+process; AgroSense-RAG never imports torch or CLIP code — this module makes
 plain HTTP calls, the same isolation vision_client.py uses for LeafSense.
 
 Contract (docs/MULTIUSER_MULTIMODAL_PLAN.md Phase 4):

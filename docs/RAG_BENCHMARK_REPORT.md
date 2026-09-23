@@ -1,4 +1,4 @@
-# InsightAI-RAG Quantitative Benchmark & Evaluation Report
+# AgroSense-RAG Quantitative Benchmark & Evaluation Report
 
 **Document Version**: 2.6.0 (post-fix full re-run — Phase 7)
 **Evaluation Date**: 2026-09-19 — three dated sections below, in order: POST-FIX FULL RE-RUN (current, authoritative), REFRESH (pre-fix, superseded), original August 2026 section (historical, unverified).
@@ -50,7 +50,7 @@ This is the mandatory full-dataset re-measurement of Faithfulness after the Phas
 
 ```
 ========================================================================================
-                     INSIGHTAI-RAG QUANTITATIVE BENCHMARK SCORECARD
+                     AGROSENSE-RAG QUANTITATIVE BENCHMARK SCORECARD
                   Hybrid RRF Retrieval & Answer Generation Evaluation
 ========================================================================================
  Timestamp:        2026-09-19T11:32:38Z
@@ -93,13 +93,13 @@ This is the mandatory full-dataset re-measurement of Faithfulness after the Phas
 
 ## Executive Summary
 
-This report presents the rigorous quantitative benchmarking and evaluation results for **InsightAI-RAG**, measuring the performance of its 2-Stage Hybrid Retrieval (Dense FAISS + Sparse BM25 fused via Reciprocal Rank Fusion $k=60$) and Cross-Encoder Neural Reranking pipeline against a golden standard dataset of 20 agricultural plant pathology benchmarks.
+This report presents the rigorous quantitative benchmarking and evaluation results for **AgroSense-RAG**, measuring the performance of its 2-Stage Hybrid Retrieval (Dense FAISS + Sparse BM25 fused via Reciprocal Rank Fusion $k=60$) and Cross-Encoder Neural Reranking pipeline against a golden standard dataset of 20 agricultural plant pathology benchmarks.
 
-All evaluation metrics comfortably exceed the stringent production quality gate targets, confirming that InsightAI-RAG delivers hallucination-resistant, clinically accurate agronomic treatment guidance.
+All evaluation metrics comfortably exceed the stringent production quality gate targets, confirming that AgroSense-RAG delivers hallucination-resistant, clinically accurate agronomic treatment guidance.
 
 ```
 ========================================================================================
-                     INSIGHTAI-RAG QUANTITATIVE BENCHMARK SCORECARD
+                     AGROSENSE-RAG QUANTITATIVE BENCHMARK SCORECARD
                   Hybrid RRF Retrieval & Answer Generation Evaluation
 ========================================================================================
  Timestamp:        2026-08-15T00:00:00Z
@@ -196,7 +196,7 @@ Ablation Architecture Comparison:
   [Config A] Dense Semantic Only (FAISS FlatIP)
   [Config B] Sparse Lexical Only (BM25Okapi)
   [Config C] Hybrid RRF (k=60, No Reranker)
-  [Config D] Hybrid RRF (k=60) + Cross-Encoder Neural Reranker (InsightAI Production)
+  [Config D] Hybrid RRF (k=60) + Cross-Encoder Neural Reranker (AgroSense-RAG Production)
 ```
 
 ### 3.1 Comparative Metric Breakdown
@@ -254,7 +254,7 @@ Evaluated under concurrent multi-tenant loads on standard production infrastruct
 
 ## 5. Automated CI/CD Regression Quality Gates
 
-InsightAI-RAG incorporates the quantitative evaluation suite directly into its CI/CD pipeline:
+AgroSense-RAG incorporates the quantitative evaluation suite directly into its CI/CD pipeline:
 
 1. **Fast CI Gate (Retrieval Only - 1.2s runtime)**:
    ```bash
@@ -273,4 +273,4 @@ InsightAI-RAG incorporates the quantitative evaluation suite directly into its C
 
 ## 6. Conclusion & Deployment Readiness
 
-The quantitative evaluation demonstrates that InsightAI-RAG achieves high accuracy, contextual recall, and hallucination resistance. The combination of **Reciprocal Rank Fusion ($k=60$)**, **Cross-Encoder Neural Reranking**, and **Multi-Agent StateGraph verification** establishes a reliable AI intelligence architecture for modern agriculture and agronomic plant pathology.
+The quantitative evaluation demonstrates that AgroSense-RAG achieves high accuracy, contextual recall, and hallucination resistance. The combination of **Reciprocal Rank Fusion ($k=60$)**, **Cross-Encoder Neural Reranking**, and **Multi-Agent StateGraph verification** establishes a reliable AI intelligence architecture for modern agriculture and agronomic plant pathology.

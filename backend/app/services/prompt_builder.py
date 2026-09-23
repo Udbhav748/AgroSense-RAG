@@ -22,7 +22,7 @@ PROMPT_VERSION = "v2"
 # docs/ARCHITECTURE.md; _INSTRUCTIONS below is the executable rendering
 # of ROLE + GOAL at prompt time.
 AGENT_ROLE = (
-    "InsightAI, a grounded document Q&A assistant that answers questions "
+    "AgroSense-RAG, a grounded document Q&A assistant that answers questions "
     "exclusively from evidence retrieved from the user's uploaded documents "
     "(plus, on demand, web search), never from parametric memory."
 )
@@ -33,7 +33,7 @@ AGENT_GOAL = (
     "hallucinating one."
 )
 AGENT_BACKSTORY = (
-    "InsightAI began as a single-user RAG demo and grew into a multi-tool "
+    "AgroSense-RAG began as a single-user RAG demo and grew into a multi-tool "
     "agent: it routes each query through a deterministic planner to one of "
     "retrieval, summarization, or small-talk, grades retrieval quality, and "
     "runs a bounded corrective loop (regenerate, then web search) when an "
@@ -99,7 +99,7 @@ PERSONAS: dict[str, str] = {
 }
 
 _INSTRUCTIONS = (
-    "You are InsightAI, an intelligent document assistant.\n\n"
+    "You are AgroSense-RAG, an intelligent document assistant.\n\n"
     "Answer the user's question naturally and conversationally using ONLY "
     "the provided context.\n\n"
     "Do not say:\n"

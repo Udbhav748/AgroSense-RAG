@@ -1,6 +1,6 @@
-# InsightAI-RAG REST & SSE API Reference
+# AgroSense-RAG REST & SSE API Reference
 
-Welcome to the definitive API reference documentation for **InsightAI-RAG**. This reference details all available HTTP REST endpoints and Server-Sent Events (SSE) streaming protocols for agricultural Q&A, plant pathology leaf photo diagnosis, microclimate risk assessment, asynchronous document ingestion, and telemetry.
+Welcome to the definitive API reference documentation for **AgroSense-RAG**. This reference details all available HTTP REST endpoints and Server-Sent Events (SSE) streaming protocols for agricultural Q&A, plant pathology leaf photo diagnosis, microclimate risk assessment, asynchronous document ingestion, and telemetry.
 
 ---
 
@@ -41,7 +41,7 @@ Welcome to the definitive API reference documentation for **InsightAI-RAG**. Thi
 - **Routing Note**: Routes are accessible via direct root paths (e.g. `/chat`, `/health`) as well as versioned API prefixes (`/api/v1/chat/query`, `/api/v1/health`, etc.).
 
 ### 1.2 Authentication Schemes
-InsightAI-RAG supports two interchangeable authentication methods handled by [`app.core.auth.require_auth`](file:///backend/app/core/auth.py):
+AgroSense-RAG supports two interchangeable authentication methods handled by [`app.core.auth.require_auth`](file:///backend/app/core/auth.py):
 
 1. **JWT Bearer Token (Web SPA)**:
    ```http
@@ -49,7 +49,7 @@ InsightAI-RAG supports two interchangeable authentication methods handled by [`a
    ```
 2. **Static API Key (Server / CLI / Automated Pipelines)**:
    ```http
-   X-API-Key: <insightai_api_key>
+   X-API-Key: <your_api_key>
    ```
 
 ### 1.3 Request Tracing & Correlation Headers
@@ -526,7 +526,7 @@ curl -X POST "http://localhost:8000/api/v1/chat/diagnose" \
 
 #### Consuming the SSE Chat Stream
 ```javascript
-async function streamInsightAIChat(query, onChunk, onDone) {
+async function streamAgroSenseChat(query, onChunk, onDone) {
   const response = await fetch('http://localhost:8000/api/v1/chat/stream', {
     method: 'POST',
     headers: {

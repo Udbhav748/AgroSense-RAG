@@ -404,7 +404,7 @@ def _fetch_page_text(url: str, max_chars: int | None = None) -> str:
                 url,
                 timeout=settings.research_page_timeout_seconds,
                 follow_redirects=False,
-                headers={"User-Agent": "InsightAI-RAG-research-agent/0.1"},
+                headers={"User-Agent": "AgroSense-RAG-research-agent/0.1"},
             )
         except Exception as exc:
             logger.info(

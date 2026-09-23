@@ -1,9 +1,9 @@
-# InsightAI-RAG: features adopted from kotaemon and onyx
+# AgroSense-RAG: features adopted from kotaemon and onyx
 
 ## Context
 
 Two external repos were reviewed for ideas worth pulling into
-InsightAI-RAG:
+AgroSense-RAG:
 
 | Repo | What it is | License | Scale |
 |---|---|---|---|

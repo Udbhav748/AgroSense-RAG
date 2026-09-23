@@ -1,7 +1,7 @@
 @echo off
-title InsightAI-RAG & LeafSense Launcher
+title AgroSense-RAG & LeafSense Launcher
 echo ============================================================
-echo   Starting InsightAI-RAG & LeafSense Plant Disease System
+echo   Starting AgroSense-RAG & LeafSense Plant Disease System
 echo ============================================================
 echo.
 

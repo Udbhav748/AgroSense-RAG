@@ -1,4 +1,4 @@
-# Alertmanager config for InsightAI-RAG (Feature #4).
+# Alertmanager config for AgroSense-RAG (Feature #4).
 # Routes every fire to the default receiver. To send real notifications,
 # uncomment the webhook receiver pointing at a Slack/Discord-style
 # incoming webhook (the backend's own alert_webhook.py sends the same

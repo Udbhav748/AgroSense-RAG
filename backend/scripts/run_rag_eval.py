@@ -1,4 +1,4 @@
-"""Quantitative RAG Evaluation & Benchmarking Script for InsightAI-RAG.
+"""Quantitative RAG Evaluation & Benchmarking Script for AgroSense-RAG.
 
 Evaluates and benchmarks the hybrid RRF + Cross-Encoder retrieval and answer
 generation pipeline against a golden dataset of 20 plant pathology Q&A pairs
@@ -1048,7 +1048,7 @@ def format_ascii_scorecard(report: BenchmarkReport) -> str:
     w = 88
 
     lines.append("=" * w)
-    lines.append(f"{'INSIGHTAI-RAG QUANTITATIVE BENCHMARK SCORECARD':^{w}}")
+    lines.append(f"{'AGROSENSE-RAG QUANTITATIVE BENCHMARK SCORECARD':^{w}}")
     lines.append(f"{'Hybrid RRF Retrieval & Answer Generation Evaluation':^{w}}")
     lines.append("=" * w)
 
@@ -1114,7 +1114,7 @@ def format_ascii_scorecard(report: BenchmarkReport) -> str:
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run quantitative evaluation benchmark for InsightAI-RAG.",
+        description="Run quantitative evaluation benchmark for AgroSense-RAG.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(

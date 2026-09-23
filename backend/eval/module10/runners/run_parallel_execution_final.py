@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Module 10 gap-closure: reproducible evidence that InsightAI-RAG's
+"""Module 10 gap-closure: reproducible evidence that AgroSense-RAG's
 real parallel-execution feature actually executes independent work
 concurrently, not just a function named "parallel".
 

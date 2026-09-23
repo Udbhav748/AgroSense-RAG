@@ -1,5 +1,5 @@
 <#
-Dev restart helper for the InsightAI-RAG backend (PowerShell / WSL users).
+Dev restart helper for the AgroSense-RAG backend (PowerShell / WSL users).
 
 Fixes the two "restart" failure modes hit repeatedly in dev:
 

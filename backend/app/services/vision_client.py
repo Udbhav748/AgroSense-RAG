@@ -2,7 +2,7 @@
 classifies plant leaf photos into one of 38 disease/healthy classes.
 
 LeafSense keeps its own TensorFlow/Keras stack in its own process;
-InsightAI never imports TensorFlow or any LeafSense code — this module
+AgroSense-RAG never imports TensorFlow or any LeafSense code — this module
 only makes an HTTP call, the same isolation web_search_service.py uses
 for duckduckgo_search or gemini_client.py uses for the google-genai SDK.
 

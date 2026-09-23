@@ -1,4 +1,4 @@
-# Prometheus scrape config for InsightAI-RAG (Feature #4).
+# Prometheus scrape config for AgroSense-RAG (Feature #4).
 # The backend exposes a dependency-free Prometheus text-format registry at
 # GET /metrics (app/core/metrics.py + app/api/v1/routes/metrics.py) — this
 # job is the "real scraper" that story was designed for.

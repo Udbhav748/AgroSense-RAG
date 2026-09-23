@@ -1,4 +1,4 @@
-// Records a real, working walkthrough of InsightAI-RAG using Playwright.
+// Records a real, working walkthrough of AgroSense-RAG using Playwright.
 // Drives the actual running app (frontend on :5173, backend on :8000) with
 // a fresh signed-up account and produces a .webm video via Playwright's
 // built-in video recorder. No editing/compositing — just real screen capture

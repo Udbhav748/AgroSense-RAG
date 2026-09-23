@@ -357,7 +357,7 @@ def main() -> None:
     if problems:
         send_alert(
             args.alert_webhook_url,
-            f"InsightAI-RAG log_aggregate alert ({agg['requests']} requests scanned):\n"
+            f"AgroSense-RAG log_aggregate alert ({agg['requests']} requests scanned):\n"
             + "\n".join(f"- {p}" for p in problems),
         )
 

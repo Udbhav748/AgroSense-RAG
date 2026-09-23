@@ -1,7 +1,7 @@
 {
-  "uid": "insightai-overview",
-  "title": "InsightAI Overview",
-  "tags": ["insightai"],
+  "uid": "agrosense-overview",
+  "title": "AgroSense Overview",
+  "tags": ["agrosense"],
   "timezone": "browser",
   "schemaVersion": 39,
   "version": 1,

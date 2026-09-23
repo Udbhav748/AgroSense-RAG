@@ -7,7 +7,7 @@ Services:
 - Frontend:         Vite React app on http://localhost:5173
 - LeafSense Vision: FastAPI on http://localhost:8001 (plant leaf disease diagnosis)
 
-Usage (from the InsightAI-RAG repo root):
+Usage (from the AgroSense-RAG repo root):
     .\start-local.ps1
     or double-click start.bat
 #>
@@ -34,7 +34,7 @@ foreach ($cand in $leafSenseCandidates) {
 }
 
 Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host "  InsightAI-RAG & LeafSense Unified Local Launcher" -ForegroundColor Cyan
+Write-Host "  AgroSense-RAG & LeafSense Unified Local Launcher" -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 
 # 1. Launch LeafSense Vision Service (FastAPI on http://localhost:8001)

@@ -1,4 +1,4 @@
-"""Semantic Query Cache & Low-Latency Engine for InsightAI-RAG.
+"""Semantic Query Cache & Low-Latency Engine for AgroSense-RAG.
 
 Provides thread-safe in-memory LRU caching with:
 1. Exact normalized query matching (lowercased, stripped punctuation, crop/disease tuple keying).

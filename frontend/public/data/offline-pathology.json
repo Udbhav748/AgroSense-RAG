@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "name": "InsightAI Agronomic Pathology Offline Knowledge Base",
+  "name": "AgroSense Agronomic Pathology Offline Knowledge Base",
   "description": "Pre-cached diagnostic and treatment guidance for disconnected farm field operations.",
   "lastUpdated": "2026-08-15",
   "diseases": {

@@ -1,4 +1,4 @@
-# Module 10 Audit — InsightAI-RAG
+# Module 10 Audit — AgroSense-RAG
 
 > Status legend: ✅ Verified (implementation + reproducible test + actual
 > measured output + saved evidence artifact, all four present) · ⚠️
@@ -30,7 +30,7 @@ topology this audit evaluates.
 
 ## 4. Repository
 
-<https://github.com/Udbhav748/InsightAI-RAG-Project->
+<https://github.com/Udbhav748/AgroSense-RAG>
 
 ## 5. Live/Demo
 

@@ -1,4 +1,4 @@
-"""CLIP embedding microservice for InsightAI-RAG.
+"""CLIP embedding microservice for AgroSense-RAG.
 
 A separate FastAPI process that owns a CLIP model and serves L2-normalized
 text/image embeddings over HTTP — the LeafSense-shaped pattern from
@@ -19,7 +19,7 @@ embedding of a query directly comparable to CLIP image embeddings in the
 image FAISS index.
 
 Optional auth: set CLIP_API_KEY to require an X-API-Key header (mirroring
-InsightAI's own inbound auth convention). Model is loaded lazily on first
+AgroSense-RAG's own inbound auth convention). Model is loaded lazily on first
 request so importing this app never triggers the torch/transformers import
 cost on a process that won't use it.
 """
@@ -34,7 +34,7 @@ from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="InsightAI CLIP Embedding Service")
+app = FastAPI(title="AgroSense-RAG CLIP Embedding Service")
 
 _MODEL_NAME = os.environ.get("CLIP_MODEL_NAME", "openai/clip-vit-base-patch32")
 _API_KEY = os.environ.get("CLIP_API_KEY", "")

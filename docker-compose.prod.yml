@@ -10,7 +10,7 @@
 #   interface. The base file publishes 5432/8001 so a backend running
 #   natively on a dev machine (outside Compose) can reach them; on a
 #   server, nothing outside this Compose network ever needs to — LeafSense
-#   is only ever called by InsightAI-RAG's own backend, never directly by
+#   is only ever called by AgroSense-RAG's own backend, never directly by
 #   a client. `!reset []` is the Compose Specification's explicit "clear
 #   this list" merge tag — ports (like most list-valued keys) concatenate
 #   across -f files by default, so just writing `ports: []` here would

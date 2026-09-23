@@ -135,7 +135,7 @@ export default function Chat() {
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `insightai-conversation-${Date.now()}.md`
+    link.download = `agrosense-conversation-${Date.now()}.md`
     document.body.appendChild(link)
     link.click()
     link.remove()

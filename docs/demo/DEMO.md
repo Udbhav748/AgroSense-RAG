@@ -8,7 +8,7 @@ automated eval (`backend/eval/run_eval.py`) measure, by hand.
 Preconditions: backend running (`uvicorn app.main:app --reload` from
 `backend/`), a document indexed (upload via `POST /upload` or the
 frontend), and `API_KEY` set. The deployed backend
-(`https://insightai-rag-backend.onrender.com`) works the same, minus the
+(`https://agrosense-rag-backend.onrender.com`) works the same, minus the
 local filesystem persistence. `X-API-Key: <your key>` on every request.
 
 ## 1. Successful path — grounded answer with citations

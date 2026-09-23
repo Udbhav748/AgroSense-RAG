@@ -82,8 +82,8 @@ promtool check metrics <(curl -s http://localhost:8000/metrics)   # validate
 python monitoring/uptime_check.py
 
 # Live deployed endpoints
-BACKEND_URL=https://insightai-rag-backend.onrender.com \
-FRONTEND_URL=https://insight-ai-rag-project.vercel.app \
+BACKEND_URL=https://agrosense-rag-backend.onrender.com \
+FRONTEND_URL=https://agrosense-rag.vercel.app \
 python monitoring/uptime_check.py --json
 
 # Log aggregation over a captured uvicorn log (see eval/metrics_report.py

@@ -158,7 +158,7 @@ class TestHandleDiagnoseVisionServiceFailure:
 
 class TestHandleDiagnoseOutOfCorpusCrop:
     def test_crop_not_in_corpus_falls_back_without_hallucinating(self, monkeypatch):
-        # A real LeafSense class (grape isn't in InsightAI's 5-crop corpus)
+        # A real LeafSense class (grape isn't in AgroSense-RAG's 5-crop corpus)
         # — retrieval finds nothing relevant, generation (correctly) can't
         # ground an answer and produces the fixed fallback line rather than
         # inventing grape disease advice from unrelated chunks.

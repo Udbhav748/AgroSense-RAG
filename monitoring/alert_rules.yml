@@ -1,4 +1,4 @@
-# Alert rules for InsightAI-RAG (Feature #4).
+# Alert rules for AgroSense-RAG (Feature #4).
 # All thresholds reference the in-process registry the backend emits at
 # GET /metrics. Names follow the codebase taxonomy: retrieval grades, the
 # corrective loop cap, tool success, LLM cost. Every rule carries a

@@ -1,4 +1,4 @@
-# InsightAI-RAG: multi-user auth, chat history, and multi-modal RAG — split across two builders
+# AgroSense-RAG: multi-user auth, chat history, and multi-modal RAG — split across two builders
 
 ## Context
 
@@ -169,7 +169,7 @@ the existing "New Chat" flow.
 
 ## About this project
 
-InsightAI-RAG is a full-stack RAG app: upload a PDF, it gets chunked,
+AgroSense-RAG is a full-stack RAG app: upload a PDF, it gets chunked,
 embedded (Sentence Transformers `all-MiniLM-L6-v2`), and indexed into a
 FAISS `IndexFlatIP` vector store; users chat with it and every answer is
 grounded in retrieved passages with cited sources. Backend: FastAPI

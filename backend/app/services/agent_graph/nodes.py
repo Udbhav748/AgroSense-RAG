@@ -1,4 +1,4 @@
-"""Graph node functions wrapping InsightAI's core multi-agent capabilities.
+"""Graph node functions wrapping AgroSense-RAG's core multi-agent capabilities.
 
 Nodes:
 - planner_node: routes query intent (document_analysis, summarization, research, conversational).

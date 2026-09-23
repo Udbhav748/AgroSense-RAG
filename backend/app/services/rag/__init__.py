@@ -1,4 +1,4 @@
-"""Modular RAG package for InsightAI.
+"""Modular RAG package for AgroSense-RAG.
 
 Provides:
 - router: extract_crop_context — crop-name extraction shared with

@@ -1,5 +1,5 @@
 /**
- * InsightAI Agronomic RAG & LeafSense - Service Worker
+ * AgroSense-RAG Agronomic RAG & LeafSense - Service Worker
  * Progressive Web App (PWA) Offline & Field Resilience Engine
  *
  * Capabilities:

@@ -1,5 +1,5 @@
 """Module 10 gap-closure: real parallel execution, wired into an actual
-InsightAI-RAG workflow -- ChatService.handle_diagnose runs vision
+AgroSense-RAG workflow -- ChatService.handle_diagnose runs vision
 classification (LeafSense/Gemini) and the weather/microclimate lookup
 (Open-Meteo) CONCURRENTLY when latitude/longitude are supplied, instead
 of the old sequential "await weather fully, then start vision" order.

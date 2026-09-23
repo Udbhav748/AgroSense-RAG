@@ -148,7 +148,7 @@ def _print_dashboard(records: list[dict], agg: dict, window_min: float) -> None:
 
     window_label = f" (last {window_min:.0f}m)" if window_min > 0 else ""
     print("=" * 64)
-    print("InsightAI-RAG - text dashboard")
+    print("AgroSense-RAG - text dashboard")
     print("=" * 64)
     print(f"records scanned : {agg['records_scanned']}{window_label}")
     print(f"window         : {first_ts}  ->  {last_ts}")

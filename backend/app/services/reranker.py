@@ -1,4 +1,4 @@
-"""Cross-Encoder Reranker & Scoring Service for InsightAI-RAG.
+"""Cross-Encoder Reranker & Scoring Service for AgroSense-RAG.
 
 Provides precision re-ranking of retrieval candidate pools using:
 1. Neural Cross-Encoder models (e.g. sentence-transformers/bge-reranker-small

@@ -9,7 +9,7 @@ Render free tier doesn't include.
 Usage:
     python monitoring/uptime_check.py                    # once, defaults
     python monitoring/uptime_check.py --loop 300 --json  # every 300s, JSON lines
-    python monitoring/uptime_check.py --backend https://insightai-rag-backend.onrender.com
+    python monitoring/uptime_check.py --backend https://agrosense-rag-backend.onrender.com
 
 Exit code is 0 if all targets are healthy, 1 if any check failed (so a
 scheduled job can alert on a non-zero exit).
@@ -127,7 +127,7 @@ def _alert_text(report: dict) -> str:
         for name, t in report["targets"].items()
         if not t["healthy"]
     ]
-    return f"InsightAI-RAG uptime alert: {', '.join(down)} unreachable at {report['checked_at']}."
+    return f"AgroSense-RAG uptime alert: {', '.join(down)} unreachable at {report['checked_at']}."
 
 
 def main() -> None:

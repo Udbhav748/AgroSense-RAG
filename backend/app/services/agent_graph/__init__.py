@@ -1,4 +1,4 @@
-"""Graph-Based Agent State Engine / StateGraph Runtime for InsightAI-RAG.
+"""Graph-Based Agent State Engine / StateGraph Runtime for AgroSense-RAG.
 
 Public API exporting:
 - StateGraph, CompiledGraph
@@ -57,7 +57,7 @@ def create_rag_agent_graph(
     max_steps: int = 10,
     max_reflections: int = 2,
 ) -> CompiledGraph:
-    """Build and compile the standard InsightAI RAG multi-agent graph.
+    """Build and compile the standard AgroSense-RAG multi-agent graph.
 
     Topology:
     1. START -> planner

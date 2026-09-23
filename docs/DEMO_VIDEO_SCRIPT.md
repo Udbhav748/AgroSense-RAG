@@ -1,6 +1,6 @@
-# InsightAI-RAG — 3-Minute Demo Video Script
+# AgroSense-RAG — 3-Minute Demo Video Script
 
-This is a shot-by-shot recording script for a self-recorded (screen-capture) walkthrough of InsightAI-RAG, intended for embedding in the README as `docs/assets/demo.mp4`. It is written against the actual implemented routes/pages/endpoints in this repository — no invented features.
+This is a shot-by-shot recording script for a self-recorded (screen-capture) walkthrough of AgroSense-RAG, intended for embedding in the README as `docs/assets/demo.mp4`. It is written against the actual implemented routes/pages/endpoints in this repository — no invented features.
 
 **Tooling suggestion:** OBS Studio / ShareX (Windows) or QuickTime (Mac) for screen capture, 1920x1080, cursor highlighting on. Record each scene as a separate clip, then cut together — much easier to redo a bad take than to re-run the whole thing live.
 
@@ -11,8 +11,8 @@ This is a shot-by-shot recording script for a self-recorded (screen-capture) wal
 ## 0:00–0:15 — Cold open / hook
 
 - Show the **Home** page (`/`) after logging in — clean landing, sidebar visible.
-- **On-screen caption:** "InsightAI-RAG — upload a PDF, get grounded answers with citations."
-- **Voiceover (optional):** "This is InsightAI-RAG — a full-stack RAG app that turns any PDF into a chat interface, with every answer grounded in retrieved passages and cited sources."
+- **On-screen caption:** "AgroSense-RAG — upload a PDF, get grounded answers with citations."
+- **Voiceover (optional):** "This is AgroSense-RAG — a full-stack RAG app that turns any PDF into a chat interface, with every answer grounded in retrieved passages and cited sources."
 
 ## 0:15–0:35 — Auth (JWT login)
 
@@ -63,7 +63,7 @@ This is a shot-by-shot recording script for a self-recorded (screen-capture) wal
 ## 2:50–3:00 — Outro
 
 - Cut back to Home or a clean shot of the sidebar with all nav items visible (Chat, Upload, Diagnose, Documents, History, Settings, Admin).
-- **Caption:** "InsightAI-RAG — RAG + multimodal, grounded and cited."
+- **Caption:** "AgroSense-RAG — RAG + multimodal, grounded and cited."
 - **On-screen:** GitHub repo URL / README link.
 
 ---

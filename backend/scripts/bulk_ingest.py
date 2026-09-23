@@ -1,4 +1,4 @@
-"""High-throughput bulk ingestion script for InsightAI-RAG.
+"""High-throughput bulk ingestion script for AgroSense-RAG.
 
 Scans local document directories (Markdown .md, CSV .csv, PDF .pdf),
 extracts text and tables, auto-detects collection names (e.g. crop subfolder),

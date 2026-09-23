@@ -289,7 +289,7 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:5173"
 
     # Application metadata, surfaced in the FastAPI docs.
-    app_name: str = "InsightAI-RAG"
+    app_name: str = "AgroSense-RAG"
     app_version: str = "0.1.0"
 
     # Enables debug behavior (e.g. verbose errors).

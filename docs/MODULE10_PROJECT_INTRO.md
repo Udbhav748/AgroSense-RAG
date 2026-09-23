@@ -2,7 +2,7 @@
 
 ## Project
 
-InsightAI-RAG
+AgroSense-RAG
 
 ## What it is
 
@@ -64,7 +64,7 @@ Client (React SPA)
 
 ## Repository
 
-<https://github.com/Udbhav748/InsightAI-RAG-Project->
+<https://github.com/Udbhav748/AgroSense-RAG>
 
 ## Live/Demo
 

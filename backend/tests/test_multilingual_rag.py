@@ -1,4 +1,4 @@
-"""Unit tests for Multilingual Agricultural Localization & Prompt Construction in InsightAI-RAG."""
+"""Unit tests for Multilingual Agricultural Localization & Prompt Construction in AgroSense-RAG."""
 
 import unittest
 from unittest.mock import MagicMock

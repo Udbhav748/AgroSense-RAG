@@ -295,7 +295,7 @@ Chat history is server-side per `session_id` (`session_store.py`; `postgres_sess
 
 ## Evaluation & benchmarks
 
-The full backend test suite: **1081 tests collected** via `pytest --collect-only` on the current tree (1080 passed, 1 skipped, 0 failed — `module10-final-pdf-compliance` branch, `cd backend && pytest`). Coverage spans the API end-to-end, RAG orchestration, LLM/Groq/Gemini clients and fallback, hybrid search/reranking, vision/diagnose, document/table/image extraction, agent-graph state machine, real concurrent branch execution, sessions, permissions, tenant isolation, security, full-scope encryption at rest, structured output, provider A/B evaluation, observability/alerting, load/concurrency, and human-evaluation infrastructure (`backend/eval/module10/` — see `docs/MODULE10_FINAL_SUBMISSION.md` for the full evidence-backed breakdown).
+The full backend test suite: **1081 tests collected** via `pytest --collect-only` on the current tree (1080 passed, 1 skipped, 0 failed — `main` branch, `cd backend && pytest`). Coverage spans the API end-to-end, RAG orchestration, LLM/Groq/Gemini clients and fallback, hybrid search/reranking, vision/diagnose, document/table/image extraction, agent-graph state machine, real concurrent branch execution, sessions, permissions, tenant isolation, security, full-scope encryption at rest, structured output, provider A/B evaluation, observability/alerting, load/concurrency, and human-evaluation infrastructure (`backend/eval/module10/` — see `docs/MODULE10_FINAL_SUBMISSION.md` for the full evidence-backed breakdown).
 
 `backend/eval/` — three independent, code-verified tools (see `backend/eval/README.md`):
 

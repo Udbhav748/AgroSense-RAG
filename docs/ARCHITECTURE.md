@@ -1,6 +1,6 @@
 # Architecture
 
-InsightAI-RAG is a document Q&A app: a React SPA, a FastAPI backend running
+AgroSense-RAG is a document Q&A app: a React SPA, a FastAPI backend running
 a small hand-rolled agent, a FAISS vector index, and Google Gemini for
 generation. This document describes what's actually implemented — see
 [`docs/NOT_APPLICABLE.md`](NOT_APPLICABLE.md) for what's deliberately out
@@ -59,10 +59,10 @@ flowchart TD
     end
 ```
 
-## Two-service architecture: InsightAI + LeafSense
+## Two-service architecture: AgroSense-RAG + LeafSense
 
 `POST /chat/diagnose` lets a user upload a plant leaf photo instead of
-typing a question. InsightAI has no vision model of its own — it calls
+typing a question. AgroSense-RAG has no vision model of its own — it calls
 **LeafSense**, a separate FastAPI service (its own repo, its own
 TensorFlow/Keras stack) over plain HTTP, gets back a predicted disease
 class, and feeds that into the *same* retrieval + corrective RAG loop
@@ -72,7 +72,7 @@ the class-label vocabulary in `vision_client.py`'s `CLASS_LABEL_MAP`.
 
 ```mermaid
 flowchart LR
-    subgraph InsightAI["InsightAI-RAG backend (this repo)"]
+    subgraph AgroSenseRAG["AgroSense-RAG backend (this repo)"]
         Route["POST /chat/diagnose<br/>(app/api/v1/routes/query.py)"]
         VisionClient["vision_client.py<br/>diagnose_image()"]
         Diagnose["ChatService.handle_diagnose<br/>(rag_service.py)"]
@@ -112,7 +112,7 @@ sheets and a treatment dosage reference matrix indexed into FAISS (749
 vectors).
 
 Ports & Networking: LeafSense's default standalone port is **8001** to
-prevent collision with InsightAI's port 8000. `Settings.vision_service_url`
+prevent collision with AgroSense-RAG's port 8000. `Settings.vision_service_url`
 defaults to `http://127.0.0.1:8001` (direct IPv4 binding avoiding IPv6
 resolution delays). Real-time progress is streamed via Server-Sent Events
 on `POST /chat/diagnose/stream`.
