@@ -25,6 +25,35 @@ A ~2:20 walkthrough recorded straight from the running app (signup → PDF uploa
 
 *Click the thumbnail to watch (`docs/assets/demo.mp4`) — GitHub's blob viewer plays it inline with full controls. For a version that autoplays directly inside this README, upload `docs/assets/demo.mp4` via a comment/PR attachment box on GitHub.com to get a `user-attachments` URL, then swap it in here.*
 
+### Screenshots
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/chat.png" alt="Grounded chat with citations"></td>
+<td width="50%"><img src="docs/screenshots/upload.png" alt="PDF upload"></td>
+</tr>
+<tr>
+<td align="center"><sub>Grounded chat, streamed answer with citations</sub></td>
+<td align="center"><sub>PDF upload &amp; ingestion pipeline</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/documents.png" alt="Document library"></td>
+<td width="50%"><img src="docs/screenshots/diagnose-result.png" alt="Multimodal leaf diagnosis"></td>
+</tr>
+<tr>
+<td align="center"><sub>Document library</sub></td>
+<td align="center"><sub>Multimodal leaf diagnosis (vision + RAG)</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/history.png" alt="Chat session history"></td>
+<td width="50%"><img src="docs/screenshots/architecture.png" alt="Architecture explorer"></td>
+</tr>
+<tr>
+<td align="center"><sub>Chat session history</sub></td>
+<td align="center"><sub>Interactive architecture / vector graph explorer</sub></td>
+</tr>
+</table>
+
 ## Table of contents
 
 - [What is AgroSense-RAG](#what-is-agrosense-rag)
