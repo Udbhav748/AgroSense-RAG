@@ -373,7 +373,7 @@ const INITIAL_NODES = [
     embeddingSlice: [0.012, -0.008, -0.042, -0.018, -0.012, -0.031],
     summary: 'Vigorous turgid green leaflets without chlorosis, necrotic spotting, or vector damage.',
     remedy: 'Maintain balanced N-P-K (5-10-10) and drip irrigation to prevent moisture splash.',
-    citation: 'InsightAI Golden Calibration Baseline Database',
+    citation: 'AgroSense Golden Calibration Baseline Database',
   },
   {
     id: 'apple_healthy',
@@ -389,7 +389,7 @@ const INITIAL_NODES = [
     embeddingSlice: [0.008, 0.014, -0.038, -0.021, -0.009, -0.028],
     summary: 'Uniform waxy cuticle leaves with intact epidermal cells and normal photosynthesis.',
     remedy: 'Standard orchard dormant oil maintenance and winter canopy pruning.',
-    citation: 'InsightAI Golden Calibration Baseline Database',
+    citation: 'AgroSense Golden Calibration Baseline Database',
   },
   {
     id: 'potato_healthy',
@@ -405,7 +405,7 @@ const INITIAL_NODES = [
     embeddingSlice: [0.015, -0.004, -0.045, -0.015, -0.014, -0.034],
     summary: 'Dense green canopy with optimal leaf area index (LAI) supporting tuber bulking.',
     remedy: 'Proper hill cultivation and monitored furrow irrigation management.',
-    citation: 'InsightAI Golden Calibration Baseline Database',
+    citation: 'AgroSense Golden Calibration Baseline Database',
   },
   {
     id: 'corn_healthy',
@@ -421,7 +421,7 @@ const INITIAL_NODES = [
     embeddingSlice: [0.004, 0.018, -0.035, -0.025, -0.005, -0.024],
     summary: 'Clean linear leaves free from rust pustules or northern blight necrotic streaks.',
     remedy: 'Side-dress nitrogen application at V6 stage based on soil nitrate testing.',
-    citation: 'InsightAI Golden Calibration Baseline Database',
+    citation: 'AgroSense Golden Calibration Baseline Database',
   },
 ]
 

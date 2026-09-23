@@ -295,7 +295,7 @@ export default function Settings() {
       <Card padding="lg" className="flex items-start gap-3">
         <Info size={18} className="mt-0.5 shrink-0 text-slate-400 dark:text-ink-muted" />
         <div className="text-sm text-slate-500 dark:text-ink-muted">
-          <p className="font-medium text-slate-700 dark:text-ink-secondary">InsightAI-RAG</p>
+          <p className="font-medium text-slate-700 dark:text-ink-secondary">AgroSense-RAG</p>
           <p>AI-powered document intelligence, built with FastAPI, FAISS, and Gemini.</p>
         </div>
       </Card>

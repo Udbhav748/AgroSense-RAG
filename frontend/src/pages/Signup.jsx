@@ -75,7 +75,7 @@ export default function Signup() {
               <Logo size={20} />
             </span>
             <div>
-              <p className="font-display text-base font-bold text-slate-900 dark:text-ink-primary">InsightAI</p>
+              <p className="font-display text-base font-bold text-slate-900 dark:text-ink-primary">AgroSense</p>
               <p className="text-xs text-slate-400 dark:text-ink-muted">AI Agronomy & Document Intelligence</p>
             </div>
           </div>
@@ -148,7 +148,7 @@ export default function Signup() {
             <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-border-light bg-slate-900/5 text-accent-600 dark:border-border dark:bg-white/[0.03] dark:text-accent-500">
               <Logo size={22} />
             </span>
-            <h2 className="font-display text-lg font-bold text-slate-900 dark:text-ink-primary">InsightAI</h2>
+            <h2 className="font-display text-lg font-bold text-slate-900 dark:text-ink-primary">AgroSense</h2>
             <p className="text-xs text-slate-400 dark:text-ink-muted">AI Agronomy & Document Intelligence</p>
           </div>
 

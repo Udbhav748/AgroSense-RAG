@@ -82,7 +82,7 @@ function SidebarContent({ onNavigate }) {
           <Logo size={17} />
         </span>
         <div className="leading-tight">
-          <p className="font-display text-sm font-semibold text-slate-900 dark:text-ink-primary">InsightAI</p>
+          <p className="font-display text-sm font-semibold text-slate-900 dark:text-ink-primary">AgroSense</p>
           <p className="text-[11px] text-slate-400 dark:text-ink-muted">AI Agronomy & DocAI</p>
         </div>
       </Link>

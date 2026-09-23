@@ -1,6 +1,6 @@
 <div align="center">
 
-# InsightAI-RAG
+# AgroSense-RAG
 
 **Upload a PDF. Ask it questions. Get answers grounded in what it actually says — with citations.**
 
@@ -27,7 +27,7 @@ A ~2:20 walkthrough recorded straight from the running app (signup → PDF uploa
 
 ## Table of contents
 
-- [What is InsightAI-RAG](#what-is-insightai-rag)
+- [What is AgroSense-RAG](#what-is-agrosense-rag)
 - [Key capabilities](#key-capabilities)
 - [Why this architecture](#why-this-architecture)
 - [System architecture](#system-architecture)
@@ -54,7 +54,7 @@ A ~2:20 walkthrough recorded straight from the running app (signup → PDF uploa
 - [Roadmap](#roadmap)
 - [License](#license)
 
-## What is InsightAI-RAG
+## What is AgroSense-RAG
 
 **30 seconds:** A full-stack Retrieval-Augmented Generation app. Upload a PDF, it's chunked, embedded, and indexed into FAISS; a React chat UI then answers questions about it, streaming a live "agent trace" as it plans, retrieves, grades, and — if the first attempt is ungrounded — corrects itself, always citing the exact passages an answer came from.
 
@@ -343,7 +343,7 @@ No performance numbers are stated here as repo-verified facts beyond these two m
 ## Project structure
 
 ```
-InsightAI-RAG/
+AgroSense-RAG/
 ├── backend/
 │   ├── app/
 │   │   ├── api/v1/routes/     # health, documents, query, auth, admin, approvals, metrics

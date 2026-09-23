@@ -63,7 +63,7 @@ export default function Home() {
         transition={{ delay: 0.05 }}
         className="font-display text-3xl font-bold text-slate-900 dark:text-ink-primary sm:text-4xl"
       >
-        InsightAI Multimodal Intelligence
+        AgroSense Multimodal Intelligence
       </motion.h1>
 
       <motion.p

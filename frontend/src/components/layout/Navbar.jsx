@@ -26,7 +26,7 @@ export default function Navbar({ onMenuClick, onSearchClick }) {
   const { pathname } = useLocation()
   const { user, logout } = useAuth()
   const navigate = useNavigate()
-  const title = TITLES[pathname] ?? 'InsightAI RAG'
+  const title = TITLES[pathname] ?? 'AgroSense-RAG'
 
   const [profileOpen, setProfileOpen] = useState(false)
   const profileRef = useRef(null)

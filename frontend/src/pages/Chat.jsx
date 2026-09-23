@@ -37,9 +37,9 @@ function sourceLine(source) {
 }
 
 function conversationToMarkdown(messages) {
-  const header = `# InsightAI Conversation\n\nExported ${new Date().toLocaleString()}\n\n`
+  const header = `# AgroSense-RAG Conversation\n\nExported ${new Date().toLocaleString()}\n\n`
   const turns = messages.map((message) => {
-    const roleLabel = message.role === 'user' ? 'You' : 'InsightAI'
+    const roleLabel = message.role === 'user' ? 'You' : 'AgroSense-RAG'
     let block = `### ${roleLabel}\n\n${message.content}\n`
     if (message.role === 'assistant' && message.sources?.length > 0) {
       block += `\n**Sources:**\n${message.sources.map((source) => `- ${sourceLine(source)}`).join('\n')}\n`
@@ -356,7 +356,7 @@ export default function Chat() {
             }
             description={
               hasDiagnosticContext
-                ? `InsightAI has loaded the active diagnostic context for ${formattedCrop} (${formattedDisease}). Ask about organic treatments, chemical rates, or prevention schedules.`
+                ? `AgroSense-RAG has loaded the active diagnostic context for ${formattedCrop} (${formattedDisease}). Ask about organic treatments, chemical rates, or prevention schedules.`
                 : "Upload a PDF, then ask questions here. Answers are grounded in the content you've uploaded."
             }
             action={
@@ -393,10 +393,10 @@ export default function Chat() {
       </div>
 
       <div className="hidden print:block px-1 py-4">
-        <h1 className="mb-4 font-display text-xl font-bold !text-slate-900">InsightAI Conversation</h1>
+        <h1 className="mb-4 font-display text-xl font-bold !text-slate-900">AgroSense-RAG Conversation</h1>
         {messages.map((message) => (
           <div key={message.id} className="mb-4 break-inside-avoid">
-            <p className="text-sm font-semibold text-slate-900">{message.role === 'user' ? 'You' : 'InsightAI'}</p>
+            <p className="text-sm font-semibold text-slate-900">{message.role === 'user' ? 'You' : 'AgroSense-RAG'}</p>
             <p className="whitespace-pre-wrap text-sm text-slate-700">{message.content}</p>
             {message.role === 'assistant' && message.sources?.length > 0 && (
               <ul className="mt-1 list-disc pl-5 text-xs text-slate-500">
@@ -473,7 +473,7 @@ export default function Chat() {
           </div>
         </div>
         <p className="mt-2 text-center text-[11px] text-slate-400 dark:text-ink-muted">
-          InsightAI can make mistakes. Verify important information.
+          AgroSense-RAG can make mistakes. Verify important information.
         </p>
       </div>
     </div>

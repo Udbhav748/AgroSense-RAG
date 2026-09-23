@@ -76,7 +76,7 @@ export default function PrescriptionWorkOrderModal({
   const handleDownloadWorkOrder = () => {
     const textContent = `================================================================================
 OFFICIAL AGRONOMIC PRESCRIPTION & SPRAY WORK ORDER
-InsightAI-RAG Pathology & Crop Protection Hub
+AgroSense-RAG Pathology & Crop Protection Hub
 Prescription ID:   ${prescriptionId}
 Verification Code: ${verificationCode}
 Date Issued:       ${today}
@@ -240,7 +240,7 @@ Always read and strictly follow manufacturer product labels prior to mixing.
                   OFFICIAL AGRONOMIC PRESCRIPTION & SPRAY WORK ORDER
                 </h2>
                 <p className="text-xs text-slate-500 dark:text-ink-muted print:text-slate-700">
-                  Issued by InsightAI Botanical Arbiter · Verified Agricultural Pathology Laboratory
+                  Issued by AgroSense Botanical Arbiter · Verified Agricultural Pathology Laboratory
                 </p>
               </div>
 
@@ -479,7 +479,7 @@ Always read and strictly follow manufacturer product labels prior to mixing.
                   <span className="font-mono font-semibold text-accent-700 dark:text-accent-300 print:text-black">{verificationCode}</span>
                 </p>
                 <p>
-                  <strong className="text-slate-900 dark:text-ink-primary print:text-black">Digital Verification:</strong> Digitally Verified - InsightAI Botanical Arbiter
+                  <strong className="text-slate-900 dark:text-ink-primary print:text-black">Digital Verification:</strong> Digitally Verified - AgroSense Botanical Arbiter
                 </p>
                 <p className="text-[11px] text-slate-500 dark:text-ink-muted print:text-slate-600">
                   Date of Verification: {today}

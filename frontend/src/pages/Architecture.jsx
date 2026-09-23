@@ -185,7 +185,7 @@ const TEN_QUESTIONS = [
     content: (
       <div className="space-y-3 text-xs leading-relaxed text-slate-600 dark:text-ink-secondary">
         <p>
-          InsightAI operates at the intersection of computer vision and actionable agricultural science. An LLM is strictly required for three core non-deterministic capabilities:
+          AgroSense-RAG operates at the intersection of computer vision and actionable agricultural science. An LLM is strictly required for three core non-deterministic capabilities:
         </p>
         <ul className="list-disc pl-5 space-y-1.5">
           <li>
@@ -347,7 +347,7 @@ const TEN_QUESTIONS = [
     content: (
       <div className="space-y-3 text-xs leading-relaxed text-slate-600 dark:text-ink-secondary">
         <p>
-          InsightAI enforces a <strong>Zero-Cross-Tenant-Contamination policy</strong>:
+          AgroSense-RAG enforces a <strong>Zero-Cross-Tenant-Contamination policy</strong>:
         </p>
         <ul className="list-disc pl-5 space-y-1.5">
           <li>
@@ -393,7 +393,7 @@ const TEN_QUESTIONS = [
     content: (
       <div className="space-y-3 text-xs leading-relaxed text-slate-600 dark:text-ink-secondary">
         <p>
-          InsightAI implements a multi-layer defense against adversarial attacks:
+          AgroSense-RAG implements a multi-layer defense against adversarial attacks:
         </p>
         <ul className="list-disc pl-5 space-y-1.5">
           <li>
@@ -452,7 +452,7 @@ const TEN_QUESTIONS = [
     content: (
       <div className="space-y-3 text-xs leading-relaxed text-slate-600 dark:text-ink-secondary">
         <p>
-          Yes. InsightAI is architected around transparency, verifiable citations, and safety guardrails:
+          Yes. AgroSense-RAG is architected around transparency, verifiable citations, and safety guardrails:
         </p>
         <div className="grid gap-2.5 sm:grid-cols-2">
           <div className="flex items-start gap-2 rounded-lg border border-border-light p-2.5 dark:border-border">

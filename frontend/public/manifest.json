@@ -1,6 +1,6 @@
 {
-  "name": "InsightAI Agronomic RAG & LeafSense",
-  "short_name": "InsightAI Agronomy",
+  "name": "AgroSense-RAG & LeafSense",
+  "short_name": "AgroSense",
   "description": "Progressive Web App for offline-resilient agricultural pathology diagnosis, spray dosage calculation, and PDF agronomic RAG assistant.",
   "start_url": "/",
   "scope": "/",
