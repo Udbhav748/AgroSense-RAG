@@ -63,11 +63,13 @@ def run_planner_cases(chat_service: ChatService, cases: list[dict], document_id:
 
     matrix = cmetrics.confusion_matrix(y_true, y_pred)
     report = cmetrics.classification_report(y_true, y_pred)
+    binary_counts = cmetrics.per_class_binary_counts(y_true, y_pred)
     return {
         "confusion_matrix": matrix,
         "confusion_matrix_csv": cmetrics.to_csv_rows(matrix),
         "classification_report": report,
         "classification_report_md": cmetrics.to_markdown(report),
+        "per_class_binary_counts": binary_counts,
         "per_case": per_case,
         "tool_arg_cases_from_planner": tool_arg_cases,
     }
@@ -96,6 +98,21 @@ def run_tool_argument_cases(
             cases.append(
                 ametrics.ToolArgCase(
                     case_id=c["id"], tool="retrieve", expected=c["expected_value"], actual=plan.crop, note=c.get("note", "")
+                )
+            )
+        elif c["tool"] == "retrieve" and c["expected_argument"] == "collection":
+            plan = chat_service._plan(c["query"])
+            cases.append(
+                ametrics.ToolArgCase(
+                    case_id=c["id"], tool="retrieve", expected=c["expected_value"], actual=plan.collection, note=c.get("note", "")
+                )
+            )
+        elif c["expected_argument"] == "action":
+            query = c["query"].replace("{{document_id}}", document_id) if "{{document_id}}" in c["query"] else c["query"]
+            plan = chat_service._plan(query)
+            cases.append(
+                ametrics.ToolArgCase(
+                    case_id=c["id"], tool=c["tool"], expected=c["expected_value"], actual=plan.action, note=c.get("note", "")
                 )
             )
         elif c["tool"] == "web_research":

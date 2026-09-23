@@ -38,14 +38,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from app.core.alerting import AlertRule, Comparator, MockNotificationSink, build_default_engine  # noqa: E402
+from app.core.alerting import (  # noqa: E402
+    MockNotificationSink,
+    build_default_engine,
+)
 from app.core.config import settings  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models.document import EmbeddedChunk  # noqa: E402
 from app.services.cache_service import cache_service  # noqa: E402
 from app.services.faiss_vector_store import FAISSVectorStore  # noqa: E402
 from eval.module10 import config  # noqa: E402
-from monitoring.dashboard import _endpoint_breakdown, _requests_per_minute, _retry_activity  # noqa: E402
+from monitoring.dashboard import (  # noqa: E402
+    _endpoint_breakdown,
+    _requests_per_minute,
+    _retry_activity,
+)
 from monitoring.log_aggregate import aggregate  # noqa: E402
 
 FAKE_EMBEDDING_DIM = 8

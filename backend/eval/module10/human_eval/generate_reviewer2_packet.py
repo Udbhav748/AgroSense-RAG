@@ -78,7 +78,7 @@ def build_packet() -> dict:
                 "query": c.query,
                 "system_output": c.system_output,
                 "evidence": c.evidence,
-                "ratings": {dim: None for dim in RUBRIC_DIMENSIONS},
+                "ratings": dict.fromkeys(RUBRIC_DIMENSIONS),
                 "comment": "",
             }
             for c in shuffled

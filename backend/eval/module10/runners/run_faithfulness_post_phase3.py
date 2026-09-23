@@ -32,7 +32,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from app.core.config import settings  # noqa: E402
 from app.services.faiss_vector_store import FAISSVectorStore  # noqa: E402
 from app.services.llm_provider import build_llm_client  # noqa: E402
-from app.services.prompt_builder import FALLBACK_REPLY, GENERATION_ERROR_REPLY, PROMPT_VERSION  # noqa: E402
+from app.services.prompt_builder import (  # noqa: E402
+    FALLBACK_REPLY,
+    GENERATION_ERROR_REPLY,
+    PROMPT_VERSION,
+)
 from app.services.rag_service import ChatService  # noqa: E402
 from eval.module10 import config  # noqa: E402
 

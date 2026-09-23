@@ -1,0 +1,555 @@
+{
+  "metadata": {
+    "timestamp": "2026-09-23T11:36:55.769481+00:00",
+    "git_commit": "0942779",
+    "dataset_version": "load_concurrency_v1",
+    "evaluation_version": "module10_eval_v1",
+    "python_version": "3.13.9",
+    "model_provider": "groq",
+    "model_name": "openai/gpt-oss-120b",
+    "fallback_llm_provider": "gemini",
+    "embedding_model": "all-MiniLM-L6-v2",
+    "reranker_model": "cross-encoder/ms-marco-MiniLM-L-6-v2",
+    "configuration": {
+      "hybrid_search_enabled": true,
+      "reranking_enabled": false,
+      "web_search_enabled": false,
+      "vision_qa_enabled": false,
+      "structured_output_enabled": true,
+      "retrieval_grade_threshold": 0.5,
+      "top_k": 5
+    },
+    "sample_count": 200,
+    "evaluator": "eval/module10/runners/run_load_concurrency_final_eval.py",
+    "reproduce_command": "cd backend && python eval/module10/runners/run_load_concurrency_final_eval.py"
+  },
+  "environment_summary": {
+    "host": "single local machine, single uvicorn worker process",
+    "gpu": "N/A -- not used"
+  },
+  "endpoints": {
+    "health": {
+      "endpoint": "GET /health",
+      "auth": "unauthenticated (per-level API key still sent for consistency; unused by this route)",
+      "llm_involved": false,
+      "retrieval_involved": false
+    },
+    "chat": {
+      "endpoint": "POST /chat",
+      "payload": {
+        "query": "What treats apple scab?"
+      },
+      "retrieval_enabled": true,
+      "retrieval_backing_store": "backend/vector_store/ (real, already-populated -- not seeded synthetically for this run)",
+      "structured_output_enabled": "default (Settings.structured_output_enabled=True; request does not set structured_response, so the free-text path is used)",
+      "llm_mocked": true,
+      "llm_provider": "mock (app/services/mock_llm_client.py -- deterministic, zero-cost, zero-network)",
+      "cache": "NOT cleared between requests -- deliberately exercises real SemanticQueryCache behavior under load; see 'cache_behavior' below for what that means for these numbers."
+    }
+  },
+  "cache_behavior": {
+    "note": "P6 found that a response-cache hit (cache_lookup_node) never emits the chat_query_handled log line monitoring/log_aggregate.py counts -- an aggregation gap, not an HTTP-level one. This benchmark measures HTTP-level outcomes directly (status code/latency per request via httpx), which IS accurate for both cache hits and misses -- a cache hit still returns a real HTTP 200 with real latency, it just resolves faster. This run's 20 identical repeated queries per level will include both a cold miss and warm hits within the same level (SemanticQueryCache is not cleared between requests here, unlike P6's observability report) -- reported as a single blended per-level number, consistent with 'exercises both cache misses and cache hits' rather than 'intentionally avoids the cache,' per this task's own instruction not to pretend P6's log-based counting represents complete request observability.",
+    "P6_gap_still_applies": "Any log-based aggregation of this run's traffic (monitoring/log_aggregate.py) would still undercount cache-hit requests for the reason P6 documented -- not re-fixed here; this report's own numbers come from direct HTTP measurement, not log aggregation, so they are unaffected."
+  },
+  "concurrency_levels_tested": [
+    1,
+    2,
+    5,
+    10,
+    20
+  ],
+  "requests_per_level": 20,
+  "request_timeout_seconds": 10.0,
+  "results": {
+    "health": [
+      {
+        "workload": "health",
+        "concurrency": 1,
+        "requests": 20,
+        "successes": 20,
+        "http_failures": 0,
+        "timeouts": 0,
+        "connection_errors": 0,
+        "unexpected_exceptions": 0,
+        "error_rate": 0.0,
+        "success_rate": 1.0,
+        "wall_time_seconds": 0.6507,
+        "rps": 30.74,
+        "latency_ms": {
+          "mean": 31.3,
+          "p50": 15.81,
+          "p95": 104.46,
+          "p99": 135.5,
+          "min": 8.92,
+          "max": 135.5
+        },
+        "http_failure_status_codes": [],
+        "unexpected_exception_samples": [],
+        "resource_before": {
+          "cpu_percent": 0.0,
+          "memory_rss_mb": 744.55,
+          "gpu": "N/A -- not used/measured",
+          "available": true,
+          "sampled_pid": 2732
+        },
+        "resource_after": {
+          "cpu_percent": 0.0,
+          "memory_rss_mb": 744.55,
+          "gpu": "N/A -- not used/measured",
+          "available": true,
+          "sampled_pid": 2732
+        },
+        "health_after": true
+      },
+      {
+        "workload": "health",
+        "concurrency": 2,
+        "requests": 20,
+        "successes": 20,
+        "http_failures": 0,
+        "timeouts": 0,
+        "connection_errors": 0,
+        "unexpected_exceptions": 0,
+        "error_rate": 0.0,
+        "success_rate": 1.0,
+        "wall_time_seconds": 0.3891,
+        "rps": 51.4,
+        "latency_ms": {
+          "mean": 36.79,
+          "p50": 27.68,
+          "p95": 91.11,
+          "p99": 105.63,
+          "min": 14.19,
+          "max": 105.63
+        },
+        "http_failure_status_codes": [],
+        "unexpected_exception_samples": [],
+        "resource_before": {
+          "cpu_percent": 0.0,
+          "memory_rss_mb": 744.58,
+          "gpu": "N/A -- not used/measured",
+          "available": true,
+          "sampled_pid": 2732
+        },
+        "resource_after": {
+          "cpu_percent": 0.0,
+          "memory_rss_mb": 744.76,
+          "gpu": "N/A -- not used/measured",
+          "available": true,
+          "sampled_pid": 2732
+        },
+        "health_after": true
+      },
+      {
+        "workload": "health",
+        "concurrency": 5,
+        "requests": 20,
+        "successes": 20,
+        "http_failures": 0,
+        "timeouts": 0,
+        "connection_errors": 0,
+        "unexpected_exceptions": 0,
+        "error_rate": 0.0,
+        "success_rate": 1.0,
+        "wall_time_seconds": 0.3047,
+        "rps": 65.65,
+        "latency_ms": {
+          "mean": 65.86,
+          "p50": 53.13,
+          "p95": 130.67,
+          "p99": 144.15,
+          "min": 18.14,
+          "max": 144.15
+        },
+        "http_failure_status_codes": [],
+        "unexpected_exception_samples": [],
+        "resource_before": {
+          "cpu_percent": 0.0,
+          "memory_rss_mb": 744.76,
+          "gpu": "N/A -- not used/measured",
+          "available": true,
+          "sampled_pid": 2732
+        },
+        "resource_after": {
+          "cpu_percent": 0.0,
+          "memory_rss_mb": 745.12,
+          "gpu": "N/A -- not used/measured",
+          "available": true,
+          "sampled_pid": 2732
+        },
+        "health_after": true
+      },
+      {
+        "workload": "health",
+        "concurrency": 10,
+        "requests": 20,
+        "successes": 20,
+        "http_failures": 0,
+        "timeouts": 0,
+        "connection_errors": 0,
+        "unexpected_exceptions": 0,
+        "error_rate": 0.0,
+        "success_rate": 1.0,
+        "wall_time_seconds": 0.263,
+        "rps": 76.04,
+        "latency_ms": {
+          "mean": 104.37,
+          "p50": 103.33,
+          "p95": 151.22,
+          "p99": 151.34,
+          "min": 54.49,
+          "max": 151.34
+        },
+        "http_failure_status_codes": [],
+        "unexpected_exception_samples": [],
+        "resource_before": {
+          "cpu_percent": 0.0,
+          "memory_rss_mb": 745.12,
+          "gpu": "N/A -- not used/measured",
+          "available": true,
+          "sampled_pid": 2732
+        },
+        "resource_after": {
+          "cpu_percent": 0.0,
+          "memory_rss_mb": 745.63,
+          "gpu": "N/A -- not used/measured",
+          "available": true,
+          "sampled_pid": 2732
+        },
+        "health_after": true
+      },
+      {
+        "workload": "health",
+        "concurrency": 20,
+        "requests": 20,
+        "successes": 20,
+        "http_failures": 0,
+        "timeouts": 0,
+        "connection_errors": 0,
+        "unexpected_exceptions": 0,
+        "error_rate": 0.0,
+        "success_rate": 1.0,
+        "wall_time_seconds": 0.1859,
+        "rps": 107.57,
+        "latency_ms": {
+          "mean": 107.39,
+          "p50": 110.69,
+          "p95": 156.62,
+          "p99": 158.46,
+          "min": 25.41,
+          "max": 158.46
+        },
+        "http_failure_status_codes": [],
+        "unexpected_exception_samples": [],
+        "resource_before": {
+          "cpu_percent": 0.0,
+          "memory_rss_mb": 745.7,
+          "gpu": "N/A -- not used/measured",
+          "available": true,
+          "sampled_pid": 2732
+        },
+        "resource_after": {
+          "cpu_percent": 0.0,
+          "memory_rss_mb": 747.15,
+          "gpu": "N/A -- not used/measured",
+          "available": true,
+          "sampled_pid": 2732
+        },
+        "health_after": true
+      }
+    ],
+    "chat": [
+      {
+        "workload": "chat",
+        "concurrency": 1,
+        "requests": 20,
+        "successes": 20,
+        "http_failures": 0,
+        "timeouts": 0,
+        "connection_errors": 0,
+        "unexpected_exceptions": 0,
+        "error_rate": 0.0,
+        "success_rate": 1.0,
+        "wall_time_seconds": 2.9072,
+        "rps": 6.88,
+        "latency_ms": {
+          "mean": 144.21,
+          "p50": 78.39,
+          "p95": 588.89,
+          "p99": 743.6,
+          "min": 48.6,
+          "max": 743.6
+        },
+        "http_failure_status_codes": [],
+        "unexpected_exception_samples": [],
+        "resource_before": {
+          "cpu_percent": 0.0,
+          "memory_rss_mb": 747.21,
+          "gpu": "N/A -- not used/measured",
+          "available": true,
+          "sampled_pid": 2732
+        },
+        "resource_after": {
+          "cpu_percent": 0.0,
+          "memory_rss_mb": 747.43,
+          "gpu": "N/A -- not used/measured",
+          "available": true,
+          "sampled_pid": 2732
+        },
+        "health_after": true
+      },
+      {
+        "workload": "chat",
+        "concurrency": 2,
+        "requests": 20,
+        "successes": 20,
+        "http_failures": 0,
+        "timeouts": 0,
+        "connection_errors": 0,
+        "unexpected_exceptions": 0,
+        "error_rate": 0.0,
+        "success_rate": 1.0,
+        "wall_time_seconds": 3.445,
+        "rps": 5.81,
+        "latency_ms": {
+          "mean": 340.12,
+          "p50": 177.45,
+          "p95": 1832.44,
+          "p99": 1943.64,
+          "min": 60.54,
+          "max": 1943.64
+        },
+        "http_failure_status_codes": [],
+        "unexpected_exception_samples": [],
+        "resource_before": {
+          "cpu_percent": 0.0,
+          "memory_rss_mb": 747.43,
+          "gpu": "N/A -- not used/measured",
+          "available": true,
+          "sampled_pid": 2732
+        },
+        "resource_after": {
+          "cpu_percent": 0.0,
+          "memory_rss_mb": 514.17,
+          "gpu": "N/A -- not used/measured",
+          "available": true,
+          "sampled_pid": 2732
+        },
+        "health_after": true
+      },
+      {
+        "workload": "chat",
+        "concurrency": 5,
+        "requests": 20,
+        "successes": 20,
+        "http_failures": 0,
+        "timeouts": 0,
+        "connection_errors": 0,
+        "unexpected_exceptions": 0,
+        "error_rate": 0.0,
+        "success_rate": 1.0,
+        "wall_time_seconds": 7.7717,
+        "rps": 2.57,
+        "latency_ms": {
+          "mean": 1872.49,
+          "p50": 1118.72,
+          "p95": 4912.24,
+          "p99": 6440.23,
+          "min": 180.38,
+          "max": 6440.23
+        },
+        "http_failure_status_codes": [],
+        "unexpected_exception_samples": [],
+        "resource_before": {
+          "cpu_percent": 0.0,
+          "memory_rss_mb": 514.17,
+          "gpu": "N/A -- not used/measured",
+          "available": true,
+          "sampled_pid": 2732
+        },
+        "resource_after": {
+          "cpu_percent": 0.0,
+          "memory_rss_mb": 373.36,
+          "gpu": "N/A -- not used/measured",
+          "available": true,
+          "sampled_pid": 2732
+        },
+        "health_after": true
+      },
+      {
+        "workload": "chat",
+        "concurrency": 10,
+        "requests": 20,
+        "successes": 20,
+        "http_failures": 0,
+        "timeouts": 0,
+        "connection_errors": 0,
+        "unexpected_exceptions": 0,
+        "error_rate": 0.0,
+        "success_rate": 1.0,
+        "wall_time_seconds": 9.1859,
+        "rps": 2.18,
+        "latency_ms": {
+          "mean": 4396.1,
+          "p50": 7294.0,
+          "p95": 8556.13,
+          "p99": 8560.67,
+          "min": 228.12,
+          "max": 8560.67
+        },
+        "http_failure_status_codes": [],
+        "unexpected_exception_samples": [],
+        "resource_before": {
+          "cpu_percent": 0.0,
+          "memory_rss_mb": 373.36,
+          "gpu": "N/A -- not used/measured",
+          "available": true,
+          "sampled_pid": 2732
+        },
+        "resource_after": {
+          "cpu_percent": 0.0,
+          "memory_rss_mb": 366.54,
+          "gpu": "N/A -- not used/measured",
+          "available": true,
+          "sampled_pid": 2732
+        },
+        "health_after": true
+      },
+      {
+        "workload": "chat",
+        "concurrency": 20,
+        "requests": 20,
+        "successes": 0,
+        "http_failures": 0,
+        "timeouts": 20,
+        "connection_errors": 0,
+        "unexpected_exceptions": 0,
+        "error_rate": 1.0,
+        "success_rate": 0.0,
+        "wall_time_seconds": 10.1077,
+        "rps": 1.98,
+        "latency_ms": {
+          "mean": null,
+          "p50": 0.0,
+          "p95": 0.0,
+          "p99": 0.0,
+          "min": null,
+          "max": null
+        },
+        "http_failure_status_codes": [],
+        "unexpected_exception_samples": [],
+        "resource_before": {
+          "cpu_percent": 0.0,
+          "memory_rss_mb": 366.54,
+          "gpu": "N/A -- not used/measured",
+          "available": true,
+          "sampled_pid": 2732
+        },
+        "resource_after": {
+          "cpu_percent": 462.5,
+          "memory_rss_mb": 1387.05,
+          "gpu": "N/A -- not used/measured",
+          "available": true,
+          "sampled_pid": 2732
+        },
+        "health_after": true
+      }
+    ]
+  },
+  "rate_limit_burst_scenario": {
+    "scenario": "rate_limit_burst",
+    "description": "100 requests from ONE shared client identity at concurrency=20 against GET /health, deliberately exceeding Settings.rate_limit_per_minute (default 60) within the sliding window -- exercises the application's own real, existing per-identity rate limiter, not a fabricated fault.",
+    "requests": 100,
+    "successes": 100,
+    "rate_limited_429": 0,
+    "other_failures": 0,
+    "wall_time_seconds": 9.7791,
+    "detection": "HTTP 429 status code (RateLimitExceededError, app/core/exceptions.py) on the responses past the per-minute cap.",
+    "recovered_after": true,
+    "what_this_demonstrates": "No requests were rate-limited in this run -- 100 requests from one identity did not exceed the configured per-minute threshold within this burst's wall-clock duration; reported honestly rather than assuming a limiter engaged."
+  },
+  "analysis": {
+    "health": {
+      "rps_trend": [
+        30.74,
+        51.4,
+        65.65,
+        76.04,
+        107.57
+      ],
+      "p50_trend_ms": [
+        15.81,
+        27.68,
+        53.13,
+        103.33,
+        110.69
+      ],
+      "p95_trend_ms": [
+        104.46,
+        91.11,
+        130.67,
+        151.22,
+        156.62
+      ],
+      "p99_trend_ms": [
+        135.5,
+        105.63,
+        144.15,
+        151.34,
+        158.46
+      ],
+      "error_rate_trend": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "chat": {
+      "rps_trend": [
+        6.88,
+        5.81,
+        2.57,
+        2.18,
+        1.98
+      ],
+      "p50_trend_ms": [
+        78.39,
+        177.45,
+        1118.72,
+        7294.0,
+        0.0
+      ],
+      "p95_trend_ms": [
+        588.89,
+        1832.44,
+        4912.24,
+        8556.13,
+        0.0
+      ],
+      "p99_trend_ms": [
+        743.6,
+        1943.64,
+        6440.23,
+        8560.67,
+        0.0
+      ],
+      "error_rate_trend": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "summary": "Observed behavior through tested concurrency 20 on this machine. No 'maximum safe concurrency' is declared -- see per-level trends above for the actual measured curve."
+  },
+  "limitations": [
+    "Single local machine, single uvicorn worker, single run per level -- NOT production capacity, NOT a cloud SLO, NOT internet-representative network latency (all requests are loopback/localhost).",
+    "The chat workload's LLM stage is mocked (Settings.llm_provider=mock) -- this measures application/retrieval overhead under concurrency, not live-provider latency, rate limits, or cost. A live-provider load test was NOT run as part of this pass's primary evidence, per this task's own instruction to avoid an uncontrolled provider-cost test; if useful, that would be a separate, explicitly-disclosed optional measurement (provider, model, request count, cost) -- not attempted here.",
+    "GPU utilization is N/A -- not used by this application's CPU-only retrieval/reranking stack in this environment; not invented as a measured figure.",
+    "CPU/RSS sampling now measures the spawned uvicorn server subprocess (psutil.Process(server_pid), where server_pid=proc.pid is the PID returned by _start_uvicorn()) rather than this benchmark client process. HISTORICAL NOTE (2026-09-21 original run): psutil.Process() with no PID defaulted to the caller (this script), not the server subprocess -- disclosed as a measurement gap in docs/MODULE10_RESULTS.md's Load/Concurrency section. FIXED in this pass: _resource_sample(pid=server_pid) and run_level(server_pid=proc.pid). See the 'sampled_pid' field in resource_before/resource_after for the actual PID measured. GPU: N/A -- not used by this application's CPU-only retrieval/reranking stack.",
+    "RPS/latency figures are this benchmark's own measured throughput under tested concurrency, not a claim about maximum production capacity or reliability."
+  ]
+}

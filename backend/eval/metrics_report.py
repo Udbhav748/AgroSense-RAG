@@ -425,6 +425,57 @@ def report_tokens_and_cost(records: list[dict]) -> None:
     print()
 
 
+
+def rollup_cost_per_successful_task(log_path: Path | str) -> dict:
+    """Computes the total estimated cost divided by the number of successful tasks
+    (offline log rollup). A task is successful if it was not an error (cost >= 0)
+    and took at least 1 step.
+    """
+    path = Path(log_path)
+    if not path.is_file():
+        return {"note": f"Log file not found: {path}", "cost_per_successful_task_usd": None}
+
+    lines = path.read_text(encoding="utf-8").splitlines()
+    records = parse_log_lines(lines)
+
+    handled = [record for record in records if record.get("message") == "chat_query_handled"]
+    if not handled:
+        return {"note": "No chat_query_handled entries found", "cost_per_successful_task_usd": None}
+
+    successful = 0
+    total_cost = 0.0
+    n_with_cost = 0
+
+    for record in handled:
+        cost = record.get("estimated_cost_usd")
+        steps = record.get("steps_taken", 0)
+
+        if cost is not None:
+            n_with_cost += 1
+            if cost >= 0 and steps > 0:
+                successful += 1
+                total_cost += cost
+
+    if successful == 0:
+        return {
+            "total_cost_usd": total_cost,
+            "successful_tasks": 0,
+            "cost_per_successful_task_usd": None,
+            "n_total_log_entries": len(records),
+            "n_with_cost": n_with_cost,
+            "note": "No successful tasks found",
+        }
+
+    return {
+        "total_cost_usd": total_cost,
+        "successful_tasks": successful,
+        "cost_per_successful_task_usd": total_cost / successful,
+        "n_total_log_entries": len(records),
+        "n_with_cost": n_with_cost,
+        "note": "Success",
+    }
+
+
 def report_acceptance_rate(feedback_path: Path) -> None:
     """Acceptance Rate = thumbs-up ÷ total feedback events — the LLMOps
     acceptance-rate metric. Reads backend/feedback/feedback.jsonl, one
@@ -575,6 +626,11 @@ def main() -> None:
         default=str(DEFAULT_FEEDBACK_PATH),
         help=f"Path to the feedback JSONL file (default: {DEFAULT_FEEDBACK_PATH}).",
     )
+    parser.add_argument(
+        "--cost-rollup",
+        action="store_true",
+        help="Print the cost-per-successful-task rollup using the log file.",
+    )
     args = parser.parse_args()
 
     if args.log_file:
@@ -601,6 +657,18 @@ def main() -> None:
     report_rubric_scores(Path(args.feedback_file))
     report_inter_annotator_agreement(Path(args.feedback_file))
 
+    if args.cost_rollup and args.log_file:
+        print("=== Cost Per Successful Task ===")
+        rollup = rollup_cost_per_successful_task(args.log_file)
+        print(f"  total cost:        ${rollup.get('total_cost_usd', 0):.6f}")
+        print(f"  successful tasks:  {rollup.get('successful_tasks', 0)}")
+        cost_per = rollup.get('cost_per_successful_task_usd')
+        if cost_per is not None:
+            print(f"  cost per task:     ${cost_per:.6f}")
+        else:
+            print("  cost per task:     N/A")
+        print(f"  note:              {rollup.get('note')}")
+        print()
 
 if __name__ == "__main__":
     main()

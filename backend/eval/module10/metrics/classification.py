@@ -15,7 +15,51 @@ from __future__ import annotations
 
 from eval.run_eval import ACTIONS, classification_report, confusion_matrix
 
-__all__ = ["ACTIONS", "classification_report", "confusion_matrix", "to_csv_rows", "to_markdown"]
+__all__ = [
+    "ACTIONS",
+    "classification_report",
+    "confusion_matrix",
+    "per_class_binary_counts",
+    "to_csv_rows",
+    "to_markdown",
+]
+
+
+def per_class_binary_counts(y_true: list[str], y_pred: list[str]) -> dict[str, dict[str, int]]:
+    """Derive TP/FP/TN/FN for each class from the existing confusion matrix.
+
+    Uses the one-vs-rest (OvR) binary decomposition — the standard formula for
+    multi-class confusion matrices (PDF section 17):
+
+        For class c:
+          TP  = matrix[c][c]
+          FP  = (sum of column c) - TP
+          FN  = (sum of row c) - TP
+          TN  = total - TP - FP - FN
+
+    Returns a dict keyed by class label:
+        {
+            "conversational": {"tp": 5, "fp": 0, "fn": 1, "tn": 9},
+            "retrieve": {...},
+            ...
+        }
+    """
+    matrix = confusion_matrix(y_true, y_pred)
+    total = len(y_true)
+
+    result: dict[str, dict[str, int]] = {}
+    for cls in ACTIONS:
+        # TP: correctly predicted as cls
+        tp = matrix[cls][cls]
+        # FP: predicted as cls but actually something else (column sum - TP)
+        fp = sum(matrix[other][cls] for other in ACTIONS) - tp
+        # FN: actually cls but predicted as something else (row sum - TP)
+        fn = sum(matrix[cls][other] for other in ACTIONS) - tp
+        # TN: everything else (correctly or incorrectly)
+        tn = total - tp - fp - fn
+        result[cls] = {"tp": tp, "fp": fp, "fn": fn, "tn": tn}
+
+    return result
 
 
 def to_csv_rows(matrix: dict[str, dict[str, int]]) -> list[list[str]]:

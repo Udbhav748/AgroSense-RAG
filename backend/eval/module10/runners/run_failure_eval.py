@@ -29,7 +29,6 @@ from app.core.exceptions import (  # noqa: E402
     VisionServiceError,
     WebSearchError,
 )
-from app.models.document import RetrievedChunk  # noqa: E402
 from app.services.approval_service import get_approval_store  # noqa: E402
 from app.services.rag_service import ChatService  # noqa: E402
 from eval.module10 import config  # noqa: E402
@@ -174,10 +173,9 @@ def case_web_search_failure() -> dict:
 
 
 def case_vision_timeout() -> dict:
+    import app.services.rag_service as rag_service_module
     from app.services.agent_graph.nodes import GraphContext, vision_node
     from app.services.agent_graph.state import AgentState
-
-    import app.services.rag_service as rag_service_module
 
     original = rag_service_module.diagnose_image
 

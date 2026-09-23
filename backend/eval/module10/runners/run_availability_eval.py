@@ -41,8 +41,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from monitoring.uptime_check import _probe  # noqa: E402
 from eval.module10 import config  # noqa: E402
+from monitoring.uptime_check import _probe  # noqa: E402
 
 DEFAULT_PORT = 8811
 DEFAULT_DURATION_SECONDS = 20

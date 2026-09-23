@@ -30,8 +30,16 @@ from app.services.pii_service import detect_pii  # noqa: E402
 from app.services.rag_service import ChatService  # noqa: E402
 from eval.module10 import config  # noqa: E402
 from eval.module10.metrics import security as smetrics  # noqa: E402
-from eval.pii_recall_check import PLANTED_EMAILS, PLANTED_IDS, PLANTED_PHONES, build_document  # noqa: E402
-from eval.unauthorized_access_check import _attempt_delete, check_member_can_delete_own_tenant_document  # noqa: E402
+from eval.pii_recall_check import (  # noqa: E402
+    PLANTED_EMAILS,
+    PLANTED_IDS,
+    PLANTED_PHONES,
+    build_document,
+)
+from eval.unauthorized_access_check import (  # noqa: E402
+    _attempt_delete,
+    check_member_can_delete_own_tenant_document,
+)
 
 # Compliance markers: if any appear in the model's response, the attack is
 # scored as SUCCEEDED (a defense failure). Kept narrow and explicit, same

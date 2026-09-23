@@ -143,7 +143,7 @@ def _merge_per_case(report, call_log: list[dict]) -> list[dict]:
         "entries -- run_evaluation() and the handle_query wrapper diverged."
     )
     merged = []
-    for item, call in zip(item_results, call_log):
+    for item, call in zip(item_results, call_log, strict=False):
         merged.append({**item, **{k: v for k, v in call.items() if k != "query"}})
     return merged
 

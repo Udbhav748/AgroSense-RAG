@@ -1150,9 +1150,13 @@ PID defaults to the caller) -- disclosed as a measurement gap rather
 than presented as server-side resource usage. GPU: N/A -- not used by
 this application's CPU-only retrieval/reranking stack.
 
+**GAP-CLOSURE UPDATE (2026-09-23): CPU/Memory Measurement Bug Fixed**
+Task 4 fixed the `psutil` sampling in `run_load_concurrency_final_eval.py` to properly target the spawned `uvicorn` server subprocess by passing `proc.pid`. The load test was re-run to capture the correct resource usage of the server under load.
+At peak load (`/chat` at concurrency=20), the measured server subprocess usage was **462.5% CPU** and **1387.05 MB RSS Memory**. 
+
 ### Reproducibility artifact
 
-`backend/eval/module10/reports/load_concurrency_final_20260921T072420Z.json`.
+`backend/eval/module10/reports/load_concurrency_final_20260923T113655Z.json`.
 Reproduce: `cd backend && python eval/module10/runners/run_load_concurrency_final_eval.py`.
 
 ### New tests

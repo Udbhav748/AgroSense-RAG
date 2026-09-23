@@ -153,7 +153,7 @@ def weighted_cohens_kappa(ratings_a: list[int], ratings_b: list[int], *, categor
 
     # Observed confusion matrix
     observed = [[0] * k for _ in range(k)]
-    for a, b in zip(ratings_a, ratings_b):
+    for a, b in zip(ratings_a, ratings_b, strict=False):
         observed[cat_index[a]][cat_index[b]] += 1
 
     # Marginals

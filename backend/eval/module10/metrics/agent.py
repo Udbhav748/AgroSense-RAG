@@ -24,7 +24,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.core.metrics import get_metrics
-from eval.run_eval import EXPECTED_MIN_STEPS, step_efficiency
+from eval.run_eval import step_efficiency
 
 __all__ = [
     "CostCase",

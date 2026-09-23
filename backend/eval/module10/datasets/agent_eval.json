@@ -90,6 +90,22 @@
       "expected_argument": "crop",
       "expected_value": null,
       "note": "negative case: a query with no crop mention must extract crop=None, not hallucinate or default to some crop"
+    },
+    {
+      "id": "agent_arg_010",
+      "tool": "conversational",
+      "query": "hi",
+      "expected_argument": "action",
+      "expected_value": "conversational",
+      "note": "Verify conversational action is properly planned as 'conversational'."
+    },
+    {
+      "id": "agent_arg_011",
+      "tool": "retrieve",
+      "query": "What organic remedy is recommended for apple scab?",
+      "expected_argument": "collection",
+      "expected_value": "apple",
+      "note": "collection is passed identically to crop"
     }
   ],
   "_planning_cases_correction_note": "Module 10 gap-closure pass: expected_steps below were corrected against the REAL captured node sequence (via eval/module10/metrics/telemetry_capture.py) rather than the graph topology diagram alone. Two real behaviors this dataset originally didn't account for: (1) ChatService.handle_query computes the routing decision BEFORE entering the graph (to choose between the graph and the separate AgentExecutor branch); when it hands the graph an already-decided plan, planner_node_v2 is a documented no-op that increments steps_taken but does NOT call emit_node_trace (see app/services/agent_graph/nodes.py's planner_node_v2 docstring) — so 'planner' never appears in a captured trace and was removed from expected_steps below. Also, cache_lookup runs before retrieval and IS traced, so it's now included. (2) 'summarize' and 'conversational' actions are answered via a pre-graph fast path inside handle_query (rag_service.py ~line 1722) and never enter build_chat_graph() at all — zero node_trace records are emitted for them. agent_plan_003 (summarize) is marked graph_bypassed=true; its planning-success signal for this case type falls back to response.tool_used (the only thing this action type actually exposes), not node-sequence matching, and this is not silently faked as a passing node trace.",

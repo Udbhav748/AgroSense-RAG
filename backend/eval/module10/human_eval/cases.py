@@ -14,7 +14,7 @@ representation are new; everything else is a direct transcription.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass(frozen=True)

@@ -75,22 +75,32 @@ def _percentile(sorted_values: list[float], p: float) -> float:
     return sorted_values[idx]
 
 
-def _resource_sample() -> dict:
-    """Local process RSS/CPU only -- never presented as cloud/instance
-    utilization. GPU is N/A (not used by this app's CPU-only retrieval
-    stack in this environment) -- recorded as such, never invented."""
+def _resource_sample(pid: int | None = None) -> dict:
+    """Sample CPU/RSS for the given PID (default: this script's own process).
+
+    Pass ``pid=server_pid`` (the uvicorn subprocess PID returned by
+    ``_start_uvicorn()``) to measure the server's resource usage rather than
+    this benchmark client process.  Without a PID, ``psutil.Process()`` defaults
+    to the caller, which was the original disclosed measurement gap
+    (docs/MODULE10_RESULTS.md — Load/Concurrency section, 2026-09-21).
+
+    GPU is N/A (not used by this app's CPU-only retrieval stack) — recorded as
+    such, never invented.
+    """
     try:
         import psutil
 
-        process = psutil.Process()
+        process = psutil.Process(pid)  # pid=None → current process (original behaviour)
         return {
             "cpu_percent": process.cpu_percent(interval=0.1),
             "memory_rss_mb": round(process.memory_info().rss / (1024 * 1024), 2),
             "gpu": "N/A -- not used/measured",
             "available": True,
+            "sampled_pid": process.pid,
         }
     except ImportError:
         return {"available": False, "gpu": "N/A", "note": "psutil not installed -- CPU/memory not sampled"}
+
 
 
 def _build_api_keys_for_levels() -> dict[str, str]:
@@ -167,7 +177,8 @@ def _one_request(client: httpx.Client, method: str, url: str, headers: dict, jso
 
 
 def run_level(
-    *, workload: str, concurrency: int, n_requests: int, base_url: str, api_key: str
+    *, workload: str, concurrency: int, n_requests: int, base_url: str, api_key: str,
+    server_pid: int | None = None,
 ) -> dict:
     headers = {"X-API-Key": api_key}
     if workload == "health":
@@ -175,7 +186,8 @@ def run_level(
     else:
         method, url, body = "POST", f"{base_url}/chat", {"query": CHAT_QUERY}
 
-    resource_before = _resource_sample()
+    resource_before = _resource_sample(pid=server_pid)
+
     results: list[dict] = []
     start = time.perf_counter()
     with httpx.Client() as client:
@@ -184,7 +196,7 @@ def run_level(
             for future in as_completed(futures):
                 results.append(future.result())
     wall_time = time.perf_counter() - start
-    resource_after = _resource_sample()
+    resource_after = _resource_sample(pid=server_pid)
 
     successes = [r for r in results if r["outcome"] == "success"]
     http_failures = [r for r in results if r["outcome"] == "http_failure"]
@@ -312,6 +324,7 @@ def main() -> None:
                     n_requests=REQUESTS_PER_LEVEL,
                     base_url=base_url,
                     api_key=api_key,
+                    server_pid=proc.pid,
                 )
                 healthy_after, _, _ = _probe(f"{base_url}/health")
                 result["health_after"] = healthy_after
@@ -426,10 +439,15 @@ def main() -> None:
             "request count, cost) -- not attempted here.",
             "GPU utilization is N/A -- not used by this application's CPU-only retrieval/reranking "
             "stack in this environment; not invented as a measured figure.",
-            "psutil-based CPU/RSS sampling measures THIS SCRIPT's own client process (psutil.Process() "
-            "with no PID defaults to the caller), NOT the spawned uvicorn server subprocess actually "
-            "bearing the load -- disclosed honestly as a measurement gap, not presented as server-side "
-            "resource usage. Not cloud instance utilization either way.",
+            "CPU/RSS sampling now measures the spawned uvicorn server subprocess "
+            "(psutil.Process(server_pid), where server_pid=proc.pid is the PID returned by "
+            "_start_uvicorn()) rather than this benchmark client process. "
+            "HISTORICAL NOTE (2026-09-21 original run): psutil.Process() with no PID defaulted to the "
+            "caller (this script), not the server subprocess -- disclosed as a measurement gap in "
+            "docs/MODULE10_RESULTS.md's Load/Concurrency section. "
+            "FIXED in this pass: _resource_sample(pid=server_pid) and run_level(server_pid=proc.pid). "
+            "See the 'sampled_pid' field in resource_before/resource_after for the actual PID measured. "
+            "GPU: N/A -- not used by this application's CPU-only retrieval/reranking stack.",
             "RPS/latency figures are this benchmark's own measured throughput under tested concurrency, "
             "not a claim about maximum production capacity or reliability.",
         ],
